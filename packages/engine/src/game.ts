@@ -3,8 +3,6 @@ import { applyMoveToPegs, legalPlays } from './moves';
 import { shuffle } from './rng';
 import { RANKS, type Action, type Card, type GameConfig, type GameState, type Play } from './types';
 
-const HAND_SIZES = [6, 5, 4, 3, 2];
-
 export function fullDeck(): Card[] {
   const deck: Card[] = [];
   for (let copy = 0; copy < 2; copy++) {
@@ -40,7 +38,8 @@ function startRound(state: GameState, layout: Layout): void {
   const n = state.config.players;
   state.round++;
   state.dealer = (state.dealer + 1) % n;
-  const size = HAND_SIZES[state.round % HAND_SIZES.length]!;
+  const sizes = layout.rules.handSizes;
+  const size = sizes[state.round % sizes.length]!;
   if (state.deck.length < n * size) {
     const [deck, rng] = shuffle([...state.deck, ...state.discard], state.rng);
     state.deck = deck;
@@ -50,7 +49,7 @@ function startRound(state: GameState, layout: Layout): void {
   for (let p = 0; p < n; p++) state.hands[p] = state.deck.splice(state.deck.length - size, size);
   state.current = (state.dealer + 1) % n;
   state.exchange = Array(n).fill(null);
-  state.phase = layout.teams ? 'exchange' : 'playing';
+  state.phase = layout.exchangeOn ? 'exchange' : 'playing';
 }
 
 /** Überspringt Spieler ohne Karten, wirft bei Zugunfähigkeit automatisch ab und teilt neu aus. */
@@ -77,11 +76,9 @@ function settle(state: GameState, layout: Layout): void {
 }
 
 function findWinners(state: GameState, layout: Layout, player: number): number[] | null {
-  const group = [player];
-  const partner = layout.partnerOf[player];
-  if (layout.teams && partner !== null && partner !== undefined) group.push(partner);
+  const group = layout.teamList[layout.teamOf[player]!]!;
   const done = group.every((p) => layout.colorsOf[p]!.every((c) => allInFinish(state, c)));
-  return done ? group : null;
+  return done ? group.slice() : null;
 }
 
 const canon = (v: unknown): string =>
@@ -119,7 +116,7 @@ export function applyAction(prev: GameState, action: Action): GameState {
         const h = state.hands[p]!;
         h.splice(h.indexOf(given[p]!), 1);
       }
-      for (let p = 0; p < n; p++) state.hands[layout.partnerOf[p]!]!.push(given[p]!);
+      for (let p = 0; p < n; p++) state.hands[layout.giveTo[p]!]!.push(given[p]!);
       state.exchange = Array(n).fill(null);
       state.phase = 'playing';
       settle(state, layout);

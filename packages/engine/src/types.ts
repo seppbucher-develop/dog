@@ -3,11 +3,49 @@ export type Card = Rank | 'JOKER';
 
 export const RANKS: Rank[] = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
 
+/** Regel-Einstellungen; alle Werte sind beim Spielstart fix. */
+export interface RuleSettings {
+  /** 7: dieselbe Kugel darf mehrfach in einer Aufteilung vorkommen (ändert die erreichbaren Stellungen praktisch nie). */
+  sevenRepeatPeg: boolean;
+  /** Bube (Teamspiel): auch mit Kugeln des Partners tauschen, nicht nur mit Gegnern. */
+  jackSwapPartner: boolean;
+  /**
+   * Bube (Teamspiel): auch zwei eigene Kugeln tauschen. Ändert das Brett meist nicht, verhindert aber den
+   * Abwurf der ganzen Hand, wenn sonst kein Zug möglich wäre.
+   */
+  jackSwapOwn: boolean;
+  /** Bube (Einzelspiel), wenn kein Gegner Karten hat: 'unplayable' = nicht spielbar, 'void' = wird ohne Wirkung abgelegt. */
+  jackStealNoCards: 'unplayable' | 'void';
+  /** 2 Spieler mit 4 Kugeln: Brett mit 2 (compact) oder 4 (full) Abschnitten. */
+  twoPlayerBoard: 'compact' | 'full';
+  /** 6 Spieler: 3 Teams zu 2 (Partner gegenüber) oder 2 Teams zu 3 (abwechselnd sitzend). */
+  sixPlayerTeams: 'threeOfTwo' | 'twoOfThree';
+  /** Kartentausch: 'auto' = nur im Teamspiel; 'on' = immer (Einzelspiel: an den nächsten Spieler); 'off' = nie. */
+  cardExchange: 'auto' | 'on' | 'off';
+  /** Darf man eigene Kugeln und Kugeln des Teams schlagen (heimschicken)? */
+  captureOwn: boolean;
+  /** Kartenanzahl pro Runde, wird zyklisch wiederholt. */
+  handSizes: number[];
+}
+
+export const DEFAULT_RULES: RuleSettings = {
+  sevenRepeatPeg: false,
+  jackSwapPartner: true,
+  jackSwapOwn: true,
+  jackStealNoCards: 'unplayable',
+  twoPlayerBoard: 'compact',
+  sixPlayerTeams: 'threeOfTwo',
+  cardExchange: 'auto',
+  captureOwn: true,
+  handSizes: [6, 5, 4, 3, 2],
+};
+
 export interface GameConfig {
-  /** 2..6 Spieler. 4 und 6 = Teamspiel (Partner gegenüber), sonst jeder für sich. */
+  /** 2..6 Spieler. 4 und 6 = Teamspiel, sonst jeder für sich. */
   players: number;
   /** Nur bei 2 Spielern: 8 Kugeln (eigene + gegenüberliegende Farbe) statt 4. */
   eightPegs?: boolean;
+  rules?: Partial<RuleSettings>;
 }
 
 export type Pos =

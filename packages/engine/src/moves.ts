@@ -78,12 +78,17 @@ export function tryMove(
   }
 
   const next = clonePegs(pegs);
+  const friendly = layout.friendlyColors[peg.color]!;
+  let illegal = false;
   const send = (f: number) => {
     const o = ringPegAt(next, f);
-    if (o && o.id !== pegId) o.pos = { t: 'home' };
+    if (!o || o.id === pegId) return;
+    if (!layout.rules.captureOwn && friendly.includes(o.color)) illegal = true;
+    o.pos = { t: 'home' };
   };
   if (capturePassed) crossed.forEach(send);
   else if (dest.t === 'ring') send(dest.f);
+  if (illegal) return null;
   next.find((p) => p.id === pegId)!.pos = dest;
   return next;
 }
@@ -94,6 +99,7 @@ export function tryStart(pegs: Peg[], layout: Layout, pegId: number): Peg[] | nu
   const f = startField(peg.color);
   const occ = ringPegAt(pegs, f);
   if (occ && occ.color === peg.color) return null;
+  if (occ && !layout.rules.captureOwn && layout.friendlyColors[peg.color]!.includes(occ.color)) return null;
   const next = clonePegs(pegs);
   if (occ) next.find((p) => p.id === occ.id)!.pos = { t: 'home' };
   next.find((p) => p.id === pegId)!.pos = { t: 'ring', f };
@@ -103,7 +109,7 @@ export function tryStart(pegs: Peg[], layout: Layout, pegId: number): Peg[] | nu
 export function trySwap(pegs: Peg[], a: number, b: number): Peg[] | null {
   const pa = pegs.find((p) => p.id === a);
   const pb = pegs.find((p) => p.id === b);
-  if (!pa || !pb || pa.id === pb.id || pa.color === pb.color) return null;
+  if (!pa || !pb || pa.id === pb.id) return null;
   if (pa.pos.t !== 'ring' || pb.pos.t !== 'ring') return null;
   if (isBlocker(pa) || isBlocker(pb)) return null;
   const next = clonePegs(pegs);
@@ -127,15 +133,20 @@ export function applyMoveToPegs(pegs: Peg[], layout: Layout, m: Move, isSeven: b
 }
 
 /**
- * Alle Aufteilungen der 7: jede Kugel höchstens einmal, die Reihenfolge zählt (wegen Schlagen).
- * Zugfolgen mit gleichem Endzustand werden nur einmal geliefert.
+ * Alle Aufteilungen der 7; die Reihenfolge zählt (wegen Schlagen). Ohne `sevenRepeatPeg` kommt jede Kugel
+ * höchstens einmal vor. Zugfolgen mit gleichem Endzustand werden nur einmal geliefert.
  */
 function sevenPlays(pegs: Peg[], layout: Layout, mine: number[]): Move[][] {
   const results: Move[][] = [];
   const leafSeen = new Set<string>();
+  const repeat = layout.rules.sevenRepeatPeg;
+  const visited = new Set<string>();
   const dfs = (cur: Peg[], remaining: number, seq: Move[], used: number[]) => {
+    const vk = `${remaining}|${repeat ? '' : used.join('.')}|${pegsKey(cur)}`;
+    if (visited.has(vk)) return;
+    visited.add(vk);
     for (const id of mine) {
-      if (used.includes(id)) continue;
+      if (!repeat && used.includes(id)) continue;
       for (let k = remaining; k >= 1; k--) {
         const np = tryMove(cur, layout, id, k, true);
         if (!np) continue;
@@ -194,6 +205,8 @@ function movesForRank(state: GameState, layout: Layout, player: number, rank: Ra
           for (const b of state.pegs) {
             if (b.id === a.id) continue;
             if (mine.includes(b) && b.id < a.id) continue; // Paar nur einmal
+            if (mine.includes(b) && !layout.rules.jackSwapOwn) continue;
+            if (!mine.includes(b) && !layout.rules.jackSwapPartner && layout.friendlyColors[a.color]!.includes(b.color)) continue;
             if (trySwap(state.pegs, a.id, b.id)) out.push([{ t: 'swap', a: a.id, b: b.id }]);
           }
         }
@@ -202,6 +215,7 @@ function movesForRank(state: GameState, layout: Layout, player: number, rank: Ra
           if (q === player) return;
           for (let idx = 0; idx < h.length; idx++) out.push([{ t: 'steal', from: q, idx }]);
         });
+        if (out.length === 0 && layout.rules.jackStealNoCards === 'void') out.push([]);
       }
       break;
     default:

@@ -15,7 +15,7 @@ describe('Setup', () => {
     expect(layoutFor({ players: 3 }).ringSize).toBe(48);
     expect(layoutFor({ players: 5 }).ringSize).toBe(80);
     expect(layoutFor({ players: 4 }).teams).toBe(true);
-    expect(layoutFor({ players: 6 }).partnerOf[1]).toBe(4);
+    expect(layoutFor({ players: 6 }).giveTo[1]).toBe(4);
     expect(layoutFor({ players: 2, eightPegs: true }).colorsOf).toEqual([[0, 2], [1, 3]]);
     expect(() => layoutFor({ players: 7 })).toThrow();
   });
