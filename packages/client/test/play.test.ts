@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { applyAction, createGame, layoutFor, legalPlays, type Play } from '@dog/engine';
 import { candidates, completed, emptySel, movablePegs, nextMoves, optionsForPeg, sevenRemaining } from '../src/play';
-import { makeGeo } from '../src/geometry';
+import { hasOriginalShape, makeGeo, type BoardStyle } from '../src/geometry';
 
 const plays: Play[] = [
   { card: '7', moves: [{ t: 'move', peg: 0, steps: 7 }] },
@@ -72,17 +72,70 @@ describe('Zugauswahl', () => {
 });
 
 describe('Brettgeometrie', () => {
-  it('Eigene Startfeld liegt unten in der Mitte; alle Felder liegen im Zeichenbereich', () => {
+  const styles: BoardStyle[] = ['circle', 'original'];
+
+  it('Felder liegen gleichmäßig auf dem Umriss, eigener Abschnitt unten, alles innerhalb der Zeichenfläche', () => {
+    for (const style of styles) {
+      for (const players of [2, 3, 4, 5, 6]) {
+        const layout = layoutFor({ players });
+        for (const seat of [0, players - 1]) {
+          const myColor = layout.colorsOf[seat]![0]!;
+          const geo = makeGeo(layout, myColor, style);
+          const R = layout.ringSize;
+          // gleichmäßiger Abstand (Sehnenlänge nahe Bogenlänge; in Kurven etwas kürzer)
+          for (let f = 0; f < R; f++) {
+            const a = geo.ring(f);
+            const b = geo.ring(f + 1);
+            const d = Math.hypot(a.x - b.x, a.y - b.y);
+            expect(d).toBeGreaterThan(geo.spacing * 0.8);
+            expect(d).toBeLessThan(geo.spacing * 1.01);
+          }
+          // Kreis: mein Startfeld unten in der Mitte; Originalform: die Mitte meines Abschnitts unten in der Mitte
+          const anchor = geo.style === 'circle' ? myColor * 16 : myColor * 16 + 8; // bei 2 und 5 Spielern fällt 'original' auf den Kreis zurück
+          expect(Math.abs(geo.ring(anchor).x)).toBeLessThan(geo.spacing * 0.6);
+          for (const c of layout.usedColors) if (c !== myColor) expect(geo.ring(anchor).y).toBeGreaterThanOrEqual(geo.ring(c * 16 + (geo.style === 'circle' ? 0 : 8)).y - 1e-6);
+          // alles innerhalb der viewBox
+          const [vx, vy, vw, vh] = geo.viewBox.split(' ').map(Number) as [number, number, number, number];
+          const inside = (p: { x: number; y: number }) => p.x >= vx && p.x <= vx + vw && p.y >= vy && p.y <= vy + vh;
+          for (let f = 0; f < R; f++) expect(inside(geo.ring(f))).toBe(true);
+          for (const c of layout.usedColors) {
+            for (let i = 0; i < 4; i++) expect(inside(geo.home(c, i))).toBe(true);
+            expect(inside(geo.fin(c, 3))).toBe(true);
+          }
+        }
+      }
+    }
+  });
+
+  it('Originalform nur bei 3, 4 und 6 Abschnitten; sonst Kreis', () => {
     for (const players of [2, 3, 4, 5, 6]) {
       const layout = layoutFor({ players });
-      const geo = makeGeo(layout, layout.colorsOf[0]![0]!);
-      const start = geo.ring(0);
-      expect(Math.abs(start.x)).toBeLessThan(1e-6);
-      expect(start.y).toBeGreaterThan(0);
-      for (let f = 0; f < layout.ringSize; f++) expect(Math.hypot(geo.ring(f).x, geo.ring(f).y)).toBeLessThan(330);
-      for (const c of layout.usedColors) {
-        for (let i = 0; i < 4; i++) expect(Math.hypot(geo.home(c, i).x, geo.home(c, i).y)).toBeLessThan(420);
-        expect(geo.fin(c, 3)).toBeDefined();
+      const expected = hasOriginalShape(layout.colors) ? 'original' : 'circle';
+      expect(makeGeo(layout, 0, 'original').style).toBe(expected);
+      expect(makeGeo(layout, 0, 'circle').style).toBe('circle');
+    }
+    expect(hasOriginalShape(layoutFor({ players: 2, eightPegs: true }).colors)).toBe(true); // 2 Spieler mit 8 Kugeln: 4er-Brett
+  });
+
+  it('Zielhäuser liegen innerhalb des Umrisses und die Nester außerhalb', () => {
+    const inside = (poly: { x: number; y: number }[], q: { x: number; y: number }) => {
+      let c = false;
+      for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+        const a = poly[i]!;
+        const b = poly[j]!;
+        if (a.y > q.y !== b.y > q.y && q.x < ((b.x - a.x) * (q.y - a.y)) / (b.y - a.y) + a.x) c = !c;
+      }
+      return c;
+    };
+    for (const style of styles) {
+      for (const players of [3, 4, 6]) {
+        const layout = layoutFor({ players });
+        const geo = makeGeo(layout, 0, style);
+        const poly = Array.from({ length: layout.ringSize }, (_, f) => geo.ring(f));
+        for (const c of layout.usedColors) {
+          for (let s = 0; s < 4; s++) expect(inside(poly, geo.fin(c, s))).toBe(true);
+          for (let i = 0; i < 4; i++) expect(inside(poly, geo.home(c, i))).toBe(false);
+        }
       }
     }
   });

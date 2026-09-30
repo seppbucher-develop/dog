@@ -3,7 +3,7 @@ import { applyMoveToPegs, layoutFor, type Card, type Move, type Play, type Pos }
 import type { GameView, LobbyView } from '@dog/protocol';
 import { Board, type BoardMarker } from './Board';
 import { NEUTRAL, colorHex, colorName } from './colors';
-import { makeGeo } from './geometry';
+import { hasOriginalShape, makeGeo, type BoardStyle } from './geometry';
 import { CARD_TEXT, LEVEL_LABEL, cardHint, moveText } from './labels';
 import { net } from './net';
 import { candidates, completed, emptySel, movablePegs, nextMoves, optionsForPeg, playableCards, sevenRemaining, type Selection } from './play';
@@ -30,7 +30,22 @@ function GameInner({ lobby, view }: { lobby: LobbyView; view: GameView }) {
   const segColors = Array.from({ length: layout.colors }, (_, c) => (seatOfColor[c] !== undefined ? colorHex(lobby.seats[seatOfColor[c]!]?.color ?? 0) : NEUTRAL));
   const segNames = Array.from({ length: layout.colors }, (_, c) => (seatOfColor[c] !== undefined ? boardLines[seatOfColor[c]!]! : []));
   const activeSegs = new Set<number>(view.phase === 'playing' ? (layout.colorsOf[view.current] ?? []) : []);
-  const geo = useMemo(() => makeGeo(layout, layout.colorsOf[view.seat]![0]!), [layout, view.seat]);
+  const [style, setStyleState] = useState<BoardStyle>(() => {
+    try {
+      return localStorage.getItem('dog.boardStyle') === 'circle' ? 'circle' : 'original';
+    } catch {
+      return 'original';
+    }
+  });
+  const setStyle = (v: BoardStyle) => {
+    setStyleState(v);
+    try {
+      localStorage.setItem('dog.boardStyle', v);
+    } catch {
+      /* ohne Speicher weiterarbeiten */
+    }
+  };
+  const geo = useMemo(() => makeGeo(layout, layout.colorsOf[view.seat]![0]!, style), [layout, view.seat, style]);
 
   const [sel, setSel] = useState<Selection>(emptySel);
   const [focus, setFocus] = useState<number | null>(null);
@@ -165,6 +180,13 @@ function GameInner({ lobby, view }: { lobby: LobbyView; view: GameView }) {
               {isHost ? 'Beenden' : 'Verlassen'}
             </button>
           </div>
+          {hasOriginalShape(layout.colors) && (
+            <div className="row style-switch" role="group" aria-label="Brettform">
+              <span className="muted">Brett:</span>
+              <button aria-pressed={geo.style === 'original'} className={geo.style === 'original' ? 'primary' : ''} onClick={() => setStyle('original')}>Original</button>
+              <button aria-pressed={geo.style === 'circle'} className={geo.style === 'circle' ? 'primary' : ''} onClick={() => setStyle('circle')}>Kreis</button>
+            </div>
+          )}
           <ol className="players">
             {lobby.seats.map((s, p) => {
               const team = layout.teamOf[p]!;

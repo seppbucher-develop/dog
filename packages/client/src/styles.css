@@ -89,7 +89,9 @@ input.code { text-transform: uppercase; letter-spacing: 0.2em; font-weight: 700;
 @media (max-width: 900px) { .game { grid-template-columns: 1fr; } }
 .board-wrap { position: sticky; top: 8px; }
 @media (max-width: 900px) { .board-wrap { position: static; } }
-.board { overflow: visible; width: 100%; height: auto; max-height: 92vh; aspect-ratio: 1; display: block; }
+.board { overflow: visible; width: 100%; height: auto; max-height: 92vh; display: block; }
+.style-switch { margin: 6px 0 2px; }
+.style-switch button { padding: 3px 10px; min-height: 30px; }
 .board-disc { fill: var(--board); stroke: var(--line); stroke-width: 3; }
 .center-text { fill: var(--muted); font-size: 22px; }
 .pname { fill: var(--ink); font-size: 19px; font-weight: 500; }

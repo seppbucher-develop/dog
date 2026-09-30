@@ -1,6 +1,6 @@
 import type { Layout, Peg } from '@dog/engine';
 import { NEUTRAL } from './colors';
-import { R0, VIEW, type Geo } from './geometry';
+import type { Geo } from './geometry';
 
 export interface BoardMarker {
   id: string;
@@ -33,8 +33,8 @@ export function Board({ layout, geo, pegs, segColors, segNames, activeSegs, sele
   const R = layout.ringSize;
   const fields = Array.from({ length: R }, (_, f) => f);
   return (
-    <svg className="board" viewBox={`${-VIEW} ${-VIEW} ${VIEW * 2} ${VIEW * 2}`} role="img" aria-label="Spielbrett">
-      <circle r={R0 + 34} className="board-disc" />
+    <svg className="board" viewBox={geo.viewBox} role="img" aria-label="Spielbrett">
+      <path d={geo.outline(34)} className="board-disc" />
 
       {/* Zielhäuser */}
       {layout.usedColors.map((c) => {
@@ -45,7 +45,7 @@ export function Board({ layout, geo, pegs, segColors, segNames, activeSegs, sele
           <g key={`fin${c}`}>
             <line x1={a.x} y1={a.y} x2={z.x} y2={z.y} stroke={col} strokeOpacity={0.45} strokeWidth={geo.fieldR * 1.4} strokeLinecap="round" />
             {[0, 1, 2, 3].map((s) => (
-              <circle key={s} cx={geo.fin(c, s).x} cy={geo.fin(c, s).y} r={geo.fieldR * 1.15} fill={col} fillOpacity={0.35} stroke={col} strokeWidth={2} />
+              <circle key={s} cx={geo.fin(c, s).x} cy={geo.fin(c, s).y} r={geo.slotR} fill={col} fillOpacity={0.35} stroke={col} strokeWidth={2} />
             ))}
           </g>
         );
@@ -90,7 +90,7 @@ export function Board({ layout, geo, pegs, segColors, segNames, activeSegs, sele
       })}
 
       <text textAnchor="middle" className="center-text">
-        {centerLines.map((t, i) => <tspan key={i} x={0} y={-10 + i * 30}>{t}</tspan>)}
+        {centerLines.map((t, i) => <tspan key={i} x={geo.centre.x} y={geo.centre.y - 10 + i * 30}>{t}</tspan>)}
       </text>
 
       {/* Kugeln */}
