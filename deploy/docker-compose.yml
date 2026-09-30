@@ -1,0 +1,15 @@
+# Dog auf dem Synology NAS (Container Manager) – nur das Spiel, Zugriff im Heimnetz über http://NAS-IP:3000
+# Für Zugriff aus dem Internet: stattdessen docker-compose.cloudflare.yml verwenden (siehe docs/NAS-Anleitung.md).
+services:
+  dog:
+    image: ghcr.io/seppbucher-develop/dog:latest
+    container_name: dog
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      BOT_DELAY_MS: "900" # Wartezeit vor Computerzügen in Millisekunden
+    volumes:
+      - /volume1/docker/dog/data:/data # gespeicherte Spiele (überstehen Neustarts)
+    # Falls der Datenordner nicht beschreibbar ist: Benutzer/Gruppe des NAS-Kontos eintragen (per SSH: id)
+    # user: "1026:100"

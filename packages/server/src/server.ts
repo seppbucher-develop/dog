@@ -89,10 +89,19 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
   const dataFile = opts.dataDir ? join(resolve(opts.dataDir), 'rooms.json') : null;
 
   let saveTimer: NodeJS.Timeout | null = null;
+  let saveFailed = false;
   const saveNow = () => {
     if (saveTimer) clearTimeout(saveTimer);
     saveTimer = null;
-    if (dataFile) saveRooms(dataFile, hub.snapshot());
+    if (!dataFile) return;
+    try {
+      saveRooms(dataFile, hub.snapshot());
+      saveFailed = false;
+    } catch (e) {
+      // Datenordner nicht beschreibbar (z. B. falsche Rechte auf dem NAS): weiterspielen, nur nicht speichern
+      if (!saveFailed) console.error(`WARNUNG: Spiele können nicht gespeichert werden (${dataFile}): ${e instanceof Error ? e.message : e}`);
+      saveFailed = true;
+    }
   };
   const scheduleSave = () => {
     if (!dataFile || saveTimer) return;
@@ -101,7 +110,10 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
   };
 
   const hub = new Hub({ botDelayMs: opts.botDelayMs ?? 900, changed: scheduleSave });
-  if (dataFile) hub.restore(loadRooms(dataFile));
+  if (dataFile) {
+    hub.restore(loadRooms(dataFile));
+    saveNow(); // früh prüfen, ob der Ordner beschreibbar ist, und die Warnung sofort zeigen
+  }
 
   const http = createServer((req, res) => {
     if (req.url === '/healthz') {

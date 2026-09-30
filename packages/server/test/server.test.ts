@@ -161,3 +161,17 @@ describe('WebSocket', () => {
     again.ws.close();
   });
 });
+
+describe('Robustheit', () => {
+  it('Nicht beschreibbarer Datenordner bringt den Server nicht zum Absturz', async () => {
+    const blocker = join(dir, 'kein-ordner');
+    writeFileSync(blocker, 'x'); // Datei statt Ordner: Anlegen von rooms.json schlägt fehl
+    const s = await startServer({ port: 0, host: '127.0.0.1', dataDir: blocker, botDelayMs: 0 });
+    const c = client({}, s.port);
+    await c.open;
+    c.send({ t: 'create', name: 'Test' });
+    await c.until(() => !!c.lobby());
+    await s.close(); // speichert erneut, darf nicht werfen
+    expect(c.lobby()!.you.status).toBe('host');
+  });
+});

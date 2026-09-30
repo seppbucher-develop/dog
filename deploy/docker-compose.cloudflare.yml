@@ -1,0 +1,25 @@
+# Dog auf dem Synology NAS mit Cloudflare Tunnel: erreichbar aus dem Internet, ohne Portfreigabe im Router.
+# Vorher in Cloudflare (Zero Trust > Networks > Tunnels) einen Tunnel anlegen und den Token als
+# Umgebungsvariable TUNNEL_TOKEN setzen. Öffentlicher Hostname im Tunnel: Dienst  http://dog:3000
+services:
+  dog:
+    image: ghcr.io/seppbucher-develop/dog:latest
+    container_name: dog
+    restart: unless-stopped
+    ports:
+      - "3000:3000" # nur für den Zugriff im Heimnetz; zum Sperren die beiden Zeilen entfernen
+    environment:
+      BOT_DELAY_MS: "900"
+    volumes:
+      - /volume1/docker/dog/data:/data
+    # user: "1026:100"
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: dog-tunnel
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${TUNNEL_TOKEN}
+    depends_on:
+      - dog

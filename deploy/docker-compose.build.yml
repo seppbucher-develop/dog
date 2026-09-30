@@ -1,0 +1,16 @@
+# Alternative ohne GitHub-Image: Container Manager baut das Image direkt auf dem NAS.
+# Dafür den ganzen Projektordner (Repo als ZIP von GitHub) auf das NAS kopieren und dieses Projekt im Ordner deploy/ anlegen.
+services:
+  dog:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    container_name: dog
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      BOT_DELAY_MS: "900"
+    volumes:
+      - /volume1/docker/dog/data:/data
+    # user: "1026:100"
