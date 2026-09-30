@@ -1,0 +1,25 @@
+# Secrets / lokale Konfiguration
+.env
+.env.*
+*.pem
+*.key
+
+# Abhängigkeiten und Build-Ausgaben
+node_modules/
+__pycache__/
+*.pyc
+venv/
+.venv/
+dist/
+build/
+
+# Logs und temporäre Dateien
+*.log
+*.tmp
+*.swp
+
+# Editor / Betriebssystem
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
