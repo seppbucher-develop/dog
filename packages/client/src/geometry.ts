@@ -15,16 +15,18 @@ export interface Geo {
   /** Position einer Kugel */
   peg(p: Peg): Pt;
   /** Textposition des Spielernamens am Nest einer Farbe */
-  label(color: number): Pt & { anchor: 'start' | 'middle' | 'end' };
+  label(color: number): Pt & { anchor: 'start' | 'middle' | 'end'; above: boolean };
   fieldR: number;
   pegR: number;
   /** Abstand benachbarter Ringfelder */
   spacing: number;
   /** SVG-viewBox, die das ganze Brett samt Nestern und Namen umfasst */
   viewBox: string;
-  /** Umriss der Brettscheibe, `margin` Pixel außerhalb des Rings (SVG-Pfad) */
-  outline(margin: number): string;
-  /** Mitte für den Text (bei schmalen Formen nach oben verschoben, damit keine Zielhäuser darüber liegen) */
+  /** Umriss des Bretts (SVG-Pfad, geschlossen); wird mit dicker Kontur nach außen verbreitert gezeichnet */
+  edgePath: string;
+  /** Nest einer Farbe: Kapsel/Kreis zwischen zwei Punkten mit Breite w */
+  nest(color: number): { x1: number; y1: number; x2: number; y2: number; w: number; cx: number; cy: number };
+  /** Mitte für den Text */
   centre: Pt;
   /** Radius der Zielfelder */
   slotR: number;
@@ -54,66 +56,54 @@ function toCurve(points: Pt[]): Curve {
   return { points, cum, length: cum[points.length]! };
 }
 
-/** Abgerundetes konvexes Polygon: `inner` = Eckpunkte des geschrumpften Polygons (im Uhrzeigersinn), `rc` = Radius. */
-function roundedPolygon(inner: Pt[], rc: number): Pt[] {
-  const n = inner.length;
-  const dirs = inner.map((w, i) => {
-    const nx = inner[(i + 1) % n]!;
-    const l = Math.hypot(nx.x - w.x, nx.y - w.y);
-    return { x: (nx.x - w.x) / l, y: (nx.y - w.y) / l };
-  });
-  const outN = dirs.map((d) => ({ x: d.y, y: -d.x })); // nach außen
-  const at = (w: Pt, o: Pt): Pt => ({ x: w.x + o.x * rc, y: w.y + o.y * rc });
-  const a0 = at(inner[0]!, outN[0]!);
-  const b0 = at(inner[1]!, outN[0]!);
-  const pts: Pt[] = [{ x: (a0.x + b0.x) / 2, y: (a0.y + b0.y) / 2 }];
-  for (let k = 1; k <= n; k++) {
-    const i = k % n;
-    const w = inner[i]!;
-    const a1 = Math.atan2(outN[k - 1]!.y, outN[k - 1]!.x);
-    let a2 = Math.atan2(outN[i]!.y, outN[i]!.x);
-    while (a2 < a1) a2 += 2 * Math.PI; // Uhrzeigersinn = wachsender Winkel (y nach unten)
-    const steps = Math.max(4, Math.ceil((a2 - a1) / 0.04));
-    for (let s = 0; s <= steps; s++) {
-      const a = a1 + ((a2 - a1) * s) / steps;
-      pts.push({ x: w.x + Math.cos(a) * rc, y: w.y + Math.sin(a) * rc });
-    }
-  }
-  return pts;
+// Kreuzförmige Originalbretter. Einheit = Lochabstand. Jeder Spieler hat einen Arm (Breite 4): Die Löcher laufen
+// an einer Seite hinaus, über das Armende und an der anderen Seite zurück (16 Löcher pro Arm). Das Zielhaus liegt
+// in der Mitte des Arms, die Nestlöcher in einer Reihe am Armende. Start des Umrisses = Mitte des Armendes unten;
+// von dort im Uhrzeigersinn folgen die Arme der übrigen Spieler.
+
+/** Sternumriss mit n gleichen Armen (n = 3, 4): Armachse Λ = c + 6, wobei c der Abstand der Einbuchtung ist. */
+function starOutline(n: number): Pt[] {
+  const c = 2 / Math.tan(Math.PI / n);
+  const L = c + 6;
+  const rot = (p: Pt, k: number): Pt => {
+    const a = (2 * Math.PI * k) / n; // wachsender Winkel = Uhrzeigersinn (y nach unten)
+    return { x: p.x * Math.cos(a) - p.y * Math.sin(a), y: p.x * Math.sin(a) + p.y * Math.cos(a) };
+  };
+  const pts: Pt[] = [{ x: 0, y: L }, { x: -2, y: L }, { x: -2, y: c }];
+  for (let k = 1; k < n; k++) for (const q of [{ x: 2, y: c }, { x: 2, y: L }, { x: -2, y: L }, { x: -2, y: c }]) pts.push(rot(q, k));
+  pts.push({ x: 2, y: L });
+  // doppelte Punkte (Einbuchtungen, die zwei Arme teilen) entfernen
+  return pts.filter((p, i) => i === 0 || Math.hypot(p.x - pts[i - 1]!.x, p.y - pts[i - 1]!.y) > 1e-6);
 }
 
-const SQ = 1;
-const TRI = { x: 0.866, y: 0.5 };
+/** Umriss für 6 Spieler: Arm unten und oben, je zwei Arme links und rechts; 96 Schritte, Armabstand je 16. */
+function sixOutline(): Pt[] {
+  const right: [number, number][] = [
+    [0, 11], [-2, 11], [-2, 7], [-3, 7], [-3, 5], [-8, 5], [-8, 1], [-3, 1], [-3, -1], [-8, -1], [-8, -5], [-3, -5], [-3, -7],
+    [-2, -7], [-2, -11], [2, -11], [2, -7], [3, -7], [3, -5], [8, -5], [8, -1], [3, -1], [3, 1], [8, 1], [8, 5], [3, 5], [3, 7], [2, 7], [2, 11],
+  ];
+  return right.map(([x, y]) => ({ x, y }));
+}
 
-/** Form, Zielumfang: Kreis, abgerundetes Quadrat (4), Dreieck (3), hochkant liegendes Oval (6). */
 function curveFor(style: BoardStyle, colors: number): Curve {
   let raw: Pt[];
-  let perimeter: number;
-  if (style === 'original' && colors === 4) {
-    raw = roundedPolygon([{ x: SQ, y: SQ }, { x: -SQ, y: SQ }, { x: -SQ, y: -SQ }, { x: SQ, y: -SQ }], 0.42);
-    perimeter = 2350;
-  } else if (style === 'original' && colors === 3) {
-    raw = roundedPolygon([{ x: TRI.x, y: TRI.y }, { x: -TRI.x, y: TRI.y }, { x: 0, y: -1 }], 0.34);
-    perimeter = 2150;
-  } else if (style === 'original' && colors === 6) {
-    raw = roundedPolygon([{ x: 0.3, y: 0.95 }, { x: -0.3, y: 0.95 }, { x: -0.3, y: -0.95 }, { x: 0.3, y: -0.95 }], 0.62);
-    perimeter = 2250;
-  } else {
-    const pts: Pt[] = [];
-    for (let i = 0; i < 720; i++) {
+  let target: number; // größte Ausdehnung in Pixeln
+  if (style === 'original' && colors === 4) [raw, target] = [starOutline(4), 660];
+  else if (style === 'original' && colors === 3) [raw, target] = [starOutline(3), 660];
+  else if (style === 'original' && colors === 6) [raw, target] = [sixOutline(), 720];
+  else {
+    raw = Array.from({ length: 720 }, (_, i) => {
       const a = Math.PI / 2 + (i / 720) * 2 * Math.PI;
-      pts.push({ x: Math.cos(a), y: Math.sin(a) });
-    }
-    raw = pts;
-    perimeter = 2 * Math.PI * R0;
+      return { x: Math.cos(a) * R0, y: Math.sin(a) * R0 };
+    });
+    target = 0;
   }
-  const len = toCurve(raw).length;
-  const k = perimeter / len;
-  const xs = raw.map((p) => p.x * k);
-  const ys = raw.map((p) => p.y * k);
+  const xs = raw.map((p) => p.x);
+  const ys = raw.map((p) => p.y);
+  const k = target === 0 ? 1 : target / Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys));
   const cx = (Math.min(...xs) + Math.max(...xs)) / 2;
   const cy = (Math.min(...ys) + Math.max(...ys)) / 2;
-  return toCurve(raw.map((p) => ({ x: p.x * k - cx, y: p.y * k - cy })));
+  return toCurve(raw.map((p) => ({ x: (p.x - cx) * k, y: (p.y - cy) * k })));
 }
 
 /** Punkt und Außennormale bei Bogenlängenanteil t (0..1, Start = Mitte der unteren Kante). */
@@ -143,41 +133,72 @@ export function makeGeo(layout: Layout, myColor: number, wanted: BoardStyle = 'c
   const R = layout.ringSize;
   const style: BoardStyle = wanted === 'original' && hasOriginalShape(layout.colors) ? 'original' : 'circle';
   const curve = curveFor(style, layout.colors);
-  // Kreis: mein Startfeld unten in der Mitte. Eckige Formen: mein Abschnitt liegt mittig unten.
-  const shift = style === 'circle' ? 0 : -0.5 / layout.colors;
-  const at = (f: number) => sample(curve, (f - startField(myColor)) / R + shift);
+  const orig = style === 'original';
+  // Kreis: mein Startfeld unten in der Mitte. Kreuz: die Mitte meines Armendes (= Feld vor meinem Start, dort
+  // zweigt das Zielhaus ab) liegt unten in der Mitte, mein Start direkt daneben.
+  const at = (f: number) => sample(curve, (f - startField(myColor) + (orig ? 1 : 0)) / R);
   const ring = (f: number): Pt => at(f).p;
 
   const spacing = curve.length / R;
   const fieldR = Math.min(14, spacing * 0.42);
   const pegR = Math.max(8, Math.min(13, fieldR * 1.1));
   const radii = Array.from({ length: 64 }, (_, i) => Math.hypot(sample(curve, i / 64).p.x, sample(curve, i / 64).p.y));
-  const laneStep = Math.max(26, Math.min(44, Math.min(...radii) * 0.15));
+  const laneStep = orig ? spacing : Math.max(26, Math.min(44, Math.min(...radii) * 0.15));
   const slotR = Math.min(fieldR * 1.15, laneStep * 0.46);
 
   const nestCentre = (c: number): Pt => {
+    if (orig) {
+      const { p, n } = at(startField(c) - 1 + R);
+      return { x: p.x + n.x * spacing * 2, y: p.y + n.y * spacing * 2 };
+    }
     const { p, n } = at(startField(c));
     return { x: p.x + n.x * 62, y: p.y + n.y * 62 };
   };
   const home = (c: number, i: number): Pt => {
-    const { n } = at(startField(c));
     const centre = nestCentre(c);
+    if (orig) {
+      // vier Löcher in einer Reihe quer zum Arm
+      const { n } = at(startField(c) - 1 + R);
+      const tang = { x: -n.y, y: n.x };
+      const o = (i - 1.5) * spacing * 0.95;
+      return { x: centre.x + tang.x * o, y: centre.y + tang.y * o };
+    }
+    const { n } = at(startField(c));
     const tang = { x: -n.y, y: n.x };
     const ox = (i % 2 === 0 ? -1 : 1) * 15;
     const oy = (i < 2 ? -1 : 1) * 15;
     return { x: centre.x + tang.x * ox + n.x * oy, y: centre.y + tang.y * ox + n.y * oy };
   };
+  const nest = (c: number) => {
+    const cc = nestCentre(c);
+    if (orig) {
+      const a = home(c, 0);
+      const b = home(c, 3);
+      return { x1: a.x, y1: a.y, x2: b.x, y2: b.y, w: pegR * 2 + 14, cx: cc.x, cy: cc.y };
+    }
+    return { x1: cc.x, y1: cc.y, x2: cc.x + 0.01, y2: cc.y, w: 68, cx: cc.x, cy: cc.y };
+  };
   const fin = (c: number, s: number): Pt => {
     const { p, n } = at(startField(c) - 1 + R);
     return { x: p.x - n.x * laneStep * (s + 1), y: p.y - n.y * laneStep * (s + 1) };
   };
-  const label = (c: number): Pt & { anchor: 'start' | 'middle' | 'end' } => {
+  /** Beschriftung: `y` ist die Grundlinie der letzten Zeile (above) bzw. der ersten Zeile (sonst). */
+  const label = (c: number): Pt & { anchor: 'start' | 'middle' | 'end'; above: boolean } => {
     const n = nestCentre(c);
+    if (orig) {
+      const { n: axis } = at(startField(c) - 1 + R);
+      const hs = [0, 1, 2, 3].map((i) => home(c, i));
+      const top = Math.min(...hs.map((h) => h.y));
+      const bottom = Math.max(...hs.map((h) => h.y));
+      // Unten am Brett unter das Nest, sonst über das Nest
+      if (axis.y > 0.5) return { x: n.x, y: bottom + pegR + 28, anchor: 'middle', above: false };
+      return { x: n.x, y: top - pegR - 14, anchor: 'middle', above: true };
+    }
     if (Math.abs(n.x) > 40) {
       const sign = n.x > 0 ? 1 : -1;
-      return { x: n.x + sign * 46, y: n.y + 2, anchor: sign > 0 ? 'start' : 'end' };
+      return { x: n.x + sign * 46, y: n.y + 2, anchor: sign > 0 ? 'start' : 'end', above: false };
     }
-    return { x: n.x, y: n.y + (n.y < 0 ? -68 : 62), anchor: 'middle' };
+    return { x: n.x, y: n.y + (n.y < 0 ? -68 : 62), anchor: 'middle', above: false };
   };
 
   // Zeichenfläche: alles, was gezeichnet wird, plus Rand für Namen
@@ -190,21 +211,15 @@ export function makeGeo(layout: Layout, myColor: number, wanted: BoardStyle = 'c
   for (const c of layout.usedColors) {
     const n = nestCentre(c);
     grow(n.x, n.y, 40, 40);
+    for (let i = 0; i < 4; i++) grow(home(c, i).x, home(c, i).y, 30, 30);
     const l = label(c);
-    if (l.anchor === 'middle') grow(l.x, l.y, 60, 30);
+    if (l.anchor === 'middle') grow(l.x, l.y - (l.above ? 26 : 0), 60, 30);
     else grow(l.x + (l.anchor === 'start' ? 120 : -120), l.y, 10, 20);
   }
   const pad = 10;
   const viewBox = `${minX - pad} ${minY - pad} ${maxX - minX + 2 * pad} ${maxY - minY + 2 * pad}`;
 
-  const outline = (margin: number): string => {
-    const n = 360;
-    const pts = Array.from({ length: n }, (_, i) => {
-      const { p, n: nr } = sample(curve, i / n);
-      return `${(p.x + nr.x * margin).toFixed(1)} ${(p.y + nr.y * margin).toFixed(1)}`;
-    });
-    return `M${pts.join('L')}Z`;
-  };
+  const edgePath = `M${curve.points.map((p) => `${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join('L')}Z`;
 
   return {
     ring,
@@ -216,8 +231,9 @@ export function makeGeo(layout: Layout, myColor: number, wanted: BoardStyle = 'c
     pegR,
     spacing,
     viewBox,
-    outline,
-    centre: style === 'original' && layout.colors === 6 ? { x: 0, y: -85 } : { x: 0, y: 0 },
+    edgePath,
+    nest,
+    centre: { x: 0, y: 0 },
     slotR,
     style,
   };

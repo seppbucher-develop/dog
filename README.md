@@ -6,7 +6,7 @@ Computerspielern in vier Stärken.
 - **Online spielen:** Ein Spielinitiator erstellt ein Spiel, Mitspieler treten per Code oder Link bei und werden vom
   Initiator **bewilligt**. Bis zu 5 der Plätze können Computerspieler sein.
 - **Plätze und Farben:** Der Initiator legt fest, wer wo sitzt und mit welcher Kugelfarbe spielt.
-- **Original-Brettformen** bei 3, 4 und 6 Spielern (Dreieck, Quadrat, Oval) oder Kreis; wechselbar im Spiel.
+- **Original-Bretter** bei 3, 4 und 6 Spielern in Kreuzform (jeder Spieler hat einen Arm: Löcher hinaus, über das Ende und zurück, Zielhaus in der Armmitte) oder als Kreis; wechselbar im Spiel.
 - **Regeln einstellbar** (siehe unten), damit jede Runde nach ihren Hausregeln spielen kann.
 - Läuft auf dem eigenen NAS: [Anleitung für Synology](docs/NAS-Anleitung.md).
 

@@ -92,11 +92,12 @@ input.code { text-transform: uppercase; letter-spacing: 0.2em; font-weight: 700;
 .board { overflow: visible; width: 100%; height: auto; max-height: 92vh; display: block; }
 .style-switch { margin: 6px 0 2px; }
 .style-switch button { padding: 3px 10px; min-height: 30px; }
-.board-disc { fill: var(--board); stroke: var(--line); stroke-width: 3; }
+.board-edge { fill: var(--line); stroke: var(--line); stroke-width: 76; stroke-linejoin: round; }
+.board-disc { fill: var(--board); stroke: var(--board); stroke-width: 70; stroke-linejoin: round; }
 .center-text { fill: var(--muted); font-size: 22px; }
 .pname { fill: var(--ink); font-size: 19px; font-weight: 500; }
 .pname.active { font-weight: 800; fill: var(--accent); }
-.nest.active { stroke-width: 5; animation: pulse 1.4s infinite; }
+.nest.active { animation: pulse 1.4s infinite; }
 .peg-move { transition: transform 0.45s ease; }
 .ring-can { stroke: var(--focus); stroke-width: 3; stroke-dasharray: 5 4; cursor: pointer; animation: pulse 1.2s infinite; }
 .ring-focus { stroke: #e5342a; stroke-width: 4; cursor: pointer; }

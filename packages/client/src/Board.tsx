@@ -34,7 +34,8 @@ export function Board({ layout, geo, pegs, segColors, segNames, activeSegs, sele
   const fields = Array.from({ length: R }, (_, f) => f);
   return (
     <svg className="board" viewBox={geo.viewBox} role="img" aria-label="Spielbrett">
-      <path d={geo.outline(34)} className="board-disc" />
+      <path d={geo.edgePath} className="board-edge" />
+      <path d={geo.edgePath} className="board-disc" />
 
       {/* Zielhäuser */}
       {layout.usedColors.map((c) => {
@@ -74,15 +75,22 @@ export function Board({ layout, geo, pegs, segColors, segNames, activeSegs, sele
       {/* Nester und Namen */}
       {layout.usedColors.map((c) => {
         const col = segColors[c] ?? NEUTRAL;
-        const hs = [0, 1, 2, 3].map((i) => geo.home(c, i));
-        const cx = hs.reduce((n, p) => n + p.x, 0) / 4;
-        const cy = hs.reduce((n, p) => n + p.y, 0) / 4;
+        const nst = geo.nest(c);
         const l = geo.label(c);
         return (
           <g key={`nest${c}`}>
-            <circle cx={cx} cy={cy} r={34} fill={col} fillOpacity={0.2} stroke={col} strokeWidth={2} className={activeSegs.has(c) ? 'nest active' : 'nest'} />
-            {hs.map((h, i) => <circle key={i} cx={h.x} cy={h.y} r={geo.pegR + 1} fill="none" stroke={col} strokeOpacity={0.5} strokeDasharray="3 3" />)}
-            <text x={l.x} y={l.y} textAnchor={l.anchor} className={`pname${activeSegs.has(c) ? ' active' : ''}`}>
+            <line
+              x1={nst.x1} y1={nst.y1} x2={nst.x2} y2={nst.y2}
+              stroke={col} strokeOpacity={0.22} strokeWidth={nst.w} strokeLinecap="round"
+              className={activeSegs.has(c) ? 'nest active' : 'nest'}
+            />
+            {[0, 1, 2, 3].map((i) => <circle key={i} cx={geo.home(c, i).x} cy={geo.home(c, i).y} r={geo.pegR + 1} fill="none" stroke={col} strokeOpacity={0.6} strokeDasharray="3 3" />)}
+            <text
+              x={l.x}
+              y={l.above ? l.y - ((segNames[c] ?? []).length - 1) * 21 : l.y}
+              textAnchor={l.anchor}
+              className={`pname${activeSegs.has(c) ? ' active' : ''}`}
+            >
               {(segNames[c] ?? []).map((line, i) => <tspan key={i} x={l.x} dy={i === 0 ? 0 : 21}>{line}</tspan>)}
             </text>
           </g>

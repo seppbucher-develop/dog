@@ -73,8 +73,17 @@ describe('Zugauswahl', () => {
 
 describe('Brettgeometrie', () => {
   const styles: BoardStyle[] = ['circle', 'original'];
+  const inside = (poly: { x: number; y: number }[], q: { x: number; y: number }) => {
+    let c = false;
+    for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+      const a = poly[i]!;
+      const b = poly[j]!;
+      if (a.y > q.y !== b.y > q.y && q.x < ((b.x - a.x) * (q.y - a.y)) / (b.y - a.y) + a.x) c = !c;
+    }
+    return c;
+  };
 
-  it('Felder liegen gleichmäßig auf dem Umriss, eigener Abschnitt unten, alles innerhalb der Zeichenfläche', () => {
+  it('Löcher gleichmäßig verteilt, eigener Abschnitt unten, alles innerhalb der Zeichenfläche', () => {
     for (const style of styles) {
       for (const players of [2, 3, 4, 5, 6]) {
         const layout = layoutFor({ players });
@@ -82,29 +91,87 @@ describe('Brettgeometrie', () => {
           const myColor = layout.colorsOf[seat]![0]!;
           const geo = makeGeo(layout, myColor, style);
           const R = layout.ringSize;
-          // gleichmäßiger Abstand (Sehnenlänge nahe Bogenlänge; in Kurven etwas kürzer)
+          const pts = Array.from({ length: R }, (_, f) => geo.ring(f));
+          // kein Loch zu nah am nächsten; aufeinanderfolgende Löcher etwa im Abstand spacing
           for (let f = 0; f < R; f++) {
-            const a = geo.ring(f);
-            const b = geo.ring(f + 1);
-            const d = Math.hypot(a.x - b.x, a.y - b.y);
-            expect(d).toBeGreaterThan(geo.spacing * 0.8);
+            const d = Math.hypot(pts[f]!.x - pts[(f + 1) % R]!.x, pts[f]!.y - pts[(f + 1) % R]!.y);
+            expect(d).toBeGreaterThan(geo.spacing * 0.5);
             expect(d).toBeLessThan(geo.spacing * 1.01);
           }
-          // Kreis: mein Startfeld unten in der Mitte; Originalform: die Mitte meines Abschnitts unten in der Mitte
-          const anchor = geo.style === 'circle' ? myColor * 16 : myColor * 16 + 8; // bei 2 und 5 Spielern fällt 'original' auf den Kreis zurück
-          expect(Math.abs(geo.ring(anchor).x)).toBeLessThan(geo.spacing * 0.6);
-          for (const c of layout.usedColors) if (c !== myColor) expect(geo.ring(anchor).y).toBeGreaterThanOrEqual(geo.ring(c * 16 + (geo.style === 'circle' ? 0 : 8)).y - 1e-6);
-          // alles innerhalb der viewBox
+          // Anker unten in der Mitte: Kreis = mein Startfeld, Kreuz = Mitte meines Armendes (Feld vor dem Start)
+          const anchor = geo.style === 'circle' ? geo.ring(myColor * 16) : geo.ring(myColor * 16 - 1 + R);
+          expect(Math.abs(anchor.x)).toBeLessThan(geo.spacing * 0.6);
+          expect(anchor.y).toBeGreaterThanOrEqual(Math.max(...pts.map((p) => p.y)) - 1e-6);
           const [vx, vy, vw, vh] = geo.viewBox.split(' ').map(Number) as [number, number, number, number];
-          const inside = (p: { x: number; y: number }) => p.x >= vx && p.x <= vx + vw && p.y >= vy && p.y <= vy + vh;
-          for (let f = 0; f < R; f++) expect(inside(geo.ring(f))).toBe(true);
+          const inView = (p: { x: number; y: number }) => p.x >= vx && p.x <= vx + vw && p.y >= vy && p.y <= vy + vh;
+          expect(pts.every(inView)).toBe(true);
           for (const c of layout.usedColors) {
-            for (let i = 0; i < 4; i++) expect(inside(geo.home(c, i))).toBe(true);
-            expect(inside(geo.fin(c, 3))).toBe(true);
+            for (let i = 0; i < 4; i++) expect(inView(geo.home(c, i))).toBe(true);
+            expect(inView(geo.fin(c, 3))).toBe(true);
           }
         }
       }
     }
+  });
+
+  it('Kreuz mit 4 Spielern: Raster, Arme 16 Löcher, Armenden im Abstand 8 vom Zentrum', () => {
+    const layout = layoutFor({ players: 4 });
+    const geo = makeGeo(layout, 0, 'original');
+    const u = geo.spacing;
+    for (let f = 0; f < 64; f++) {
+      const p = geo.ring(f);
+      const q = geo.ring(f + 1);
+      expect(Math.hypot(p.x - q.x, p.y - q.y)).toBeCloseTo(u, 3); // im Raster: immer genau ein Schritt
+      expect(Math.abs(Math.abs(p.x / u) * 2 - Math.round(Math.abs(p.x / u) * 2))).toBeLessThan(1e-6); // ganzzahlig (Mitte der Ränder eingeschlossen)
+    }
+    for (const c of [0, 1, 2, 3]) {
+      const tip = geo.ring(c * 16 - 1 + 64);
+      expect(Math.hypot(tip.x, tip.y) / u).toBeCloseTo(8, 3);
+    }
+    // Seitenlinien des Arms: 6 Löcher hinaus (x = +2), 5 Löcher über das Ende, 6 zurück; Start = ein Loch links der Armmitte
+    const start = geo.ring(0);
+    expect(start.x / u).toBeCloseTo(-1, 3);
+    expect(start.y / u).toBeCloseTo(8, 3);
+    // Zielhaus in der Armmitte, vier Löcher nach innen
+    for (let s = 0; s < 4; s++) {
+      expect(geo.fin(0, s).x / u).toBeCloseTo(0, 3);
+      expect(geo.fin(0, s).y / u).toBeCloseTo(7 - s, 3);
+    }
+    // Nest: vier Löcher in einer Reihe außerhalb des Armendes
+    const homes = [0, 1, 2, 3].map((i) => geo.home(0, i));
+    expect(new Set(homes.map((h) => h.y.toFixed(3))).size).toBe(1);
+    expect(homes[0]!.y / u).toBeGreaterThan(8);
+  });
+
+  it('Kreuz mit 6 Spielern: 96 Schritte, Arme unten/oben und je zwei links/rechts', () => {
+    const layout = layoutFor({ players: 6 });
+    const geo = makeGeo(layout, 0, 'original');
+    const u = geo.spacing;
+    for (let f = 0; f < 96; f++) {
+      const p = geo.ring(f);
+      const q = geo.ring(f + 1);
+      expect(Math.hypot(p.x - q.x, p.y - q.y)).toBeCloseTo(u, 3);
+    }
+    const tips = [0, 1, 2, 3, 4, 5].map((c) => geo.ring(c * 16 - 1 + 96));
+    const expected: [number, number][] = [[0, 11], [-8, 3], [-8, -3], [0, -11], [8, -3], [8, 3]];
+    tips.forEach((t, i) => {
+      expect(t.x / u).toBeCloseTo(expected[i]![0], 3);
+      expect(t.y / u).toBeCloseTo(expected[i]![1], 3);
+    });
+  });
+
+  it('Kreuz mit 3 Spielern: drei gleiche Arme im Abstand von 120 Grad', () => {
+    const layout = layoutFor({ players: 3 });
+    const geo = makeGeo(layout, 0, 'original');
+    const tips = [0, 1, 2].map((c) => geo.ring(c * 16 - 1 + 48));
+    const cx = (tips[0]!.x + tips[1]!.x + tips[2]!.x) / 3;
+    const cy = (tips[0]!.y + tips[1]!.y + tips[2]!.y) / 3;
+    const d = tips.map((t) => Math.hypot(t.x - cx, t.y - cy));
+    expect(d[1]).toBeCloseTo(d[0]!, 3);
+    expect(d[2]).toBeCloseTo(d[0]!, 3);
+    // Abstand der Armenden untereinander gleich (gleichseitiges Dreieck)
+    const e = [Math.hypot(tips[0]!.x - tips[1]!.x, tips[0]!.y - tips[1]!.y), Math.hypot(tips[1]!.x - tips[2]!.x, tips[1]!.y - tips[2]!.y)];
+    expect(e[1]).toBeCloseTo(e[0]!, 3);
   });
 
   it('Originalform nur bei 3, 4 und 6 Abschnitten; sonst Kreis', () => {
@@ -118,15 +185,6 @@ describe('Brettgeometrie', () => {
   });
 
   it('Zielhäuser liegen innerhalb des Umrisses und die Nester außerhalb', () => {
-    const inside = (poly: { x: number; y: number }[], q: { x: number; y: number }) => {
-      let c = false;
-      for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
-        const a = poly[i]!;
-        const b = poly[j]!;
-        if (a.y > q.y !== b.y > q.y && q.x < ((b.x - a.x) * (q.y - a.y)) / (b.y - a.y) + a.x) c = !c;
-      }
-      return c;
-    };
     for (const style of styles) {
       for (const players of [3, 4, 6]) {
         const layout = layoutFor({ players });
