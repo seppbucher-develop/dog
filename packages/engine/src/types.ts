@@ -24,6 +24,8 @@ export interface RuleSettings {
   cardExchange: 'auto' | 'on' | 'off';
   /** Darf man eigene Kugeln und Kugeln des Teams schlagen (heimschicken)? */
   captureOwn: boolean;
+  /** Erste Kugel jeder Farbe steht schon auf dem Startfeld: 'auto' = nur im Einzelspiel (2, 3, 5 Spieler). */
+  firstPegOnStart: 'auto' | 'on' | 'off';
   /** Kartenanzahl pro Runde, wird zyklisch wiederholt. */
   handSizes: number[];
 }
@@ -37,6 +39,7 @@ export const DEFAULT_RULES: RuleSettings = {
   sixPlayerTeams: 'threeOfTwo',
   cardExchange: 'auto',
   captureOwn: true,
+  firstPegOnStart: 'auto',
   handSizes: [6, 5, 4, 3, 2],
 };
 

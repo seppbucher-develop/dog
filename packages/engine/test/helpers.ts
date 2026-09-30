@@ -7,6 +7,7 @@ export function scenario(
 ): GameState {
   const s = createGame(config, 1);
   s.phase = 'playing';
+  for (const p of s.pegs) p.pos = { t: 'home' }; // leeres Brett, unabhängig von firstPegOnStart
   for (const [id, pos] of Object.entries(opts.pegs ?? {})) s.pegs.find((p) => p.id === Number(id))!.pos = pos;
   if (opts.hands) s.hands = opts.hands.map((h) => h.slice());
   s.current = opts.current ?? 0;

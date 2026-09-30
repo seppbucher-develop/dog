@@ -14,6 +14,7 @@ export function resolveRules(config: GameConfig): RuleSettings {
   oneOf('twoPlayerBoard', r.twoPlayerBoard, ['compact', 'full']);
   oneOf('sixPlayerTeams', r.sixPlayerTeams, ['threeOfTwo', 'twoOfThree']);
   oneOf('cardExchange', r.cardExchange, ['auto', 'on', 'off']);
+  oneOf('firstPegOnStart', r.firstPegOnStart, ['auto', 'on', 'off']);
   for (const k of ['sevenRepeatPeg', 'jackSwapPartner', 'jackSwapOwn', 'captureOwn'] as const) {
     if (typeof r[k] !== 'boolean') throw new Error(`Ungültige Regel ${k}`);
   }
@@ -40,6 +41,8 @@ export interface Layout {
   /** An wen ein Spieler beim Kartentausch eine Karte gibt */
   giveTo: number[];
   exchangeOn: boolean;
+  /** Erste Kugel jeder Farbe beginnt auf dem Startfeld */
+  startPegOut: boolean;
   /** Je Farbe: alle Farben des Teams (eigene inklusive) */
   friendlyColors: number[][];
 }
@@ -91,6 +94,7 @@ export function layoutFor(config: GameConfig): Layout {
     teamOf,
     giveTo,
     exchangeOn: rules.cardExchange === 'on' || (rules.cardExchange === 'auto' && teams),
+    startPegOut: rules.firstPegOnStart === 'on' || (rules.firstPegOnStart === 'auto' && !teams),
     friendlyColors,
   };
 }
@@ -101,7 +105,10 @@ export const startField = (color: number) => color * SEGMENT;
 export function createPegs(layout: Layout): Peg[] {
   const pegs: Peg[] = [];
   for (const c of layout.usedColors) {
-    for (let i = 0; i < PEGS_PER_COLOR; i++) pegs.push({ id: c * PEGS_PER_COLOR + i, color: c, pos: { t: 'home' } });
+    for (let i = 0; i < PEGS_PER_COLOR; i++) {
+      const out = i === 0 && layout.startPegOut;
+      pegs.push({ id: c * PEGS_PER_COLOR + i, color: c, pos: out ? { t: 'ring', f: startField(c) } : { t: 'home' } });
+    }
   }
   return pegs;
 }

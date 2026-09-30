@@ -224,3 +224,32 @@ describe('Regelkombinationen', () => {
     }
   });
 });
+
+describe('firstPegOnStart: erste Kugel schon auf dem Startfeld', () => {
+  const out = (cfg: Parameters<typeof createGame>[0]) => {
+    const s = createGame(cfg, 1);
+    const l = layoutFor(cfg);
+    return l.usedColors.map((c) => s.pegs.find((p) => p.id === c * 4)!.pos);
+  };
+  it('auto: bei 2, 3 und 5 Spielern ja, bei 4 und 6 nein', () => {
+    for (const players of [2, 3, 5]) {
+      const cfg = { players };
+      out(cfg).forEach((pos, i) => expect(pos).toEqual(ring(start(layoutFor(cfg).usedColors[i]!))));
+    }
+    for (const players of [4, 6]) out({ players }).forEach((pos) => expect(pos).toEqual({ t: 'home' }));
+  });
+  it('2 Spieler mit 8 Kugeln: pro Farbe eine Kugel auf dem Start', () => {
+    const s = createGame({ players: 2, eightPegs: true }, 1);
+    expect(s.pegs.filter((p) => p.pos.t === 'ring')).toHaveLength(4);
+  });
+  it('on/off überschreibt auto', () => {
+    expect(out({ players: 3, rules: { firstPegOnStart: 'off' } }).every((p) => p.t === 'home')).toBe(true);
+    expect(out({ players: 4, rules: { firstPegOnStart: 'on' } }).every((p) => p.t === 'ring')).toBe(true);
+  });
+  it('Die Startkugel kann sofort ziehen', () => {
+    const s = createGame({ players: 3 }, 1);
+    s.hands[0] = ['5'];
+    s.current = 0;
+    expect(legalPlays(s, 0).length).toBeGreaterThan(0);
+  });
+});
