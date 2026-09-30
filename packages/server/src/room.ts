@@ -21,6 +21,7 @@ import type {
   SeatSpec,
   ServerMessage,
 } from '@dog/protocol';
+import { COLOR_COUNT } from '@dog/protocol';
 import type { RuleSettings } from '@dog/engine';
 
 export interface Connection {
@@ -47,10 +48,14 @@ interface Participant {
   conn: Connection | null;
 }
 
+type SeatKind = { kind: 'human' } | { kind: 'bot'; level: BotLevel };
+
 interface Seat {
-  spec: SeatSpec;
+  spec: SeatKind;
   /** Token des sitzenden Menschen */
   occupant: string | null;
+  /** Kugelfarbe (Index in COLOR_NAMES), gehört zum Spieler und wandert beim Platztausch mit */
+  color: number;
 }
 
 export interface RoomSnapshot {
@@ -100,10 +105,10 @@ export class Room {
     const token = newToken();
     room.participants.set(token, { token, name: hostName, status: 'host', seat: 0, requestId: newToken(), conn });
     room.seats = [
-      { spec: { kind: 'human' }, occupant: token },
-      { spec: { kind: 'bot', level: DEFAULT_LEVEL }, occupant: null },
-      { spec: { kind: 'bot', level: DEFAULT_LEVEL }, occupant: null },
-      { spec: { kind: 'bot', level: DEFAULT_LEVEL }, occupant: null },
+      { spec: { kind: 'human' }, occupant: token, color: 0 },
+      { spec: { kind: 'bot', level: DEFAULT_LEVEL }, occupant: null, color: 1 },
+      { spec: { kind: 'bot', level: DEFAULT_LEVEL }, occupant: null, color: 2 },
+      { spec: { kind: 'bot', level: DEFAULT_LEVEL }, occupant: null, color: 3 },
     ];
     return { room, token };
   }
@@ -162,7 +167,13 @@ export class Room {
         return this.configure(msg.seats, msg.eightPegs, msg.rules);
       case 'approve':
         needHost();
-        return this.approve(msg.requestId, msg.seat);
+        return this.approve(msg.requestId, msg.seat, msg.color);
+      case 'move':
+        needHost();
+        return this.move(msg.seat, msg.to);
+      case 'setColor':
+        needHost();
+        return this.setColor(msg.seat, msg.color);
       case 'reject':
         needHost();
         return this.reject(msg.requestId);
@@ -196,14 +207,13 @@ export class Room {
 
   // ---------- Lobby ----------
 
-  private configure(seats: SeatSpec[], eightPegs: boolean, rules: Partial<RuleSettings>): void {
+  private configure(specs: SeatSpec[], eightPegs: boolean, rules: Partial<RuleSettings>): void {
     if (this.phase !== 'lobby') throw new Error('Einstellungen nur in der Lobby änderbar');
-    if (seats[0]?.kind !== 'human') throw new Error('Platz 1 ist der Spielinitiator');
-    const n = seats.length;
+    const n = specs.length;
     const eight = eightPegs && n === 2;
-    // Bereits sitzende Menschen dürfen nicht stillschweigend verschwinden
+    // Bereits sitzende Menschen dürfen nicht stillschweigend verschwinden (auch der Initiator nicht)
     this.seats.forEach((s, i) => {
-      if (s.occupant && (i >= n || seats[i]!.kind !== 'human')) throw new Error(`Platz ${i + 1} ist besetzt – zuerst entfernen`);
+      if (s.occupant && (i >= n || specs[i]!.kind !== 'human')) throw new Error(`Platz ${i + 1} ist besetzt – zuerst entfernen`);
     });
     const config: GameConfig = { players: n, eightPegs: eight, rules };
     try {
@@ -211,13 +221,29 @@ export class Room {
     } catch (e) {
       throw new Error(e instanceof Error ? e.message : 'Ungültige Einstellungen');
     }
-    this.seats = seats.map((spec, i) => ({ spec, occupant: this.seats[i]?.occupant ?? null }));
+    // Farben: ausdrücklich gewählte müssen verschieden sein; fehlende bekommen eine freie
+    const explicit = specs.map((sp) => sp.color).filter((c): c is number => c !== undefined);
+    if (new Set(explicit).size !== explicit.length) throw new Error('Jede Kugelfarbe darf nur einmal vergeben werden');
+    const used = new Set(explicit);
+    const colors = specs.map((sp, i) => {
+      if (sp.color !== undefined) return sp.color;
+      const keep = this.seats[i]?.color;
+      const c = keep !== undefined && !used.has(keep) ? keep : [...Array(COLOR_COUNT).keys()].find((x) => !used.has(x))!;
+      used.add(c);
+      return c;
+    });
+    this.seats = specs.map((sp, i) => ({
+      spec: sp.kind === 'bot' ? { kind: 'bot', level: sp.level } : { kind: 'human' },
+      occupant: this.seats[i]?.occupant ?? null,
+      color: colors[i]!,
+    }));
     this.eightPegs = eight;
     this.rules = rules;
+    for (const [i, s] of this.seats.entries()) if (s.occupant) this.participants.get(s.occupant)!.seat = i;
     this.changed();
   }
 
-  private approve(requestId: string, seat?: number): void {
+  private approve(requestId: string, seat?: number, color?: number): void {
     if (this.phase !== 'lobby') throw new Error('Das Spiel läuft bereits');
     const p = [...this.participants.values()].find((x) => x.requestId === requestId && x.status === 'pending');
     if (!p) throw new Error('Anfrage nicht gefunden');
@@ -228,6 +254,35 @@ export class Room {
     target.occupant = p.token;
     p.status = 'player';
     p.seat = idx;
+    if (color !== undefined) this.assignColor(idx, color);
+    this.changed();
+  }
+
+  /** Farbe setzen; ist sie schon vergeben, tauschen die beiden Plätze ihre Farben. */
+  private assignColor(seat: number, color: number): void {
+    if (!Number.isInteger(color) || color < 0 || color >= COLOR_COUNT) throw new Error('Ungültige Kugelfarbe');
+    const s = this.seats[seat];
+    if (!s) throw new Error('Ungültiger Platz');
+    const other = this.seats.findIndex((x, i) => i !== seat && x.color === color);
+    if (other >= 0) this.seats[other]!.color = s.color;
+    s.color = color;
+  }
+
+  private setColor(seat: number, color: number): void {
+    if (this.phase !== 'lobby') throw new Error('Farben nur in der Lobby änderbar');
+    this.assignColor(seat, color);
+    this.changed();
+  }
+
+  /** Zwei Plätze tauschen: Spieler samt Farbe wechseln die Position am Brett (bei Teams: Partner gegenüber). */
+  private move(from: number, to: number): void {
+    if (this.phase !== 'lobby') throw new Error('Plätze nur in der Lobby änderbar');
+    const a = this.seats[from];
+    const b = this.seats[to];
+    if (!a || !b || from === to) throw new Error('Ungültiger Platz');
+    this.seats[from] = b;
+    this.seats[to] = a;
+    for (const [i, s] of this.seats.entries()) if (s.occupant) this.participants.get(s.occupant)!.seat = i;
     this.changed();
   }
 
@@ -245,9 +300,10 @@ export class Room {
 
   private kick(seat: number): void {
     const s = this.seats[seat];
-    if (!s || seat === 0) throw new Error('Platz kann nicht entfernt werden');
+    if (!s) throw new Error('Ungültiger Platz');
     const p = s.occupant ? this.participants.get(s.occupant) : undefined;
     if (!p) throw new Error('Platz ist nicht besetzt');
+    if (p.status === 'host') throw new Error('Der Spielinitiator kann nicht entfernt werden');
     s.occupant = null;
     this.removeParticipant(p, 'Vom Spielinitiator entfernt');
     if (this.phase === 'playing') s.spec = { kind: 'bot', level: DEFAULT_LEVEL };
@@ -257,8 +313,9 @@ export class Room {
   private setBot(seat: number, level: BotLevel): void {
     if (this.phase !== 'playing') throw new Error('Nur während des Spiels');
     const s = this.seats[seat];
-    if (!s || seat === 0) throw new Error('Ungültiger Platz');
+    if (!s) throw new Error('Ungültiger Platz');
     const p = s.occupant ? this.participants.get(s.occupant) : undefined;
+    if (p?.status === 'host') throw new Error('Der Spielinitiator kann nicht ersetzt werden');
     if (p) this.removeParticipant(p, 'Ein Computerspieler hat deinen Platz übernommen');
     s.occupant = null;
     s.spec = { kind: 'bot', level };
@@ -380,6 +437,7 @@ export class Room {
         const occ = s.occupant ? this.participants.get(s.occupant) : undefined;
         return {
           kind: s.spec.kind,
+          color: s.color,
           ...(s.spec.kind === 'bot' ? { level: s.spec.level } : {}),
           ...(occ ? { name: occ.name } : {}),
           filled: s.spec.kind === 'bot' || !!occ,
@@ -457,7 +515,7 @@ export class Room {
   static restore(s: RoomSnapshot, deps: RoomDeps): Room {
     const room = new Room(s.code, deps);
     room.phase = s.phase;
-    room.seats = s.seats;
+    room.seats = s.seats.map((seat, i) => ({ ...seat, color: seat.color ?? i }));
     room.eightPegs = s.eightPegs;
     room.rules = s.rules;
     room.game = s.game;

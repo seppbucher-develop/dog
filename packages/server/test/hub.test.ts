@@ -329,3 +329,130 @@ describe('Verbindung, Ersetzen, Wiederholung, Speichern', () => {
     expect(hub.roomCount).toBe(0);
   });
 });
+
+describe('Platz und Kugelfarbe der Menschen', () => {
+  const twoHumans = () => {
+    const env = setup();
+    const host = hostRoom(env.send);
+    const guest = new FakeConn();
+    env.send(host, {
+      t: 'configure',
+      seats: [{ kind: 'human' }, { kind: 'human' }, { kind: 'bot', level: 'expert' }, { kind: 'bot', level: 'expert' }],
+      eightPegs: false,
+      rules: {},
+    });
+    env.send(guest, { t: 'join', code: host.lobby().code, name: 'Anna' });
+    return { env, host, guest, reqId: () => host.lobby().requests![0]!.id };
+  };
+
+  it('Standardfarben: jeder Platz hat eine eigene Farbe', () => {
+    const { host } = twoHumans();
+    expect(host.lobby().seats.map((s) => s.color)).toEqual([0, 1, 2, 3]);
+  });
+
+  it('Bewilligen mit Wunschplatz und Wunschfarbe', () => {
+    const { env, host, guest, reqId } = twoHumans();
+    // Platz 2 (Index 2) ist ein Bot -> kein Menschenplatz
+    env.send(host, { t: 'approve', requestId: reqId(), seat: 2 });
+    expect(host.lastError()).toMatch(/Kein freier Platz/);
+    env.send(host, {
+      t: 'configure',
+      seats: [{ kind: 'human' }, { kind: 'bot', level: 'expert' }, { kind: 'human' }, { kind: 'bot', level: 'expert' }],
+      eightPegs: false,
+      rules: {},
+    });
+    env.send(host, { t: 'approve', requestId: reqId(), seat: 2, color: 4 });
+    expect(guest.lobby().you).toMatchObject({ status: 'player', seat: 2 });
+    expect(host.lobby().seats[2]).toMatchObject({ kind: 'human', name: 'Anna', color: 4 });
+    expect(host.lobby().seats.map((s) => s.color)).toEqual([0, 1, 4, 3]);
+  });
+
+  it('Vergebene Farbe wird getauscht statt doppelt vergeben', () => {
+    const { env, host, guest, reqId } = twoHumans();
+    env.send(host, { t: 'approve', requestId: reqId(), seat: 1, color: 0 }); // Farbe 0 hat der Host
+    expect(guest.lobby().seats[1]!.color).toBe(0);
+    expect(host.lobby().seats[0]!.color).toBe(1); // Host bekommt Annas bisherige Farbe
+    const colors = host.lobby().seats.map((s) => s.color);
+    expect(new Set(colors).size).toBe(4);
+    env.send(host, { t: 'setColor', seat: 3, color: 5 });
+    expect(host.lobby().seats[3]!.color).toBe(5);
+    env.send(host, { t: 'setColor', seat: 3, color: 9 });
+    expect(host.lastError()).toBeDefined();
+  });
+
+  it('Konfiguration: doppelte Farben abgelehnt, fehlende ergänzt', () => {
+    const { env, host } = twoHumans();
+    env.send(host, {
+      t: 'configure',
+      seats: [{ kind: 'human', color: 2 }, { kind: 'human', color: 2 }],
+      eightPegs: false,
+      rules: {},
+    });
+    expect(host.lastError()).toMatch(/nur einmal/);
+    env.send(host, {
+      t: 'configure',
+      seats: [{ kind: 'human', color: 3 }, { kind: 'human' }, { kind: 'bot', level: 'beginner' }],
+      eightPegs: false,
+      rules: {},
+    });
+    const c = host.lobby().seats.map((s) => s.color);
+    expect(c[0]).toBe(3);
+    expect(new Set(c).size).toBe(3);
+  });
+
+  it('Plätze tauschen: Spieler wechselt Position samt Farbe, auch der Initiator', () => {
+    const { env, host, guest, reqId } = twoHumans();
+    env.send(host, { t: 'approve', requestId: reqId(), color: 5 }); // Platz 1, Farbe 5
+    env.send(host, { t: 'move', seat: 1, to: 3 });
+    expect(guest.lobby().you.seat).toBe(3);
+    expect(host.lobby().seats[3]).toMatchObject({ kind: 'human', name: 'Anna', color: 5 });
+    expect(host.lobby().seats[1]).toMatchObject({ kind: 'bot', level: 'expert' }); // der Bot von Platz 4 rückt nach
+    // Initiator setzt sich auf Platz 2 (Index 2) – dort saß ein Bot, der nach Platz 1 wandert
+    env.send(host, { t: 'move', seat: 0, to: 2 });
+    expect(host.lobby().you.seat).toBe(2);
+    expect(host.lobby().seats[0]).toMatchObject({ kind: 'bot', level: 'expert' });
+    env.send(host, { t: 'move', seat: 0, to: 0 });
+    expect(host.lastError()).toMatch(/Ungültig/);
+    env.send(guest, { t: 'move', seat: 3, to: 0 });
+    expect(guest.lastError()).toMatch(/Nur der Spielinitiator/);
+  });
+
+  it('Im Spiel gilt die gewählte Position: Sitzplatz im Spiel = Platz in der Lobby', () => {
+    const { env, host, guest, reqId } = twoHumans();
+    env.send(host, { t: 'approve', requestId: reqId() });
+    env.send(host, { t: 'move', seat: 0, to: 3 });
+    env.send(host, { t: 'start' });
+    env.flush();
+    expect(host.game()!.seat).toBe(3);
+    expect(guest.game()!.seat).toBe(1);
+    // Farben/Plätze sind nach dem Start fix
+    env.send(host, { t: 'move', seat: 0, to: 1 });
+    expect(host.lastError()).toMatch(/nur in der Lobby/);
+    env.send(host, { t: 'setColor', seat: 0, color: 5 });
+    expect(host.lastError()).toMatch(/nur in der Lobby/);
+    expect(host.lobby().seats[3]).toMatchObject({ name: 'Sepp' });
+  });
+
+  it('Der Initiator kann sich auch von einem anderen Platz aus nicht selbst entfernen', () => {
+    const { env, host, reqId } = twoHumans();
+    env.send(host, { t: 'approve', requestId: reqId() });
+    env.send(host, { t: 'move', seat: 0, to: 2 });
+    env.send(host, { t: 'kick', seat: 2 });
+    expect(host.lastError()).toMatch(/nicht entfernt/);
+    env.send(host, { t: 'start' });
+    env.send(host, { t: 'setBot', seat: host.lobby().you.seat!, level: 'expert' });
+    expect(host.lastError()).toMatch(/nicht ersetzt/);
+  });
+
+  it('Alte Snapshots ohne Farben bekommen Standardfarben', () => {
+    const env = setup();
+    const host = hostRoom(env.send);
+    const snap = JSON.parse(JSON.stringify(env.hub.snapshot()));
+    for (const s of snap[0].seats) delete s.color;
+    const env2 = setup();
+    env2.hub.restore(snap);
+    const back = new FakeConn();
+    env2.send(back, { t: 'resume', token: host.token() });
+    expect(back.lobby().seats.map((s) => s.color)).toEqual([0, 1, 2, 3]);
+  });
+});

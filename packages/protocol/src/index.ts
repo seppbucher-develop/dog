@@ -15,7 +15,12 @@ import {
 
 // ---------- Client -> Server ----------
 
-export type SeatSpec = { kind: 'human' } | { kind: 'bot'; level: BotLevel };
+/** Anzahl wählbarer Kugelfarben und ihre Namen (Index = Farbnummer) */
+export const COLOR_NAMES = ['Rot', 'Blau', 'Gelb', 'Grün', 'Schwarz', 'Weiß'] as const;
+export const COLOR_COUNT = COLOR_NAMES.length;
+
+/** Sitzplatz: Mensch oder Computer; `color` = Kugelfarbe (fehlt sie, vergibt der Server eine freie). */
+export type SeatSpec = { kind: 'human'; color?: number } | { kind: 'bot'; level: BotLevel; color?: number };
 
 export type ClientMessage =
   | { t: 'create'; name: string }
@@ -23,7 +28,12 @@ export type ClientMessage =
   | { t: 'resume'; token: string }
   /** Host: Sitzplätze und Regeln festlegen. Platz 0 ist immer der Host (Mensch). */
   | { t: 'configure'; seats: SeatSpec[]; eightPegs: boolean; rules: Partial<RuleSettings> }
-  | { t: 'approve'; requestId: string; seat?: number }
+  /** Host: Anfrage bewilligen; Platz und Kugelfarbe wählbar (sonst erster freier Menschenplatz). */
+  | { t: 'approve'; requestId: string; seat?: number; color?: number }
+  /** Host (Lobby): Sitzplätze tauschen – Spieler samt Kugelfarbe wechseln die Position am Brett. */
+  | { t: 'move'; seat: number; to: number }
+  /** Host (Lobby): Kugelfarbe eines Platzes ändern; ist sie vergeben, tauschen die Plätze die Farben. */
+  | { t: 'setColor'; seat: number; color: number }
   | { t: 'reject'; requestId: string }
   /** Host: Mensch von seinem Platz entfernen (Lobby: Platz wird frei; im Spiel: Bot übernimmt). */
   | { t: 'kick'; seat: number }
@@ -41,6 +51,8 @@ export type LobbyPhase = 'lobby' | 'playing' | 'finished';
 
 export interface SeatView {
   kind: 'human' | 'bot';
+  /** Kugelfarbe (Index in COLOR_NAMES) */
+  color: number;
   level?: BotLevel;
   /** Mensch: Name, sobald jemand sitzt */
   name?: string;
@@ -165,10 +177,16 @@ export function cleanRules(v: unknown): Partial<RuleSettings> {
   return out as Partial<RuleSettings>;
 }
 
+function colorOpt(v: unknown): number | undefined {
+  return v === undefined ? undefined : int(v, 'Farbe', 0, COLOR_COUNT - 1);
+}
+
 function seatSpec(v: unknown): SeatSpec {
   if (!isObj(v)) throw new ProtocolError('Sitzplatz ungültig');
-  if (v.kind === 'human') return { kind: 'human' };
-  if (v.kind === 'bot') return { kind: 'bot', level: level(v.level) };
+  const color = colorOpt(v.color);
+  const c = color === undefined ? {} : { color };
+  if (v.kind === 'human') return { kind: 'human', ...c };
+  if (v.kind === 'bot') return { kind: 'bot', level: level(v.level), ...c };
   throw new ProtocolError('Sitzplatz ungültig');
 }
 
@@ -194,8 +212,14 @@ export function parseClientMessage(raw: unknown): ClientMessage {
     case 'approve': {
       const m: ClientMessage = { t: 'approve', requestId: str(raw.requestId, 'Anfrage', 64) };
       if (raw.seat !== undefined) m.seat = int(raw.seat, 'Platz', 0, 5);
+      const color = colorOpt(raw.color);
+      if (color !== undefined) m.color = color;
       return m;
     }
+    case 'move':
+      return { t: 'move', seat: int(raw.seat, 'Platz', 0, 5), to: int(raw.to, 'Zielplatz', 0, 5) };
+    case 'setColor':
+      return { t: 'setColor', seat: int(raw.seat, 'Platz', 0, 5), color: int(raw.color, 'Farbe', 0, COLOR_COUNT - 1) };
     case 'reject':
       return { t: 'reject', requestId: str(raw.requestId, 'Anfrage', 64) };
     case 'kick':
