@@ -136,6 +136,18 @@ export function applyMoveToPegs(pegs: Peg[], layout: Layout, m: Move, isSeven: b
  * Alle Aufteilungen der 7; die Reihenfolge zählt (wegen Schlagen). Ohne `sevenRepeatPeg` kommt jede Kugel
  * höchstens einmal vor. Zugfolgen mit gleichem Endzustand werden nur einmal geliefert.
  */
+/** Kugelstellung nach einem (als legal vorausgesetzten) Spielzug; Kartenwechsel durch Steal bleibt außen vor. */
+export function pegsAfterPlay(pegs: Peg[], layout: Layout, play: Play): Peg[] {
+  const rank = play.card === 'JOKER' ? play.as : play.card;
+  let cur = pegs;
+  for (const m of play.moves) {
+    const next = applyMoveToPegs(cur, layout, m, rank === '7');
+    if (!next) throw new Error('Unzulässiger Spielzug');
+    cur = next;
+  }
+  return cur;
+}
+
 function sevenPlays(pegs: Peg[], layout: Layout, mine: number[]): Move[][] {
   const results: Move[][] = [];
   const leafSeen = new Set<string>();
