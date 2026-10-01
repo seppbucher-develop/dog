@@ -23,9 +23,16 @@ Es wird **keine Portfreigabe im Router** gebraucht und das NAS ist nicht direkt 
 
 ## 2. Ordner für die Spielstände anlegen
 
-1. **File Station** öffnen. Im Ordner `docker` (wird vom Container Manager angelegt) den Unterordner `dog` erstellen und
-   darin `data`. Der Pfad lautet dann `/volume1/docker/dog/data`.
-2. Dort speichert das Spiel laufende Spiele, damit sie einen Neustart des NAS oder des Containers überstehen.
+Der Container Manager legt den Ordner `docker` nicht immer selbst an. So erstellst du die Ordner:
+
+- **Variante A (einfach):** In der **File Station** im vorhandenen Ordner (z. B. `Daten`) über **Erstellen → Ordner erstellen**
+  den Ordner `docker` anlegen, darin `dog` und darin `data`. Den vollen Pfad zeigt ein Rechtsklick auf `data` →
+  **Eigenschaften** → **Allgemein** → „Ort“, z. B. `/volume1/Daten/docker/dog/data`.
+- **Variante B (Synology-Empfehlung):** **Systemsteuerung → Gemeinsamer Ordner → Erstellen**, Name `docker`. Darin wie oben
+  `dog/data` anlegen. Der Pfad lautet dann `/volume1/docker/dog/data`.
+
+In den Compose-Dateien steht standardmäßig `/volume1/docker/dog/data`. Bei Variante A den Pfad bei `volumes:` durch deinen
+Ort ersetzen. Das Spiel speichert dort laufende Spiele, damit sie einen Neustart des NAS oder des Containers überstehen.
 
 ## 3. Das Image bereitstellen
 
