@@ -57,7 +57,7 @@ Der Ordner des Projekts ist dann `/volume1/docker/dog-src/deploy`. Der Bau dauer
 ### Nur Heimnetz
 
 1. Container Manager → **Projekt** → **Erstellen**.
-2. Projektname `dog`, Pfad `/docker/dog`.
+2. Projektname `dog`, Pfad `/docker/dog` (bei Variante A in Schritt 2 z. B. `/Daten/docker/dog`).
 3. Quelle **docker-compose.yml erstellen** und den Inhalt der Datei `deploy/docker-compose.yml` einfügen.
 4. **Weiter** bis zum Ende, Projekt **starten**.
 5. Auf dem Handy im selben WLAN `http://<NAS-IP>:3000` öffnen (die IP steht in der Systemsteuerung unter Netzwerk).
