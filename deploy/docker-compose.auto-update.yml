@@ -1,0 +1,37 @@
+# Dog auf dem Synology NAS mit Cloudflare Tunnel UND automatischen Updates (alle 10 Minuten).
+# TUNNEL_TOKEN (in Gänsefüßchen) vor dem Start eintragen. Siehe docs/NAS-Anleitung.md, "Automatische Updates".
+services:
+  dog:
+    image: ghcr.io/seppbucher-develop/dog:latest
+    container_name: dog
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      BOT_DELAY_MS: "900"
+    volumes:
+      - /volume1/docker/dog/data:/data
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: dog-tunnel
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: "HIER_DEN_TOKEN_EINFÜGEN"
+    depends_on:
+      - dog
+
+  watchtower:
+    image: containrrr/watchtower:latest
+    container_name: dog-updater
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      TZ: "Europe/Zurich"
+      WATCHTOWER_POLL_INTERVAL: "600"
+      WATCHTOWER_LABEL_ENABLE: "true"
+      WATCHTOWER_CLEANUP: "true"

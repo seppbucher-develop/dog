@@ -130,6 +130,20 @@ Bei jedem Push nach `master` baut GitHub automatisch ein neues Image. Das NAS l�
 Laufende Spiele überstehen das Update. Wer das Spiel noch geöffnet hat, sieht nach dem Update oben den Hinweis
 „Es gibt eine neue Version“ mit dem Knopf **Neu laden** und kommt danach automatisch ins Spiel zurück.
 
+### Automatische Updates (optional, Watchtower)
+
+Wer von unterwegs aktualisieren will, kann einen zusätzlichen Container `dog-updater` (Watchtower) einsetzen. Er prüft alle
+10 Minuten, ob es ein neues Image gibt, und startet das Spiel dann selbst neu. Die Compose-Datei dazu liegt in
+`deploy/docker-compose.auto-update.yml` (mit Tunnel und Watchtower). Wichtig zu wissen:
+
+- Die Prüfung läuft alle 600 Sekunden (`WATCHTOWER_POLL_INTERVAL`). Nach einem Push dauert es etwa 3 bis 4 Minuten bis das Image
+  bei GitHub fertig ist, danach höchstens 10 Minuten bis zum Update auf dem NAS.
+- Aktualisiert wird nur der Container `dog` (Label `com.centurylinklabs.watchtower.enable=true`); alte Images werden gelöscht.
+- Der Neustart dauert wenige Sekunden. Laufende Spiele sind gespeichert, die Spieler verbinden sich automatisch neu.
+- Watchtower braucht Zugriff auf den Docker-Dienst des NAS (`/var/run/docker.sock`), was Administratorrechten entspricht.
+- Als Notfallzugang von unterwegs: **QuickConnect** einrichten (Systemsteuerung → Externer Zugriff) und für das NAS-Konto
+  die **Zwei-Faktor-Authentifizierung** aktivieren. DSM selbst gehört nicht ins Internet.
+
 ### Einstellungen (Umgebungsvariablen)
 
 | Variable | Standard | Bedeutung |
