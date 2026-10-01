@@ -64,17 +64,20 @@ Der Ordner des Projekts ist dann `/volume1/docker/dog-src/deploy`. Der Bau dauer
 
 ### Mit Zugriff aus dem Internet (Cloudflare Tunnel)
 
-1. **Tunnel anlegen:** [one.dash.cloudflare.com](https://one.dash.cloudflare.com) → **Networks** → **Tunnels** →
-   **Create a tunnel** → Typ **Cloudflared** → Name z. B. `dog-nas`. Auf der nächsten Seite den **Token** kopieren
-   (langer Text nach `--token` bzw. `tunnel run`).
-2. **Öffentlichen Hostnamen festlegen** (Reiter *Public Hostname* des Tunnels):
-   - Subdomain `dog`, Domain deine Domain (z. B. `dog.deinedomain.ch`)
-   - Service: Typ `HTTP`, URL `dog:3000` (`dog` ist der Name des Containers im selben Projekt)
-3. **Projekt anlegen** wie oben, aber mit dem Inhalt von `deploy/docker-compose.cloudflare.yml`. Den Token als
-   Umgebungsvariable hinterlegen: im Ordner `/volume1/docker/dog` eine Datei `.env` mit der Zeile
-   `TUNNEL_TOKEN=<dein Token>` ablegen (File Station → Hochladen; die Datei kann auf dem PC mit einem Texteditor
-   erstellt werden).
-4. Projekt starten. Im Tunnel-Dashboard sollte der Status **Healthy** erscheinen.
+1. **Tunnel anlegen:** [one.dash.cloudflare.com](https://one.dash.cloudflare.com) (Zero Trust; beim ersten Mal den kostenlosen
+   Tarif „Free“ wählen, Cloudflare verlangt dafür evtl. eine Zahlungsmethode, berechnet im Free-Tarif aber nichts) →
+   **Networks → Connectors** (früher „Tunnels“) → **Connector erstellen** → Typ **Cloudflared** → Name z. B. `dog-nas`.
+   Auf der Seite „Connector installieren“ **nichts installieren**: Betriebssystem auf **Docker** stellen und nur den
+   **Token** kopieren (der lange Text nach `--token`, beginnt mit `eyJ`). Der Token ist wie ein Passwort.
+2. **Route festlegen** (Schritt „Tunnel routen“ bzw. „Veröffentlichte Anwendungsrouten“):
+   - Subdomain `dog`, Domain: deine Domain (sie muss bei Cloudflare verwaltet werden; eine DynDNS-Adresse genügt nicht)
+   - Dienst: Typ `HTTP`, URL `dog:3000` (`dog` ist der Name des Containers im selben Projekt)
+   - Keine „Zugriffsanwendung“ (Access) anlegen, sonst müssten sich alle Mitspieler bei Cloudflare anmelden.
+3. **Projekt im Container Manager** mit dem Inhalt von `deploy/docker-compose.cloudflare.yml` anlegen (oder das bestehende
+   Projekt ändern) und bei `TUNNEL_TOKEN` den Token **in Gänsefüßchen** eintragen. Bei einem bestehenden Projekt: Projekt öffnen →
+   Reiter **YAML-Konfigurationen** → Text ersetzen → **Speichern** → **Aktion → Erstellen** (erst das baut die neuen
+   Container auf). Danach laufen die Container `dog` und `dog-tunnel`.
+4. Im Tunnel-Dashboard sollte der Status nach etwa einer Minute **Healthy** zeigen.
 5. Auf dem Handy (auch im Mobilfunknetz) `https://dog.deinedomain.ch` öffnen. WebSockets funktionieren bei Cloudflare
    ohne weitere Einstellung.
 
