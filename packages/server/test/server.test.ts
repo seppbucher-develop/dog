@@ -53,6 +53,17 @@ function client(headers: Record<string, string> = {}, port?: number) {
 }
 
 describe('HTTP', () => {
+  it('Version wird ausgeliefert', async () => {
+    const s = await startServer({ port: 0, host: '127.0.0.1', botDelayMs: 0, version: '2026-10-01 abc1234' });
+    const r = await fetch(`http://127.0.0.1:${s.port}/version`);
+    expect(await r.json()).toEqual({ version: '2026-10-01 abc1234' });
+    expect(r.headers.get('cache-control')).toBe('no-store');
+    await s.close();
+    const d = await startServer({ port: 0, host: '127.0.0.1', botDelayMs: 0 });
+    expect(await (await fetch(`http://127.0.0.1:${d.port}/version`)).json()).toEqual({ version: 'dev' });
+    await d.close();
+  });
+
   it('Healthcheck und statische Dateien; kein Zugriff außerhalb des Ordners', async () => {
     expect(await (await fetch(`http://${base}/healthz`)).text()).toBe('ok');
     const index = await fetch(`http://${base}/`);

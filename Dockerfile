@@ -11,9 +11,10 @@ COPY packages packages
 RUN npm run build -w @dog/client && npm run build -w @dog/server
 
 FROM node:22-alpine
+ARG APP_VERSION=dev
 LABEL org.opencontainers.image.source="https://github.com/seppbucher-develop/dog" \
       org.opencontainers.image.description="Dog – Kartenbrettspiel für 2 bis 6 Spieler"
-ENV NODE_ENV=production PORT=3000 HOST=0.0.0.0 DATA_DIR=/data STATIC_DIR=/app/client BOT_DELAY_MS=900
+ENV APP_VERSION=$APP_VERSION NODE_ENV=production PORT=3000 HOST=0.0.0.0 DATA_DIR=/data STATIC_DIR=/app/client BOT_DELAY_MS=900
 WORKDIR /app
 COPY --from=build /src/packages/server/dist/server.js ./server.js
 COPY --from=build /src/packages/client/dist ./client

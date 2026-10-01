@@ -131,3 +131,7 @@ input.code { text-transform: uppercase; letter-spacing: 0.2em; font-weight: 700;
 
 .overlay { position: fixed; inset: 0; background: #000a; display: grid; place-items: center; z-index: 20; padding: 16px; }
 .overlay .card { max-width: 460px; }
+
+.banner.update { background: var(--accent); display: flex; gap: 10px; justify-content: center; align-items: center; }
+.banner.update button { min-height: 30px; padding: 2px 10px; color: #26221b; background: #fffdf8; font-weight: 600; }
+.version { text-align: center; color: var(--muted); font-size: 0.8rem; margin: 18px 0 4px; }

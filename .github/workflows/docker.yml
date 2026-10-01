@@ -18,9 +18,13 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      - id: ver
+        run: echo "version=$(date -u +%Y-%m-%d) ${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
       - uses: docker/build-push-action@v6
         with:
           context: .
+          build-args: |
+            APP_VERSION=${{ steps.ver.outputs.version }}
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |

@@ -10,6 +10,7 @@ const server = await startServer({
   staticDir: env.STATIC_DIR ?? ['packages/client/dist', '../client/dist'].find((d) => existsSync(d)),
   dataDir: env.DATA_DIR ?? 'data',
   botDelayMs: Number(env.BOT_DELAY_MS ?? 900),
+  version: env.APP_VERSION || 'dev',
   allowedOrigins: env.ALLOWED_ORIGINS ? env.ALLOWED_ORIGINS.split(',').map((s) => s.trim()) : [],
 });
 console.log(`Dog-Server läuft auf Port ${server.port}`);

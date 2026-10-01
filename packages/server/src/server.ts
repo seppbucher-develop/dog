@@ -17,6 +17,8 @@ export interface ServerOptions {
   botDelayMs?: number;
   /** Zusätzlich erlaubte Origins für WebSockets (sonst nur gleicher Host) */
   allowedOrigins?: string[];
+  /** Versionskennung (Datum und Commit), wird unter /version ausgeliefert */
+  version?: string;
   /** Nachrichten pro Verbindung: erlaubter Stoß und dauerhafte Rate pro Sekunde */
   rateLimit?: { burst: number; perSec: number };
 }
@@ -116,6 +118,10 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
   }
 
   const http = createServer((req, res) => {
+    if (req.url === '/version') {
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', ...SECURITY_HEADERS }).end(JSON.stringify({ version: opts.version ?? 'dev' }));
+      return;
+    }
     if (req.url === '/healthz') {
       res.writeHead(200, { 'Content-Type': 'text/plain' }).end('ok');
       return;

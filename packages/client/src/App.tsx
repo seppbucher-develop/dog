@@ -2,10 +2,12 @@ import { net, useNet } from './net';
 import { Landing } from './Landing';
 import { Lobby } from './Lobby';
 import { Game } from './Game';
+import { isOutdated, useVersion } from './version';
 
 export function App() {
   const s = useNet();
   const { lobby } = s;
+  const ver = useVersion();
 
   let body;
   if (s.closed) {
@@ -43,12 +45,18 @@ export function App() {
   return (
     <div className="app">
       {s.conn !== 'open' && <div className="banner">{s.conn === 'connecting' ? 'Verbinde …' : 'Verbindung unterbrochen – versuche erneut …'}</div>}
+      {isOutdated(ver) && (
+        <div className="banner update" role="status">
+          Es gibt eine neue Version. <button onClick={() => location.reload()}>Neu laden</button>
+        </div>
+      )}
       {s.error && (
         <div className="toast" role="alert" onClick={() => net.clearError()}>
           {s.error}
         </div>
       )}
       {body}
+      {ver.current && <footer className="version">Version {ver.current}</footer>}
     </div>
   );
 }

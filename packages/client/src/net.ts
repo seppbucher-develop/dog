@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from 'react';
 import type { ClientMessage, GameView, LobbyView, ServerMessage } from '@dog/protocol';
+import { checkVersion } from './version';
 
 export interface NetState {
   conn: 'connecting' | 'open' | 'offline';
@@ -56,6 +57,7 @@ class Net {
     ws.onopen = () => {
       this.retry = 0;
       this.set({ conn: 'open' });
+      void checkVersion(); // nach einem Server-Update erkennt der Client hier, dass er neu geladen werden sollte
       const token = store(TOKEN_KEY);
       if (token) this.send({ t: 'resume', token });
     };

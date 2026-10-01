@@ -110,10 +110,25 @@ und schickt ihn per Messenger.
 
 | Aufgabe | So geht es |
 |---|---|
-| **Aktualisieren** | Container Manager → **Registrierung/Image** → `ghcr.io/seppbucher-develop/dog` erneut herunterladen, dann **Projekt** `dog` → **Aktion** → **Neu erstellen** (bzw. Stopp und Start). Laufende Spiele bleiben erhalten. |
+| **Aktualisieren** | Siehe Abschnitt „Neue Version einspielen“ direkt unter dieser Tabelle. |
 | **Protokoll ansehen** | Container Manager → **Container** → `dog` → **Protokoll** |
 | **Sicherung** | Den Ordner `/volume1/docker/dog/data` sichern (Hyper Backup). Mehr gibt es nicht zu sichern. |
 | **Neu anfangen** | Projekt stoppen, Datei `rooms.json` im Ordner `data` löschen, Projekt starten. |
+
+### Neue Version einspielen
+
+Bei jedem Push nach `master` baut GitHub automatisch ein neues Image. Das NAS lädt es nicht von selbst, deshalb:
+
+1. Auf GitHub unter **Actions** prüfen, dass der Lauf „Docker-Image“ **grün** ist (dauert 2 bis 4 Minuten).
+2. Container Manager → **Projekt** → `dog` → **Aktion → Stopp**.
+3. **Aktion → Bereinigen** (entfernt nur die alten Container; Projekt und Spielstände im Ordner `data` bleiben).
+4. Links auf **Image** klicken, `ghcr.io/seppbucher-develop/dog` auswählen und löschen.
+5. Zurück zum Projekt `dog` → **Aktion → Erstellen** (lädt die neue Version), danach ggf. **Start**.
+6. **Version prüfen:** Die Startseite zeigt unten die laufende Version (Datum und Commit-Kennung), z. B.
+   `Version 2026-10-01 a1b2c3d`. Sie sollte zur Kennung des grünen Laufs bei GitHub passen.
+
+Laufende Spiele überstehen das Update. Wer das Spiel noch geöffnet hat, sieht nach dem Update oben den Hinweis
+„Es gibt eine neue Version“ mit dem Knopf **Neu laden** und kommt danach automatisch ins Spiel zurück.
 
 ### Einstellungen (Umgebungsvariablen)
 

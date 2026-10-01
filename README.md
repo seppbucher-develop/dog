@@ -95,4 +95,5 @@ npm run build -w @dog/client && npm run build -w @dog/server
 STATIC_DIR=packages/client/dist node packages/server/dist/server.js
 ```
 
-Docker: `docker build -t dog .` und `docker run -p 3000:3000 -v dog-data:/data dog`.
+Docker: `docker build -t dog .` und `docker run -p 3000:3000 -v dog-data:/data dog`. Die Version (`APP_VERSION`, wird beim Bau
+auf GitHub aus Datum und Commit gesetzt) steht unter `/version` und unten auf der Startseite.
