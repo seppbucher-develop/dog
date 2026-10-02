@@ -113,9 +113,11 @@ describe('Brettgeometrie', () => {
           }
           // Anker unten in der Mitte: Kreis = mein Startfeld, Kreuz = Mitte meines Armendes (zwei Felder vor dem Start)
           const anchor = geo.style === 'circle' ? geo.ring(myColor * 16) : geo.ring(myColor * 16 - 2);
-          // Original-6er: mein Arm liegt unten rechts, sonst unten in der Mitte
-          if (!(geo.style === 'original' && layout.colors === 6)) expect(Math.abs(anchor.x)).toBeLessThan(geo.spacing * 0.6);
-          expect(anchor.y).toBeGreaterThanOrEqual(Math.max(...pts.map((p) => p.y)) - 1e-6);
+          // Original-6er: mein Arm liegt je nach Platz unten rechts, links oder in der Mitte (siehe eigener Test)
+          if (!(geo.style === 'original' && layout.colors === 6)) {
+            expect(Math.abs(anchor.x)).toBeLessThan(geo.spacing * 0.6);
+            expect(anchor.y).toBeGreaterThanOrEqual(Math.max(...pts.map((p) => p.y)) - 1e-6);
+          }
           const [vx, vy, vw, vh] = geo.viewBox.split(' ').map(Number) as [number, number, number, number];
           const inView = (p: { x: number; y: number }) => p.x >= vx && p.x <= vx + vw && p.y >= vy && p.y <= vy + vh;
           expect(pts.every(inView)).toBe(true);
@@ -165,25 +167,39 @@ describe('Brettgeometrie', () => {
     expect(homes[0]!.y / u).toBeGreaterThan(p(0).y);
   });
 
-  it('Kreuz mit 6 Spielern: 96 Schritte, je zwei Arme unten und oben, einer links und einer rechts (wie das Original)', () => {
+  it('Kreuz mit 6 Spielern: 96 Schritte, hochkant, je zwei Arme links und rechts, Partner gegenüber, mein Arm unten', () => {
     const layout = layoutFor({ players: 6 });
-    const geo = makeGeo(layout, 0, 'original');
-    const u = geo.spacing;
-    for (let f = 0; f < 96; f++) {
-      const p = geo.ring(f);
-      const q = geo.ring(f + 1);
-      expect(Math.hypot(p.x - q.x, p.y - q.y)).toBeCloseTo(u, 3);
+    for (let me = 0; me < 6; me++) {
+      const geo = makeGeo(layout, me, 'original');
+      const u = geo.spacing;
+      const pts = Array.from({ length: 96 }, (_, f) => geo.ring(f));
+      for (let f = 0; f < 96; f++) {
+        const p = pts[f]!;
+        const q = pts[(f + 1) % 96]!;
+        expect(Math.hypot(p.x - q.x, p.y - q.y)).toBeCloseTo(u, 3);
+      }
+      const xs = pts.map((q) => q.x);
+      const ys = pts.map((q) => q.y);
+      expect(Math.max(...ys) - Math.min(...ys)).toBeGreaterThan(Math.max(...xs) - Math.min(...xs)); // hochkant
+      const t = [0, 1, 2, 3, 4, 5].map((k) => geo.ring(((me + k) % 6) * 16 - 2));
+      expect(t[0]!.y).toBeGreaterThanOrEqual(-1e-6); // mein Arm in der unteren Hälfte
+      for (let k = 0; k < 3; k++) {
+        expect(t[k]!.x / u).toBeCloseTo(-t[k + 3]!.x / u, 3);
+        expect(t[k]!.y / u).toBeCloseTo(-t[k + 3]!.y / u, 3);
+      }
     }
-    // Armenden gegen den Uhrzeigersinn ab meinem Arm (unten rechts): rechts, oben rechts, oben links, links, unten links
+    // Reihenfolge wie im Original, von Blau (0) aus: Blau unten rechts, Weiss rechts, Grün oben, Rot oben links, Schwarz links, Gelb unten
+    const geo = makeGeo(layout, 0, 'original');
     const t = [0, 1, 2, 3, 4, 5].map((c) => geo.ring(c * 16 - 2));
     expect(t[0]!.x).toBeGreaterThan(0);
-    expect(t[5]!.x / u).toBeCloseTo(-t[0]!.x / u, 3);
-    expect(t[5]!.y / u).toBeCloseTo(t[0]!.y / u, 3); // unten
-    expect(t[2]!.y / u).toBeCloseTo(t[3]!.y / u, 3); // oben
-    expect(t[2]!.y).toBeLessThan(t[1]!.y);
-    expect(t[1]!.x).toBeGreaterThan(t[0]!.x); // rechter Arm
-    expect(t[4]!.x).toBeLessThan(t[5]!.x); // linker Arm
-    expect(t[1]!.x / u).toBeCloseTo(-t[4]!.x / u, 3);
+    expect(t[0]!.y).toBeGreaterThan(0);
+    expect(t[1]!.x / geo.spacing).toBeCloseTo(t[0]!.x / geo.spacing, 3); // beide Arme rechts
+    expect(Math.abs(t[1]!.y)).toBeLessThanOrEqual(t[0]!.y + 1e-6);
+    expect(t[2]!.y).toBeLessThan(0);
+    expect(t[3]!.x).toBeLessThan(0);
+    expect(t[4]!.x / geo.spacing).toBeCloseTo(t[3]!.x / geo.spacing, 3); // beide Arme links
+    expect(t[5]!.y).toBeGreaterThan(0);
+    expect(t[5]!.x).toBeLessThan(t[0]!.x);
   });
 
   it('Kreuz mit 3 Spielern: drei gleiche Arme im Abstand von 120 Grad', () => {

@@ -116,12 +116,27 @@ function armsOutline(dirs: number[]): Pt[] {
   return pts;
 }
 
-function curveFor(style: BoardStyle, colors: number): Curve {
+/**
+ * Armrichtungen des 6er-Originals in Spielreihenfolge (gegen den Uhrzeigersinn, Grad wie in `armsOutline`):
+ * rechts unten, rechts, oben, links oben, links, unten. Gegenüber sitzen die Partner.
+ */
+const SIX_ARMS = [0, 0, 270, 180, 180, 90];
+
+/**
+ * Richtungen im Uhrzeigersinn ab dem Arm `me`. Das Brett steht wie im Original hochkant; wer in der oberen
+ * Hälfte sitzt, sieht es um 180 Grad gedreht, damit der eigene Arm unten liegt.
+ */
+function sixDirs(me: number): number[] {
+  const turn = me >= 1 && me <= 3 ? 180 : 0; // Weiss, Grün, Rot sitzen in der oberen Hälfte
+  return Array.from({ length: 6 }, (_, j) => (SIX_ARMS[(me - j + 6) % 6]! + turn) % 360);
+}
+
+function curveFor(style: BoardStyle, colors: number, me: number): Curve {
   let raw: Pt[];
   let target: number; // größte Ausdehnung in Pixeln
   if (style === 'original' && colors === 4) [raw, target] = [armsOutline([90, 180, 270, 0]), 660];
   else if (style === 'original' && colors === 3) [raw, target] = [armsOutline([90, 210, 330]), 660];
-  else if (style === 'original' && colors === 6) [raw, target] = [armsOutline([90, 90, 180, 270, 270, 0]), 720];
+  else if (style === 'original' && colors === 6) [raw, target] = [armsOutline(sixDirs(me)), 720];
   else {
     raw = Array.from({ length: 720 }, (_, i) => {
       const a = Math.PI / 2 + (i / 720) * 2 * Math.PI;
@@ -163,7 +178,7 @@ function sample(c: Curve, t: number): { p: Pt; n: Pt } {
 export function makeGeo(layout: Layout, myColor: number, wanted: BoardStyle = 'circle'): Geo {
   const R = layout.ringSize;
   const style: BoardStyle = wanted === 'original' && hasOriginalShape(layout.colors) ? 'original' : 'circle';
-  const curve = curveFor(style, layout.colors);
+  const curve = curveFor(style, layout.colors, myColor);
   const orig = style === 'original';
   // Die Kurve läuft im Uhrzeigersinn, gespielt wird dagegen: wachsendes Feld = abnehmender Kurvenparameter.
   // Kreis: mein Startfeld unten in der Mitte. Kreuz: die Mitte meines Armendes liegt unten in der Mitte, mein
