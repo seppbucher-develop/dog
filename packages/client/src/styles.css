@@ -85,10 +85,8 @@ input.code { text-transform: uppercase; letter-spacing: 0.2em; font-weight: 700;
 .rule input[type='checkbox'] { width: 22px; height: 22px; }
 
 /* Spiel */
-.game { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(320px, 0.85fr); gap: 16px; align-items: start; }
-@media (max-width: 900px) { .game { grid-template-columns: 1fr; } }
-.board-wrap { position: sticky; top: 8px; }
-@media (max-width: 900px) { .board-wrap { position: static; } }
+.game { display: flex; flex-direction: column; gap: 12px; max-width: 920px; margin: 0 auto; }
+.side { display: flex; flex-direction: column; gap: 0; }
 .board { overflow: visible; width: 100%; height: auto; max-height: 92vh; display: block; }
 .style-switch { margin: 6px 0 2px; }
 .style-switch button { padding: 3px 10px; min-height: 30px; }
@@ -117,10 +115,11 @@ input.code { text-transform: uppercase; letter-spacing: 0.2em; font-weight: 700;
 .prompt { margin: 0 0 6px; font-weight: 500; }
 .prompt.on { color: var(--accent); font-weight: 700; font-size: 1.05rem; }
 
-.hand { display: flex; flex-wrap: wrap; gap: 8px; padding: 6px 2px 14px; }
-.pcard { width: 76px; height: 108px; padding: 6px 4px; display: flex; flex-direction: column; justify-content: space-between; align-items: center; background: #fffefa; color: #222; border: 2px solid #cfc7b3; border-radius: 10px; box-shadow: 0 2px 5px #0003; transition: transform 0.12s; }
-.pcard .rank { font-size: 2rem; font-weight: 800; line-height: 1; }
-.pcard .hint { font-size: 0.68rem; line-height: 1.1; text-align: center; color: #555; }
+.hand { max-width: 700px; margin: 0 auto; width: 100%; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; padding: 14px 2px 14px; }
+.hand > p { grid-column: 1 / -1; }
+.pcard { width: 100%; aspect-ratio: 7 / 10; padding: 6px 2px; display: flex; flex-direction: column; justify-content: space-between; align-items: center; background: #fffefa; color: #222; border: 2px solid #cfc7b3; border-radius: 10px; box-shadow: 0 2px 5px #0003; transition: transform 0.12s; }
+.pcard .rank { font-size: clamp(1.3rem, 6vw, 2rem); font-weight: 800; line-height: 1; }
+.pcard .hint { font-size: clamp(0.5rem, 2.2vw, 0.68rem); line-height: 1.1; text-align: center; color: #555; }
 .pcard.face .rank { color: #a3341f; }
 .pcard.joker { background: linear-gradient(135deg, #fff, #ffe9a8); }
 .pcard.joker .rank { color: #7a3fb3; }
