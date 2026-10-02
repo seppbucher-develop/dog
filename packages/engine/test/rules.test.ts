@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyAction, createGame, layoutFor, legalPlays, controlledColors } from '../src';
+import { applyAction, createGame, layoutFor, legalPlays, controlledColors, type Card } from '../src';
 import { fin, peg, ring, scenario, start } from './helpers';
 
 describe('Einstellungen: Validierung', () => {
@@ -60,22 +60,31 @@ describe('Bube-Tausch mit eigenen Kugeln', () => {
   });
 });
 
-describe('Option 3: Bube im Einzelspiel ohne Gegnerkarten', () => {
-  const mk = (jackStealNoCards: 'unplayable' | 'void') =>
-    scenario(
-      { players: 3, rules: { jackStealNoCards } },
-      { pegs: { [peg(0, 0)]: ring(5), [peg(1, 0)]: ring(20) }, hands: [['J', '2'], [], []] },
-    );
-  it('unplayable: Bube nicht spielbar', () => {
-    expect(legalPlays(mk('unplayable'), 0).some((p) => p.card === 'J')).toBe(false);
+describe('Bube und 2 im Einzelspiel', () => {
+  const mk = (hands: Card[][]) =>
+    scenario({ players: 3 }, { pegs: { [peg(0, 0)]: ring(5), [peg(1, 0)]: ring(20) }, hands });
+  it('Bube tauscht auch im Einzelspiel nur Kugeln, nie Karten', () => {
+    const plays = legalPlays(mk([['J'], ['5'], []]), 0);
+    expect(plays).toHaveLength(1);
+    expect(plays[0]!.moves).toEqual([{ t: 'swap', a: peg(0, 0), b: peg(1, 0) }]);
   });
-  it('void: Bube wird ohne Wirkung abgelegt', () => {
-    const s = mk('void');
-    const play = legalPlays(s, 0).find((p) => p.card === 'J')!;
-    expect(play.moves).toEqual([]);
-    const s2 = applyAction(s, { t: 'play', player: 0, card: 'J', moves: [] });
-    expect(s2.hands[0]).toEqual(['2']);
-    expect(s2.discard).toContain('J');
+  it('Bube ist ohne tauschbare Kugeln nicht spielbar', () => {
+    const s = scenario({ players: 3 }, { pegs: { [peg(0, 0)]: ring(5) }, hands: [['J', '2'], ['5'], []] });
+    expect(legalPlays(s, 0).some((p) => p.card === 'J')).toBe(false);
+  });
+  it('2: fahren oder blind eine Karte ziehen (zählt als Zug)', () => {
+    const s = mk([['2'], ['5', '9'], []]);
+    const plays = legalPlays(s, 0);
+    expect(plays.filter((p) => p.moves[0]!.t === 'move')).toHaveLength(1);
+    expect(plays.filter((p) => p.moves[0]!.t === 'steal')).toHaveLength(2);
+    const s2 = applyAction(s, { t: 'play', player: 0, card: '2', moves: [{ t: 'steal', from: 1, idx: 0 }] });
+    expect(s2.hands[0]).toEqual(['5']);
+    expect(s2.hands[1]).toEqual(['9']);
+    expect(s2.current).toBe(1);
+  });
+  it('Teamspiel: mit der 2 kann man keine Karte ziehen', () => {
+    const s = scenario({ players: 4 }, { pegs: { [peg(0, 0)]: ring(5) }, hands: [['2'], ['5'], [], []] });
+    expect(legalPlays(s, 0).some((p) => p.moves.some((m) => m.t === 'steal'))).toBe(false);
   });
 });
 
@@ -200,7 +209,6 @@ describe('Regelkombinationen', () => {
               cardExchange,
               sevenRepeatPeg: players % 2 === 0,
               jackSwapPartner: captureOwn,
-              jackStealNoCards: captureOwn ? 'void' : 'unplayable',
               sixPlayerTeams: players === 6 && !captureOwn ? 'twoOfThree' : 'threeOfTwo',
               twoPlayerBoard: cardExchange === 'off' ? 'full' : 'compact',
               handSizes: cardExchange === 'off' ? [4, 2] : [6, 5, 4, 3, 2],
@@ -251,5 +259,60 @@ describe('firstPegOnStart: erste Kugel schon auf dem Startfeld', () => {
     s.hands[0] = ['5'];
     s.current = 0;
     expect(legalPlays(s, 0).length).toBeGreaterThan(0);
+  });
+});
+
+describe('4, Joker und 7 (neue Regeln)', () => {
+  const stepsOf = (s: ReturnType<typeof scenario>, card: Card, peg_: number) =>
+    legalPlays(s, 0)
+      .filter((p) => p.card === card)
+      .flatMap((p) => p.moves.filter((m) => m.t === 'move' && m.peg === peg_).map((m) => (m as { steps: number }).steps));
+
+  it('4 darf vorwärts und rückwärts gespielt werden, rückwärts nie ins Haus', () => {
+    const s = scenario({ players: 4 }, { pegs: { [peg(0, 0)]: ring(start(0) + 62) }, hands: [['4'], [], [], []] });
+    expect(stepsOf(s, '4', peg(0, 0)).sort()).toEqual([-4, 4]);
+    // rückwärts bleibt auf dem Ring (nie im Haus), vorwärts geht ins Haus
+    const back = applyAction(s, { t: 'play', player: 0, card: '4', moves: [{ t: 'move', peg: peg(0, 0), steps: -4 }] });
+    expect(back.pegs[0]!.pos).toEqual(ring(start(0) + 58));
+    // im Haus gibt es keinen Rückwärtszug
+    const inHouse = scenario({ players: 4 }, { pegs: { [peg(0, 0)]: fin(2) }, hands: [['4'], [], [], []] });
+    expect(stepsOf(inHouse, '4', peg(0, 0))).toEqual([]);
+  });
+
+  it('4 nur rückwärts, wenn so eingestellt', () => {
+    const s = scenario({ players: 4, rules: { fourDirection: 'backward' } }, { pegs: { [peg(0, 0)]: ring(10) }, hands: [['4'], [], [], []] });
+    expect(stepsOf(s, '4', peg(0, 0))).toEqual([-4]);
+  });
+
+  it('Mit dem Joker darf die letzte Kugel nicht ins Haus gebracht werden', () => {
+    const pegs = { [peg(0, 0)]: fin(3), [peg(0, 1)]: fin(2), [peg(0, 2)]: fin(1), [peg(0, 3)]: ring(start(0) + 46) };
+    const s = scenario({ players: 3 }, { pegs, hands: [['JOKER', '3'], [], []] });
+    // 3 Schritte ins Haus (fin 0): mit der 3 erlaubt, mit dem Joker nicht
+    const finishing = (card: Card) =>
+      legalPlays(s, 0).some((p) => p.card === card && p.moves.some((m) => m.t === 'move' && m.peg === peg(0, 3) && m.steps === 3));
+    expect(finishing('3')).toBe(true);
+    expect(legalPlays(s, 0).some((p) => p.card === 'JOKER' && p.as === '3')).toBe(false);
+    // nicht die letzte Kugel: der Joker bleibt normal spielbar
+    const s2 = scenario({ players: 3 }, { pegs: { [peg(0, 0)]: ring(start(0) + 46), [peg(0, 1)]: ring(5) }, hands: [['JOKER'], [], []] });
+    expect(legalPlays(s2, 0).some((p) => p.card === 'JOKER' && p.as === '3')).toBe(true);
+  });
+
+  it('7: standardmäßig nur eigene Kugeln, mit sevenAnyPeg auch fremde', () => {
+    const pegs = { [peg(0, 0)]: ring(0), [peg(1, 0)]: ring(20) };
+    const touched = (rules: object) => {
+      const s = scenario({ players: 3, rules }, { pegs, hands: [['7'], [], []] });
+      return new Set(legalPlays(s, 0).flatMap((p) => p.moves.map((m) => (m as { peg: number }).peg)));
+    };
+    expect(touched({})).toEqual(new Set([peg(0, 0)]));
+    expect(touched({ sevenAnyPeg: true })).toEqual(new Set([peg(0, 0), peg(1, 0)]));
+  });
+
+  it('7 im Teamspiel: Kugeln des Partners nur, wenn man selbst fertig ist', () => {
+    const own = { [peg(0, 0)]: ring(0), [peg(2, 0)]: ring(40) };
+    const s = scenario({ players: 4 }, { pegs: own, hands: [['7'], [], [], []] });
+    expect(legalPlays(s, 0).every((p) => p.moves.every((m) => (m as { peg: number }).peg === peg(0, 0)))).toBe(true);
+    const done = { [peg(0, 0)]: fin(0), [peg(0, 1)]: fin(1), [peg(0, 2)]: fin(2), [peg(0, 3)]: fin(3), [peg(2, 0)]: ring(40) };
+    const s2 = scenario({ players: 4 }, { pegs: done, hands: [['7'], [], [], []] });
+    expect(legalPlays(s2, 0).some((p) => p.moves.some((m) => (m as { peg: number }).peg === peg(2, 0)))).toBe(true);
   });
 });

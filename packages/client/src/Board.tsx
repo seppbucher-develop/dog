@@ -40,11 +40,12 @@ export function Board({ layout, geo, pegs, segColors, segNames, activeSegs, sele
       {/* Zielhäuser */}
       {layout.usedColors.map((c) => {
         const col = segColors[c] ?? NEUTRAL;
-        const a = geo.ring(((c * 16 - 1) % R + R) % R);
+        const a = geo.ring(c * 16);
+        const z0 = geo.fin(c, 0);
         const z = geo.fin(c, 3);
         return (
           <g key={`fin${c}`}>
-            <line x1={a.x} y1={a.y} x2={z.x} y2={z.y} stroke={col} strokeOpacity={0.45} strokeWidth={geo.fieldR * 1.4} strokeLinecap="round" />
+            <polyline points={`${a.x},${a.y} ${z0.x},${z0.y} ${z.x},${z.y}`} fill="none" stroke={col} strokeOpacity={0.45} strokeWidth={geo.fieldR * 1.4} strokeLinecap="round" strokeLinejoin="round" />
             {[0, 1, 2, 3].map((s) => (
               <circle key={s} cx={geo.fin(c, s).x} cy={geo.fin(c, s).y} r={geo.slotR} fill={col} fillOpacity={0.35} stroke={col} strokeWidth={2} />
             ))}

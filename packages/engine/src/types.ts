@@ -7,15 +7,20 @@ export const RANKS: Rank[] = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10',
 export interface RuleSettings {
   /** 7: dieselbe Kugel darf mehrfach in einer Aufteilung vorkommen (ändert die erreichbaren Stellungen praktisch nie). */
   sevenRepeatPeg: boolean;
+  /**
+   * 7: darf auch auf fremde Kugeln (Gegner, Partner) aufgeteilt werden. Sonst nur eigene Kugeln, im Teamspiel
+   * zusätzlich die des Partners, sobald man selbst fertig ist.
+   */
+  sevenAnyPeg: boolean;
+  /** 4: 'backward' = nur rückwärts, 'both' = wahlweise vorwärts oder rückwärts (rückwärts nie ins Haus). */
+  fourDirection: 'backward' | 'both';
   /** Bube (Teamspiel): auch mit Kugeln des Partners tauschen, nicht nur mit Gegnern. */
   jackSwapPartner: boolean;
   /**
-   * Bube (Teamspiel): auch zwei eigene Kugeln tauschen. Ändert das Brett meist nicht, verhindert aber den
+   * Bube: auch zwei eigene Kugeln tauschen. Ändert das Brett meist nicht, verhindert aber den
    * Abwurf der ganzen Hand, wenn sonst kein Zug möglich wäre.
    */
   jackSwapOwn: boolean;
-  /** Bube (Einzelspiel), wenn kein Gegner Karten hat: 'unplayable' = nicht spielbar, 'void' = wird ohne Wirkung abgelegt. */
-  jackStealNoCards: 'unplayable' | 'void';
   /** 2 Spieler mit 4 Kugeln: Brett mit 2 (compact) oder 4 (full) Abschnitten. */
   twoPlayerBoard: 'compact' | 'full';
   /** 6 Spieler: 3 Teams zu 2 (Partner gegenüber) oder 2 Teams zu 3 (abwechselnd sitzend). */
@@ -32,9 +37,10 @@ export interface RuleSettings {
 
 export const DEFAULT_RULES: RuleSettings = {
   sevenRepeatPeg: false,
+  sevenAnyPeg: false,
+  fourDirection: 'both',
   jackSwapPartner: true,
   jackSwapOwn: true,
-  jackStealNoCards: 'unplayable',
   twoPlayerBoard: 'compact',
   sixPlayerTeams: 'threeOfTwo',
   cardExchange: 'auto',
@@ -53,7 +59,8 @@ export interface GameConfig {
 
 export type Pos =
   | { t: 'home' }
-  | { t: 'ring'; f: number } // absolutes Ringfeld
+  /** absolutes Ringfeld; `lap` = Kugel hat die Runde vollendet und steht wieder auf dem eigenen Startfeld (bereit fürs Zielhaus) */
+  | { t: 'ring'; f: number; lap?: true }
   | { t: 'fin'; s: number }; // Zielhaus-Platz 0..3
 
 export interface Peg {
@@ -67,7 +74,7 @@ export type Move =
   /** steps > 0 vorwärts, -4 rückwärts */
   | { t: 'move'; peg: number; steps: number }
   | { t: 'swap'; a: number; b: number }
-  /** Bube im Einzelspiel: blind eine Karte (Position idx) eines Gegners ziehen */
+  /** 2 im Einzelspiel: blind eine Karte (Position idx) eines Gegners ziehen, statt 2 zu fahren (zählt als Zug) */
   | { t: 'steal'; from: number; idx: number };
 
 export type Action =

@@ -44,7 +44,7 @@ export function makeRand(seed: number): () => number {
 function pegValue(layout: Layout, peg: Peg): number {
   if (peg.pos.t === 'home') return 0;
   if (peg.pos.t === 'fin') return 600 + 30 * peg.pos.s;
-  return 100 + (300 * progress(layout, peg)) / (layout.ringSize - 1);
+  return 100 + (300 * progress(layout, peg)) / layout.ringSize;
 }
 
 function teamColors(layout: Layout, player: number): number[] {

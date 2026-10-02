@@ -6,25 +6,28 @@ Computerspielern in vier Stärken.
 - **Online spielen:** Ein Spielinitiator erstellt ein Spiel, Mitspieler treten per Code oder Link bei und werden vom
   Initiator **bewilligt**. Bis zu 5 der Plätze können Computerspieler sein.
 - **Plätze und Farben:** Der Initiator legt fest, wer wo sitzt und mit welcher Kugelfarbe spielt.
-- **Original-Bretter** bei 3, 4 und 6 Spielern in Kreuzform (jeder Spieler hat einen Arm: Löcher hinaus, über das Ende und zurück, Zielhaus in der Armmitte) oder als Kreis; wechselbar im Spiel.
+- **Original-Bretter** bei 3, 4 und 6 Spielern in Kreuzform (jeder Spieler hat einen Arm: Löcher hinaus, über das Ende und zurück, Startfeld in der Ecke des Armendes, Zielhaus von dort nach innen) oder als Kreis; wechselbar im Spiel.
 - **Regeln einstellbar** (siehe unten), damit jede Runde nach ihren Hausregeln spielen kann.
 - Läuft auf dem eigenen NAS: [Anleitung für Synology](docs/NAS-Anleitung.md).
 
 ## Spielvarianten
 
-| Spieler | Spiel | Kartentausch | Bube |
+| Spieler | Spiel | Kartentausch | 2 |
 |---|---|---|---|
-| 4 | 2 Teams, Partner gegenüber | ja | tauscht Kugeln |
-| 6 | 3 Teams zu 2 (oder 2 Teams zu 3) | ja | tauscht Kugeln |
-| 3, 5 | jeder für sich | nein | zieht blind eine Karte eines Gegners |
-| 2 | 4 Kugeln, oder 8 Kugeln (eigene + gegenüberliegende Farbe) | nein | zieht blind eine Karte |
+| 4 | 2 Teams, Partner gegenüber | ja | nur Felder |
+| 6 | 3 Teams zu 2 (oder 2 Teams zu 3) | ja | nur Felder |
+| 3, 5 | jeder für sich | nein | 2 Felder oder blind eine Karte eines Gegners ziehen |
+| 2 | 4 Kugeln, oder 8 Kugeln (eigene + gegenüberliegende Farbe) | nein | 2 Felder oder blind eine Karte des Gegners ziehen |
 
 Bei 2, 3 und 5 Spielern steht die erste Kugel jeder Farbe schon auf dem Startfeld. Das Brett passt sich an die
 Spielerzahl an (16 Felder pro Abschnitt, kein „leerer“ Spieler).
 
 ### Kurzregeln
 
-Jeder hat 4 Kugeln, die einmal um das Brett ziehen und exakt ins Zielhaus müssen. Gespielt werden 110 Karten
+Gespielt wird gegen den Uhrzeigersinn. Jeder hat 4 Kugeln, die einmal um das Brett ziehen und exakt ins Zielhaus
+müssen. Das Startfeld liegt in der Ecke des eigenen Abschnitts (Kreuzbrett: Eckloch am Armende); von dort zweigt das Zielhaus ab. Ins Haus kommt man also
+nur über das eigene Startfeld (Zählung: Startfeld = ein Schritt, dahinter folgen die vier Hausplätze); eine Kugel, die
+gerade erst herausgekommen ist, muss zuerst eine ganze Runde laufen. Gespielt werden 110 Karten
 (inklusive 6 Joker), pro Runde 6, 5, 4, 3, 2 Karten. Wer nicht ziehen kann, wirft alle Karten ab.
 
 | Karte | Wirkung |
@@ -32,11 +35,12 @@ Jeder hat 4 Kugeln, die einmal um das Brett ziehen und exakt ins Zielhaus müsse
 | Ass | herauskommen, 1 oder 11 Felder |
 | König | herauskommen, 13 Felder |
 | Dame | 12 Felder |
-| 4 | 4 Felder rückwärts |
-| 7 | beliebig auf mehrere Kugeln aufteilbar; alle übersprungenen Kugeln fliegen heim |
-| Bube | Teamspiel: zwei Kugeln tauschen; Einzelspiel: blind eine Karte eines Gegners ziehen |
-| Joker | ersetzt jede Karte |
-| 2, 3, 5, 6, 8, 9, 10 | so viele Felder vor |
+| 4 | 4 Felder vorwärts oder rückwärts (einstellbar; rückwärts nie ins Haus) |
+| 7 | beliebig auf mehrere Kugeln aufteilbar (eigene; im Teamspiel die des Partners, wenn man fertig ist; einstellbar: alle Kugeln); alle übersprungenen Kugeln fliegen heim |
+| Bube | immer: zwei Kugeln tauschen |
+| Joker | ersetzt jede Karte, aber nicht für die letzte Kugel ins Haus |
+| 2 | 2 Felder vor; bei 2, 3 und 5 Spielern alternativ blind eine Karte eines Gegners ziehen (zählt als Zug) |
+| 3, 5, 6, 8, 9, 10 | so viele Felder vor |
 
 Auf dem eigenen Startfeld blockiert eine Kugel das Überspringen. Im Zielhaus kann man nicht überspringen. Ist ein
 Spieler fertig, zieht er im Teamspiel für den Partner weiter; das Team gewinnt, wenn alle Kugeln im Ziel sind.
@@ -50,7 +54,8 @@ Spieler fertig, zieht er im Teamspiel für den Partner weiter; das Team gewinnt,
 | Eigene und Team-Kugeln dürfen geschlagen werden | ja |
 | Bube: Tausch mit Kugeln des Partners | ja |
 | Bube: Tausch zweier eigener Kugeln (verhindert den Abwurf der Hand) | ja |
-| Bube ohne Gegnerkarten (Einzelspiel) | nicht spielbar |
+| 7: auf alle Kugeln aufteilbar | nein (nur eigene, bzw. Partner wenn fertig) |
+| 4 spielen | vorwärts oder rückwärts |
 | 7: dieselbe Kugel mehrfach aufteilen | nein (ändert die Stellungen praktisch nie) |
 | Brett bei 2 Spielern (4 Kugeln) | klein (2 Abschnitte) |
 | Teams bei 6 Spielern | 3 Teams zu 2 |

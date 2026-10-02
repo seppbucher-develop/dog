@@ -1,6 +1,7 @@
 import {
   FINISH_SLOTS,
   type Layout,
+  allInFinish,
   controlledColors,
   isBlocker,
   layoutFor,
@@ -13,7 +14,7 @@ import { RANKS, type GameState, type Move, type Peg, type Play, type Rank } from
 const clonePegs = (pegs: Peg[]): Peg[] => pegs.map((p) => ({ ...p, pos: { ...p.pos } }));
 
 export const pegsKey = (pegs: Peg[]): string =>
-  pegs.map((p) => (p.pos.t === 'home' ? 'h' : p.pos.t === 'ring' ? `r${p.pos.f}` : `f${p.pos.s}`)).join(',');
+  pegs.map((p) => (p.pos.t === 'home' ? 'h' : p.pos.t === 'ring' ? `r${p.pos.f}${p.pos.lap ? 'l' : ''}` : `f${p.pos.s}`)).join(',');
 
 function ringPegAt(pegs: Peg[], f: number): Peg | undefined {
   return pegs.find((p) => p.pos.t === 'ring' && p.pos.f === f);
@@ -57,13 +58,14 @@ export function tryMove(
     dest = peg.pos;
     for (let i = 1; i <= steps; i++) {
       const q = prog + i;
-      if (q <= R - 1) {
+      if (q <= R) {
+        // q === R: wieder auf dem eigenen Startfeld (Runde vollendet); das Zielhaus beginnt dahinter
         const f = mod(startField(peg.color) + q, R);
         if (!ringOk(f)) return null;
         crossed.push(f);
-        dest = { t: 'ring', f };
+        dest = q === R ? { t: 'ring', f, lap: true } : { t: 'ring', f };
       } else {
-        const slot = q - R;
+        const slot = q - R - 1;
         if (slot >= FINISH_SLOTS || !finFree(slot)) return null;
         dest = { t: 'fin', s: slot };
       }
@@ -148,14 +150,22 @@ export function pegsAfterPlay(pegs: Peg[], layout: Layout, play: Play): Peg[] {
   return cur;
 }
 
+/**
+ * Obergrenzen bei der 7, damit eine volle Brettbelegung bei `sevenAnyPeg` nicht ewig rechnet: untersuchte
+ * Stellungen und gelieferte Spielzüge. Greifen erst bei sehr vielen Kugeln auf dem Brett (ca. 12 und mehr).
+ */
+const SEVEN_MAX_STATES = 60_000;
+const SEVEN_MAX_PLAYS = 30_000;
+
 function sevenPlays(pegs: Peg[], layout: Layout, mine: number[]): Move[][] {
   const results: Move[][] = [];
   const leafSeen = new Set<string>();
-  const repeat = layout.rules.sevenRepeatPeg;
+  // Bei fremden Kugeln wäre der Aufwand ohne Zusammenfassen gleicher Stellungen enorm; das Ergebnis ändert sich praktisch nie.
+  const repeat = layout.rules.sevenRepeatPeg || layout.rules.sevenAnyPeg;
   const visited = new Set<string>();
   const dfs = (cur: Peg[], remaining: number, seq: Move[], used: number[]) => {
     const vk = `${remaining}|${repeat ? '' : used.join('.')}|${pegsKey(cur)}`;
-    if (visited.has(vk)) return;
+    if (visited.has(vk) || visited.size >= SEVEN_MAX_STATES || results.length >= SEVEN_MAX_PLAYS) return;
     visited.add(vk);
     for (const id of mine) {
       if (!repeat && used.includes(id)) continue;
@@ -182,6 +192,8 @@ function sevenPlays(pegs: Peg[], layout: Layout, mine: number[]): Move[][] {
 function movesForRank(state: GameState, layout: Layout, player: number, rank: Rank): Move[][] {
   const colors = controlledColors(state, layout, player);
   const mine = state.pegs.filter((p) => colors.includes(p.color));
+  // 7: wahlweise auf alle Kugeln auf dem Brett aufteilbar
+  const sevenPegs = layout.rules.sevenAnyPeg ? state.pegs.filter((p) => p.pos.t !== 'home') : mine;
   const out: Move[][] = [];
   const forward = (n: number) => {
     for (const p of mine) if (tryMove(state.pegs, layout, p.id, n, false)) out.push([{ t: 'move', peg: p.id, steps: n }]);
@@ -206,28 +218,32 @@ function movesForRank(state: GameState, layout: Layout, player: number, rank: Ra
       forward(12);
       break;
     case '4':
+      if (layout.rules.fourDirection === 'both') forward(4);
       for (const p of mine) if (tryMove(state.pegs, layout, p.id, -4, false)) out.push([{ t: 'move', peg: p.id, steps: -4 }]);
       break;
     case '7':
-      out.push(...sevenPlays(state.pegs, layout, mine.map((p) => p.id)));
+      for (const m of sevenPlays(state.pegs, layout, sevenPegs.map((p) => p.id))) out.push(m);
       break;
     case 'J':
-      if (layout.teams) {
-        for (const a of mine) {
-          for (const b of state.pegs) {
-            if (b.id === a.id) continue;
-            if (mine.includes(b) && b.id < a.id) continue; // Paar nur einmal
-            if (mine.includes(b) && !layout.rules.jackSwapOwn) continue;
-            if (!mine.includes(b) && !layout.rules.jackSwapPartner && layout.friendlyColors[a.color]!.includes(b.color)) continue;
-            if (trySwap(state.pegs, a.id, b.id)) out.push([{ t: 'swap', a: a.id, b: b.id }]);
-          }
+      // Der Bube dient immer nur zum Tauschen zweier Kugeln
+      for (const a of mine) {
+        for (const b of state.pegs) {
+          if (b.id === a.id) continue;
+          if (mine.includes(b) && b.id < a.id) continue; // Paar nur einmal
+          if (mine.includes(b) && !layout.rules.jackSwapOwn) continue;
+          if (!mine.includes(b) && !layout.rules.jackSwapPartner && layout.friendlyColors[a.color]!.includes(b.color)) continue;
+          if (trySwap(state.pegs, a.id, b.id)) out.push([{ t: 'swap', a: a.id, b: b.id }]);
         }
-      } else {
+      }
+      break;
+    case '2':
+      forward(2);
+      // Einzelspiel (2, 3, 5 Spieler): statt 2 zu fahren darf man blind eine Karte eines Gegners ziehen (zählt als Zug)
+      if (!layout.teams) {
         state.hands.forEach((h, q) => {
           if (q === player) return;
           for (let idx = 0; idx < h.length; idx++) out.push([{ t: 'steal', from: q, idx }]);
         });
-        if (out.length === 0 && layout.rules.jackStealNoCards === 'void') out.push([]);
       }
       break;
     default:
@@ -240,9 +256,21 @@ function movesForRank(state: GameState, layout: Layout, player: number, rank: Ra
 export function legalPlays(state: GameState, player: number): Play[] {
   const layout = layoutFor(state.config);
   const plays: Play[] = [];
+  const colors = controlledColors(state, layout, player);
+  const unfinished = colors.filter((c) => !allInFinish(state, c));
   for (const card of new Set(state.hands[player])) {
     if (card === 'JOKER') {
-      for (const rank of RANKS) for (const moves of movesForRank(state, layout, player, rank)) plays.push({ card, as: rank, moves });
+      for (const rank of RANKS) {
+        for (const moves of movesForRank(state, layout, player, rank)) {
+          // Die letzte Kugel darf nicht mit einem Joker ins Haus gebracht werden
+          if (unfinished.length > 0 && moves.length > 0) {
+            const after = pegsAfterPlay(state.pegs, layout, { card, as: rank, moves });
+            const done = (c: number) => after.filter((p) => p.color === c).every((p) => p.pos.t === 'fin');
+            if (unfinished.some(done)) continue;
+          }
+          plays.push({ card, as: rank, moves });
+        }
+      }
     } else {
       for (const moves of movesForRank(state, layout, player, card)) plays.push({ card, moves });
     }

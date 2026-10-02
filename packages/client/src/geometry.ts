@@ -59,7 +59,10 @@ function toCurve(points: Pt[]): Curve {
 // Kreuzförmige Originalbretter. Einheit = Lochabstand. Jeder Spieler hat einen Arm (Breite 4): Die Löcher laufen
 // an einer Seite hinaus, über das Armende und an der anderen Seite zurück (16 Löcher pro Arm). Das Zielhaus liegt
 // in der Mitte des Arms, die Nestlöcher in einer Reihe am Armende. Start des Umrisses = Mitte des Armendes unten;
-// von dort im Uhrzeigersinn folgen die Arme der übrigen Spieler.
+// von dort im Uhrzeigersinn folgen die Arme der übrigen Spieler. Gespielt wird entgegengesetzt: Die Felder
+// (und die Spielreihenfolge) laufen auf dem Bildschirm gegen den Uhrzeigersinn. Das Startfeld liegt in der Ecke
+// des Armendes; von dort zweigt das Zielhaus nach innen ab (erster Hausplatz schräg neben dem Startfeld, dann
+// geradeaus parallel zur Armseite).
 
 /** Sternumriss mit n gleichen Armen (n = 3, 4): Armachse Λ = c + 6, wobei c der Abstand der Einbuchtung ist. */
 function starOutline(n: number): Pt[] {
@@ -134,9 +137,12 @@ export function makeGeo(layout: Layout, myColor: number, wanted: BoardStyle = 'c
   const style: BoardStyle = wanted === 'original' && hasOriginalShape(layout.colors) ? 'original' : 'circle';
   const curve = curveFor(style, layout.colors);
   const orig = style === 'original';
-  // Kreis: mein Startfeld unten in der Mitte. Kreuz: die Mitte meines Armendes (= Feld vor meinem Start, dort
-  // zweigt das Zielhaus ab) liegt unten in der Mitte, mein Start direkt daneben.
-  const at = (f: number) => sample(curve, (f - startField(myColor) + (orig ? 1 : 0)) / R);
+  // Die Kurve läuft im Uhrzeigersinn, gespielt wird dagegen: wachsendes Feld = abnehmender Kurvenparameter.
+  // Kreis: mein Startfeld unten in der Mitte. Kreuz: die Mitte meines Armendes liegt unten in der Mitte, mein
+  // Startfeld liegt in der Ecke links davon (zwei Löcher von der Mitte entfernt).
+  const at = (f: number) => sample(curve, ((orig ? 2 : 0) - (f - startField(myColor))) / R);
+  /** Mitte des Armendes einer Farbe (nur Kreuz) */
+  const armEnd = (c: number) => sample(curve, -(startField(c) - startField(myColor)) / R);
   const ring = (f: number): Pt => at(f).p;
 
   const spacing = curve.length / R;
@@ -148,7 +154,7 @@ export function makeGeo(layout: Layout, myColor: number, wanted: BoardStyle = 'c
 
   const nestCentre = (c: number): Pt => {
     if (orig) {
-      const { p, n } = at(startField(c) - 1 + R);
+      const { p, n } = armEnd(c);
       return { x: p.x + n.x * spacing * 2, y: p.y + n.y * spacing * 2 };
     }
     const { p, n } = at(startField(c));
@@ -158,7 +164,7 @@ export function makeGeo(layout: Layout, myColor: number, wanted: BoardStyle = 'c
     const centre = nestCentre(c);
     if (orig) {
       // vier Löcher in einer Reihe quer zum Arm
-      const { n } = at(startField(c) - 1 + R);
+      const { n } = armEnd(c);
       const tang = { x: -n.y, y: n.x };
       const o = (i - 1.5) * spacing * 0.95;
       return { x: centre.x + tang.x * o, y: centre.y + tang.y * o };
@@ -179,14 +185,22 @@ export function makeGeo(layout: Layout, myColor: number, wanted: BoardStyle = 'c
     return { x1: cc.x, y1: cc.y, x2: cc.x + 0.01, y2: cc.y, w: 68, cx: cc.x, cy: cc.y };
   };
   const fin = (c: number, s: number): Pt => {
-    const { p, n } = at(startField(c) - 1 + R);
+    if (orig) {
+      // Startfeld in der Ecke: erster Hausplatz ein Schritt zur Armmitte und einen nach innen, dann geradeaus nach innen
+      const { p } = at(startField(c));
+      const { p: mid, n } = armEnd(c);
+      const l = Math.hypot(mid.x - p.x, mid.y - p.y) || 1;
+      const t = { x: (mid.x - p.x) / l, y: (mid.y - p.y) / l };
+      return { x: p.x + t.x * spacing - n.x * spacing * (s + 1), y: p.y + t.y * spacing - n.y * spacing * (s + 1) };
+    }
+    const { p, n } = at(startField(c));
     return { x: p.x - n.x * laneStep * (s + 1), y: p.y - n.y * laneStep * (s + 1) };
   };
   /** Beschriftung: `y` ist die Grundlinie der letzten Zeile (above) bzw. der ersten Zeile (sonst). */
   const label = (c: number): Pt & { anchor: 'start' | 'middle' | 'end'; above: boolean } => {
     const n = nestCentre(c);
     if (orig) {
-      const { n: axis } = at(startField(c) - 1 + R);
+      const { n: axis } = armEnd(c);
       const hs = [0, 1, 2, 3].map((i) => home(c, i));
       const top = Math.min(...hs.map((h) => h.y));
       const bottom = Math.max(...hs.map((h) => h.y));
