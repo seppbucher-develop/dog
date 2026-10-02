@@ -174,6 +174,61 @@ function GameInner({ lobby, view }: { lobby: LobbyView; view: GameView }) {
       </div>
 
       <aside className="side">
+        <div className="hand" role="list" aria-label="Deine Karten">
+          {hand.map((c, i) => {
+            const selected = view.phase === 'exchange' ? xCard === c && hand.indexOf(c) === i : sel.card === c && hand.indexOf(c) === i;
+            const usable = view.phase === 'exchange' ? !view.exchangeDone[view.seat] : myTurn && playable.has(c);
+            return (
+              <button
+                key={`${c}${i}`}
+                role="listitem"
+                className={`pcard${selected ? ' selected' : ''}${usable ? '' : ' dim'}${c === 'J' || c === 'Q' || c === 'K' ? ' face' : ''}${c === 'JOKER' ? ' joker' : ''}`}
+                disabled={!usable}
+                onClick={() => clickCard(c)}
+                aria-pressed={selected}
+              >
+                <span className="rank">{CARD_TEXT[c]}</span>
+                <span className="hint">{cardHint(c, teams, layout.rules.fourDirection === 'both')}</span>
+              </button>
+            );
+          })}
+          {hand.length === 0 && <p className="muted">Keine Karten auf der Hand.</p>}
+        </div>
+
+        <div className="card status" aria-live="polite">
+          <p className={myTurn || (view.phase === 'exchange' && !view.exchangeDone[view.seat]) ? 'prompt on' : 'prompt'}>{prompt}</p>
+          {(view.passes ?? []).slice(-3).map((e) => (
+            <p key={e.id} className="muted warn">
+              {names[e.player]}{e.player === view.seat ? ' (du)' : ''}: kein Zug möglich – {e.cards} {e.cards === 1 ? 'Karte' : 'Karten'} abgeworfen
+            </p>
+          ))}
+          {last && (
+            <p className="muted">
+              Letzter Zug – {names[last.player]}: Karte <b>{CARD_TEXT[last.card]}</b>
+              {last.as ? ` als ${CARD_TEXT[last.as]}` : ''}
+              {last.moves.length > 0 ? ` – ${last.moves.map((m) => moveText(m, names)).join(', ')}` : ' – ohne Wirkung'}
+            </p>
+          )}
+          {myTurn && sel.card === 'JOKER' && (
+            <div className="row joker-pick" role="group" aria-label="Joker einsetzen als">
+              {jokerRanks(legal).map((r) => (
+                <button key={r} className={sel.as === r ? 'primary' : ''} aria-pressed={sel.as === r} onClick={() => { setSel(sel.as === r ? { card: 'JOKER', prefix: [] } : { card: 'JOKER', as: r, prefix: [] }); setFocus(null); }}>
+                  {CARD_TEXT[r]}
+                </button>
+              ))}
+            </div>
+          )}
+          <div className="row">
+            {view.phase === 'exchange' && !view.exchangeDone[view.seat] && (
+              <button className="primary" disabled={!xCard} onClick={() => xCard && net.send({ t: 'exchange', card: xCard })}>Karte abgeben</button>
+            )}
+            {onlyPlay && <button className="primary" onClick={() => submit(onlyPlay)}>Zug ausführen</button>}
+            {voidPlay && voidPlay.moves.length === 0 && <button onClick={() => submit(voidPlay)}>Ohne Wirkung ablegen</button>}
+            {sel.card && sel.prefix.length > 0 && <button onClick={() => { setSel({ ...sel, prefix: sel.prefix.slice(0, -1) }); setFocus(null); }}>Letzten Schritt zurück</button>}
+            {sel.card && <button onClick={() => { setSel(emptySel); setFocus(null); }}>Abbrechen</button>}
+          </div>
+        </div>
+
         <div className="card">
           <div className="row between">
             <b>Spiel {lobby.code}</b>
@@ -216,61 +271,6 @@ function GameInner({ lobby, view }: { lobby: LobbyView; view: GameView }) {
               );
             })}
           </ol>
-        </div>
-
-        <div className="card status" aria-live="polite">
-          <p className={myTurn || (view.phase === 'exchange' && !view.exchangeDone[view.seat]) ? 'prompt on' : 'prompt'}>{prompt}</p>
-          {(view.passes ?? []).slice(-3).map((e) => (
-            <p key={e.id} className="muted warn">
-              {names[e.player]}{e.player === view.seat ? ' (du)' : ''}: kein Zug möglich – {e.cards} {e.cards === 1 ? 'Karte' : 'Karten'} abgeworfen
-            </p>
-          ))}
-          {last && (
-            <p className="muted">
-              Letzter Zug – {names[last.player]}: Karte <b>{CARD_TEXT[last.card]}</b>
-              {last.as ? ` als ${CARD_TEXT[last.as]}` : ''}
-              {last.moves.length > 0 ? ` – ${last.moves.map((m) => moveText(m, names)).join(', ')}` : ' – ohne Wirkung'}
-            </p>
-          )}
-          {myTurn && sel.card === 'JOKER' && (
-            <div className="row joker-pick" role="group" aria-label="Joker einsetzen als">
-              {jokerRanks(legal).map((r) => (
-                <button key={r} className={sel.as === r ? 'primary' : ''} aria-pressed={sel.as === r} onClick={() => { setSel(sel.as === r ? { card: 'JOKER', prefix: [] } : { card: 'JOKER', as: r, prefix: [] }); setFocus(null); }}>
-                  {CARD_TEXT[r]}
-                </button>
-              ))}
-            </div>
-          )}
-          <div className="row">
-            {view.phase === 'exchange' && !view.exchangeDone[view.seat] && (
-              <button className="primary" disabled={!xCard} onClick={() => xCard && net.send({ t: 'exchange', card: xCard })}>Karte abgeben</button>
-            )}
-            {onlyPlay && <button className="primary" onClick={() => submit(onlyPlay)}>Zug ausführen</button>}
-            {voidPlay && voidPlay.moves.length === 0 && <button onClick={() => submit(voidPlay)}>Ohne Wirkung ablegen</button>}
-            {sel.card && sel.prefix.length > 0 && <button onClick={() => { setSel({ ...sel, prefix: sel.prefix.slice(0, -1) }); setFocus(null); }}>Letzten Schritt zurück</button>}
-            {sel.card && <button onClick={() => { setSel(emptySel); setFocus(null); }}>Abbrechen</button>}
-          </div>
-        </div>
-
-        <div className="hand" role="list" aria-label="Deine Karten">
-          {hand.map((c, i) => {
-            const selected = view.phase === 'exchange' ? xCard === c && hand.indexOf(c) === i : sel.card === c && hand.indexOf(c) === i;
-            const usable = view.phase === 'exchange' ? !view.exchangeDone[view.seat] : myTurn && playable.has(c);
-            return (
-              <button
-                key={`${c}${i}`}
-                role="listitem"
-                className={`pcard${selected ? ' selected' : ''}${usable ? '' : ' dim'}${c === 'J' || c === 'Q' || c === 'K' ? ' face' : ''}${c === 'JOKER' ? ' joker' : ''}`}
-                disabled={!usable}
-                onClick={() => clickCard(c)}
-                aria-pressed={selected}
-              >
-                <span className="rank">{CARD_TEXT[c]}</span>
-                <span className="hint">{cardHint(c, teams, layout.rules.fourDirection === 'both')}</span>
-              </button>
-            );
-          })}
-          {hand.length === 0 && <p className="muted">Keine Karten auf der Hand.</p>}
         </div>
       </aside>
 
