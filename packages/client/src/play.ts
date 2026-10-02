@@ -1,8 +1,10 @@
-import type { Card, Move, Play } from '@dog/engine';
+import type { Card, Move, Play, Rank } from '@dog/engine';
 
 /** Auswahlzustand beim Ausspielen: gewählte Karte und bereits gewählte Teilzüge (z. B. bei der 7). */
 export interface Selection {
   card: Card | null;
+  /** Joker: als welche Karte er gespielt wird (erst nach der Wahl gibt es Züge) */
+  as?: Rank;
   prefix: Move[];
 }
 
@@ -14,7 +16,8 @@ export const sameMove = (a: Move, b: Move): boolean => JSON.stringify(a) === JSO
 export function candidates(legal: Play[], sel: Selection): Play[] {
   const { card } = sel;
   if (!card) return [];
-  return legal.filter((p) => p.card === card && sel.prefix.every((m, i) => p.moves[i] !== undefined && sameMove(p.moves[i]!, m)));
+  if (card === 'JOKER' && !sel.as) return [];
+  return legal.filter((p) => p.card === card && (card !== 'JOKER' || p.as === sel.as) && sel.prefix.every((m, i) => p.moves[i] !== undefined && sameMove(p.moves[i]!, m)));
 }
 
 /** Mögliche nächste Teilzüge (ohne Doppelte). */
@@ -31,6 +34,14 @@ export function nextMoves(cands: Play[], k: number): Move[] {
 export function completed(cands: Play[], k: number): Play | null {
   return cands.find((p) => p.moves.length === k) ?? null;
 }
+
+/** Ränge, als die ein Joker mit dem aktuellen Stand spielbar ist (in Kartenreihenfolge). */
+export function jokerRanks(legal: Play[]): Rank[] {
+  const set = new Set(legal.filter((p) => p.card === 'JOKER' && p.as).map((p) => p.as!));
+  return RANK_ORDER.filter((r) => set.has(r));
+}
+
+const RANK_ORDER: Rank[] = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
 
 /** Karten, mit denen es überhaupt einen legalen Zug gibt. */
 export function playableCards(legal: Play[]): Set<Card> {

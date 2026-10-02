@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { applyAction, createGame, layoutFor, legalPlays, type Play } from '@dog/engine';
-import { candidates, completed, emptySel, movablePegs, nextMoves, optionsForPeg, sevenRemaining } from '../src/play';
+import { candidates, completed, emptySel, jokerRanks, movablePegs, nextMoves, optionsForPeg, sevenRemaining, type Selection } from '../src/play';
 import { hasOriginalShape, makeGeo, type BoardStyle } from '../src/geometry';
 
 const plays: Play[] = [
@@ -19,6 +19,18 @@ describe('Zugauswahl', () => {
   it('Karte wählen liefert nur deren Züge', () => {
     expect(candidates(plays, { card: 'A', prefix: [] })).toHaveLength(3);
     expect(candidates(plays, emptySel)).toHaveLength(0);
+  });
+
+  it('Joker: erst den Rang wählen, dann gibt es Züge nur für diesen Rang', () => {
+    const jp: Play[] = [
+      { card: 'JOKER', as: '5', moves: [{ t: 'move', peg: 0, steps: 5 }] },
+      { card: 'JOKER', as: 'A', moves: [{ t: 'move', peg: 0, steps: 1 }] },
+      { card: 'JOKER', as: 'A', moves: [{ t: 'start', peg: 2 }] },
+    ];
+    expect(candidates(jp, { card: 'JOKER', prefix: [] })).toHaveLength(0);
+    expect(jokerRanks(jp)).toEqual(['A', '5']);
+    expect(candidates(jp, { card: 'JOKER', as: 'A', prefix: [] })).toHaveLength(2);
+    expect(candidates(jp, { card: 'JOKER', as: '5', prefix: [] })).toHaveLength(1);
   });
 
   it('Kugeln und Optionen zur Karte', () => {
@@ -55,8 +67,9 @@ describe('Zugauswahl', () => {
     let s = createGame({ players: 3 }, 4);
     for (let i = 0; i < 300 && s.phase !== 'finished'; i++) {
       const legal = legalPlays(s, s.current);
-      const card = legal[i % legal.length]!.card;
-      let sel = { card, prefix: [] as Play['moves'] };
+      const pick = legal[i % legal.length]!;
+      const card = pick.card;
+      let sel: Selection = { card, ...(pick.as ? { as: pick.as } : {}), prefix: [] };
       for (let guard = 0; guard < 10; guard++) {
         const c = candidates(legal, sel);
         const done = completed(c, sel.prefix.length);
@@ -64,7 +77,7 @@ describe('Zugauswahl', () => {
           s = applyAction(s, { t: 'play', player: s.current, card: done.card, moves: done.moves, ...(done.as ? { as: done.as } : {}) });
           break;
         }
-        sel = { card, prefix: [...sel.prefix, nextMoves(c, sel.prefix.length)[0]!] };
+        sel = { ...sel, prefix: [...sel.prefix, nextMoves(c, sel.prefix.length)[0]!] };
       }
     }
     expect(s.round).toBeGreaterThan(0);
