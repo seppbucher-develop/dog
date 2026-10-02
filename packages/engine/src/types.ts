@@ -105,4 +105,6 @@ export interface GameState {
   /** Gewinner (Spieler-Indizes des Teams bzw. der einzelne Spieler) */
   winners: number[] | null;
   rng: number;
+  /** Spieler, deren Hand in der letzten Aktion wegen fehlendem Zug automatisch abgeworfen wurde */
+  passed?: { player: number; cards: number }[];
 }

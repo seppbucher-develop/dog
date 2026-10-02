@@ -163,6 +163,7 @@ describe('Spiel', () => {
     expect(v.phase).toBe('exchange');
     expect(v.exchangeDone).toEqual([false, true, true, true]); // Bots haben schon gewählt
     expect(v.myHand).toHaveLength(6);
+    expect(Array.isArray(v.passes)).toBe(true);
     for (const m of host.msgs) {
       const s = JSON.stringify(m);
       expect(s).not.toMatch(/"hands"|"deck"|"discard"/);
