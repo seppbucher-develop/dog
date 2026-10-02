@@ -26,6 +26,10 @@ export interface Geo {
   edgePath: string;
   /** Nest einer Farbe: Kapsel/Kreis zwischen zwei Punkten mit Breite w */
   nest(color: number): { x1: number; y1: number; x2: number; y2: number; w: number; cx: number; cy: number };
+  /** Breite des Holzrands (Strichbreite um den Umriss): alle Löcher liegen sicher innerhalb */
+  woodW: number;
+  /** Holzlasche unter dem Nest einer Farbe: vom Ring zum Nest, Breite w */
+  tab(color: number): { x1: number; y1: number; x2: number; y2: number; w: number };
   /** Mitte für den Text */
   centre: Pt;
   /** Radius der Zielfelder */
@@ -57,43 +61,82 @@ function toCurve(points: Pt[]): Curve {
 }
 
 // Kreuzförmige Originalbretter. Einheit = Lochabstand. Jeder Spieler hat einen Arm (Breite 4): Die Löcher laufen
-// an einer Seite hinaus, über das Armende und an der anderen Seite zurück (16 Löcher pro Arm). Das Zielhaus liegt
-// in der Mitte des Arms, die Nestlöcher in einer Reihe am Armende. Start des Umrisses = Mitte des Armendes unten;
+// an einer Seite hinaus, über das Armende und an der anderen Seite zurück (16 Löcher pro Arm). Das Zielhaus zweigt
+// vom Startfeld ab, die Nestlöcher liegen in einer Reihe am Armende. Start des Umrisses = Mitte des Armendes unten;
 // von dort im Uhrzeigersinn folgen die Arme der übrigen Spieler. Gespielt wird entgegengesetzt: Die Felder
 // (und die Spielreihenfolge) laufen auf dem Bildschirm gegen den Uhrzeigersinn. Das Startfeld liegt in der Ecke
-// des Armendes; von dort zweigt das Zielhaus nach innen ab (erster Hausplatz schräg neben dem Startfeld, dann
+// des Armendes (rechts, vom Spieler aus gesehen: die Kugeln laufen von dort nach rechts weg und kommen von links
+// zurück); von dort zweigt das Zielhaus nach innen ab (erster Hausplatz schräg neben dem Startfeld, dann
 // geradeaus parallel zur Armseite).
 
-/** Sternumriss mit n gleichen Armen (n = 3, 4): Armachse Λ = c + 6, wobei c der Abstand der Einbuchtung ist. */
-function starOutline(n: number): Pt[] {
-  const c = 2 / Math.tan(Math.PI / n);
-  const L = c + 6;
-  const rot = (p: Pt, k: number): Pt => {
-    const a = (2 * Math.PI * k) / n; // wachsender Winkel = Uhrzeigersinn (y nach unten)
-    return { x: p.x * Math.cos(a) - p.y * Math.sin(a), y: p.x * Math.sin(a) + p.y * Math.cos(a) };
+/**
+ * Umriss aus Armen. `dirs` = Richtung jedes Arms (Grad, im Uhrzeigersinn ab der x-Achse, y nach unten) in der
+ * Reihenfolge im Uhrzeigersinn; Arm 0 zeigt nach unten und der Umriss beginnt in der Mitte seines Endes.
+ * Jeder Arm hat vier Abschnitte zu 4 Lochabständen: Seite hinaus, Armende, Seite zurück und die Verbindung zum
+ * nächsten Arm (abgeschrägt, bei gleicher Richtung eine Aussparung von 4 Breite und 4 Tiefe).
+ */
+function armsOutline(dirs: number[]): Pt[] {
+  const n = dirs.length;
+  const pts: Pt[] = [{ x: 0, y: 0 }];
+  let x = 0;
+  let y = 0;
+  let h = 0;
+  const fwd = (len: number) => {
+    x += Math.cos((h * Math.PI) / 180) * len;
+    y += Math.sin((h * Math.PI) / 180) * len;
+    pts.push({ x, y });
   };
-  const pts: Pt[] = [{ x: 0, y: L }, { x: -2, y: L }, { x: -2, y: c }];
-  for (let k = 1; k < n; k++) for (const q of [{ x: 2, y: c }, { x: 2, y: L }, { x: -2, y: L }, { x: -2, y: c }]) pts.push(rot(q, k));
-  pts.push({ x: 2, y: L });
-  // doppelte Punkte (Einbuchtungen, die zwei Arme teilen) entfernen
-  return pts.filter((p, i) => i === 0 || Math.hypot(p.x - pts[i - 1]!.x, p.y - pts[i - 1]!.y) > 1e-6);
+  const connect = (k: number) => {
+    // von der Seite zurück (Richtung d + 180) zur Seite hinaus des nächsten Arms
+    const delta = (((dirs[(k + 1) % n]! - dirs[k]!) % 360) + 360) % 360;
+    const turn = (delta - 180) / 2;
+    h += turn;
+    fwd(4);
+    h += turn;
+  };
+  for (let k = 0; k < n; k++) {
+    if (k === 0) {
+      h = dirs[0]! + 90; // Armende nach links (unten im Uhrzeigersinn)
+      fwd(2);
+    } else {
+      h = dirs[k]!;
+      fwd(4);
+      h += 90;
+      fwd(4);
+    }
+    h += 90;
+    fwd(4);
+    connect(k);
+  }
+  // Arm 0: Seite hinaus und erste Hälfte des Armendes
+  fwd(4);
+  h += 90;
+  fwd(2);
+  pts.pop(); // letzter Punkt = Startpunkt
+  return pts;
 }
 
-/** Umriss für 6 Spieler: Arm unten und oben, je zwei Arme links und rechts; 96 Schritte, Armabstand je 16. */
-function sixOutline(): Pt[] {
-  const right: [number, number][] = [
-    [0, 11], [-2, 11], [-2, 7], [-3, 7], [-3, 5], [-8, 5], [-8, 1], [-3, 1], [-3, -1], [-8, -1], [-8, -5], [-3, -5], [-3, -7],
-    [-2, -7], [-2, -11], [2, -11], [2, -7], [3, -7], [3, -5], [8, -5], [8, -1], [3, -1], [3, 1], [8, 1], [8, 5], [3, 5], [3, 7], [2, 7], [2, 11],
-  ];
-  return right.map(([x, y]) => ({ x, y }));
+/**
+ * Armrichtungen des 6er-Originals in Spielreihenfolge (gegen den Uhrzeigersinn, Grad wie in `armsOutline`):
+ * rechts unten, rechts, oben, links oben, links, unten. Gegenüber sitzen die Partner.
+ */
+const SIX_ARMS = [0, 0, 270, 180, 180, 90];
+
+/**
+ * Richtungen im Uhrzeigersinn ab dem Arm `me`. Das Brett steht wie im Original hochkant; wer in der oberen
+ * Hälfte sitzt, sieht es um 180 Grad gedreht, damit der eigene Arm unten liegt.
+ */
+function sixDirs(me: number): number[] {
+  const turn = me >= 1 && me <= 3 ? 180 : 0; // Weiss, Grün, Rot sitzen in der oberen Hälfte
+  return Array.from({ length: 6 }, (_, j) => (SIX_ARMS[(me - j + 6) % 6]! + turn) % 360);
 }
 
-function curveFor(style: BoardStyle, colors: number): Curve {
+function curveFor(style: BoardStyle, colors: number, me: number): Curve {
   let raw: Pt[];
   let target: number; // größte Ausdehnung in Pixeln
-  if (style === 'original' && colors === 4) [raw, target] = [starOutline(4), 660];
-  else if (style === 'original' && colors === 3) [raw, target] = [starOutline(3), 660];
-  else if (style === 'original' && colors === 6) [raw, target] = [sixOutline(), 720];
+  if (style === 'original' && colors === 4) [raw, target] = [armsOutline([90, 180, 270, 0]), 660];
+  else if (style === 'original' && colors === 3) [raw, target] = [armsOutline([90, 210, 330]), 660];
+  else if (style === 'original' && colors === 6) [raw, target] = [armsOutline(sixDirs(me)), 720];
   else {
     raw = Array.from({ length: 720 }, (_, i) => {
       const a = Math.PI / 2 + (i / 720) * 2 * Math.PI;
@@ -135,12 +178,12 @@ function sample(c: Curve, t: number): { p: Pt; n: Pt } {
 export function makeGeo(layout: Layout, myColor: number, wanted: BoardStyle = 'circle'): Geo {
   const R = layout.ringSize;
   const style: BoardStyle = wanted === 'original' && hasOriginalShape(layout.colors) ? 'original' : 'circle';
-  const curve = curveFor(style, layout.colors);
+  const curve = curveFor(style, layout.colors, myColor);
   const orig = style === 'original';
   // Die Kurve läuft im Uhrzeigersinn, gespielt wird dagegen: wachsendes Feld = abnehmender Kurvenparameter.
   // Kreis: mein Startfeld unten in der Mitte. Kreuz: die Mitte meines Armendes liegt unten in der Mitte, mein
-  // Startfeld liegt in der Ecke links davon (zwei Löcher von der Mitte entfernt).
-  const at = (f: number) => sample(curve, ((orig ? 2 : 0) - (f - startField(myColor))) / R);
+  // Startfeld liegt in der rechten Ecke (zwei Löcher von der Mitte entfernt), von dort laufen die Felder nach rechts.
+  const at = (f: number) => sample(curve, ((orig ? -2 : 0) - (f - startField(myColor))) / R);
   /** Mitte des Armendes einer Farbe (nur Kreuz) */
   const armEnd = (c: number) => sample(curve, -(startField(c) - startField(myColor)) / R);
   const ring = (f: number): Pt => at(f).p;
@@ -235,6 +278,14 @@ export function makeGeo(layout: Layout, myColor: number, wanted: BoardStyle = 'c
 
   const edgePath = `M${curve.points.map((p) => `${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join('L')}Z`;
 
+  const woodW = 2 * Math.max(26, spacing * 0.95);
+  const tab = (c: number) => {
+    const cc = nestCentre(c);
+    const base = orig ? armEnd(c).p : at(startField(c)).p;
+    const nst = nest(c);
+    return { x1: base.x, y1: base.y, x2: cc.x, y2: cc.y, w: Math.hypot(nst.x2 - nst.x1, nst.y2 - nst.y1) + nst.w + 24 };
+  };
+
   return {
     ring,
     home,
@@ -247,6 +298,8 @@ export function makeGeo(layout: Layout, myColor: number, wanted: BoardStyle = 'c
     viewBox,
     edgePath,
     nest,
+    woodW,
+    tab,
     centre: { x: 0, y: 0 },
     slotR,
     style,

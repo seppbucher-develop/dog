@@ -6,7 +6,7 @@ import { NEUTRAL, colorHex, colorName } from './colors';
 import { hasOriginalShape, makeGeo, type BoardStyle } from './geometry';
 import { CARD_TEXT, LEVEL_LABEL, cardHint, moveText } from './labels';
 import { net } from './net';
-import { candidates, completed, emptySel, movablePegs, nextMoves, optionsForPeg, playableCards, sevenRemaining, type Selection } from './play';
+import { candidates, completed, emptySel, jokerRanks, movablePegs, nextMoves, optionsForPeg, playableCards, sevenRemaining, type Selection } from './play';
 
 const ORDER: Card[] = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'JOKER'];
 const sortHand = (h: Card[]) => [...h].sort((a, b) => ORDER.indexOf(a) - ORDER.indexOf(b));
@@ -141,6 +141,7 @@ function GameInner({ lobby, view }: { lobby: LobbyView; view: GameView }) {
     if (view.phase === 'exchange') return view.exchangeDone[view.seat] ? 'Warte auf die anderen Spieler …' : `Wähle eine Karte, die du an ${names[layout.giveTo[view.seat]!]} (${colorName(lobby.seats[layout.giveTo[view.seat]!]?.color ?? 0)}, Platz ${layout.giveTo[view.seat]! + 1}) abgibst.`;
     if (!myTurn) return `${names[view.current]} ist am Zug …`;
     if (!sel.card) return 'Du bist am Zug – wähle eine Karte.';
+    if (sel.card === 'JOKER' && !sel.as) return 'Joker: wähle, als welche Karte er gespielt wird.';
     if (stealOpts.length > 0) return selectable.size > 0 ? 'Wähle eine Kugel (2 Felder) oder ziehe blind eine Karte eines Gegners.' : 'Ziehe blind eine Karte eines Gegners.';
     if (sel.prefix.length > 0 && (sel.card === '7' || cands.some((p) => p.as === '7'))) return `7: noch ${sevenRemaining(sel.prefix)} Schritte verteilen – wähle die nächste Kugel.`;
     if (focus !== null && markers.length > 0) return 'Wähle das Ziel.';
@@ -230,6 +231,15 @@ function GameInner({ lobby, view }: { lobby: LobbyView; view: GameView }) {
               {last.as ? ` als ${CARD_TEXT[last.as]}` : ''}
               {last.moves.length > 0 ? ` – ${last.moves.map((m) => moveText(m, names)).join(', ')}` : ' – ohne Wirkung'}
             </p>
+          )}
+          {myTurn && sel.card === 'JOKER' && (
+            <div className="row joker-pick" role="group" aria-label="Joker einsetzen als">
+              {jokerRanks(legal).map((r) => (
+                <button key={r} className={sel.as === r ? 'primary' : ''} aria-pressed={sel.as === r} onClick={() => { setSel(sel.as === r ? { card: 'JOKER', prefix: [] } : { card: 'JOKER', as: r, prefix: [] }); setFocus(null); }}>
+                  {CARD_TEXT[r]}
+                </button>
+              ))}
+            </div>
           )}
           <div className="row">
             {view.phase === 'exchange' && !view.exchangeDone[view.seat] && (

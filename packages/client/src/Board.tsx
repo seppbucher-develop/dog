@@ -34,8 +34,16 @@ export function Board({ layout, geo, pegs, segColors, segNames, activeSegs, sele
   const fields = Array.from({ length: R }, (_, f) => f);
   return (
     <svg className="board" viewBox={geo.viewBox} role="img" aria-label="Spielbrett">
-      <path d={geo.edgePath} className="board-edge" />
-      <path d={geo.edgePath} className="board-disc" />
+      <path d={geo.edgePath} className="board-edge" style={{ strokeWidth: geo.woodW + 6 }} />
+      {layout.usedColors.map((c) => {
+        const t = geo.tab(c);
+        return <line key={`te${c}`} x1={t.x1} y1={t.y1} x2={t.x2} y2={t.y2} className="board-edge" style={{ strokeWidth: t.w + 6, strokeLinecap: 'round' }} />;
+      })}
+      <path d={geo.edgePath} className="board-disc" style={{ strokeWidth: geo.woodW }} />
+      {layout.usedColors.map((c) => {
+        const t = geo.tab(c);
+        return <line key={`td${c}`} x1={t.x1} y1={t.y1} x2={t.x2} y2={t.y2} className="board-disc" style={{ strokeWidth: t.w, strokeLinecap: 'round' }} />;
+      })}
 
       {/* Zielhäuser */}
       {layout.usedColors.map((c) => {
