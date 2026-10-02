@@ -61,7 +61,8 @@ function toCurve(points: Pt[]): Curve {
 // in der Mitte des Arms, die Nestlöcher in einer Reihe am Armende. Start des Umrisses = Mitte des Armendes unten;
 // von dort im Uhrzeigersinn folgen die Arme der übrigen Spieler. Gespielt wird entgegengesetzt: Die Felder
 // (und die Spielreihenfolge) laufen auf dem Bildschirm gegen den Uhrzeigersinn. Das Startfeld liegt in der Ecke
-// des Armendes; von dort zweigt das Zielhaus nach innen ab.
+// des Armendes; von dort zweigt das Zielhaus nach innen ab (erster Hausplatz schräg neben dem Startfeld, dann
+// geradeaus parallel zur Armseite).
 
 /** Sternumriss mit n gleichen Armen (n = 3, 4): Armachse Λ = c + 6, wobei c der Abstand der Einbuchtung ist. */
 function starOutline(n: number): Pt[] {
@@ -138,9 +139,8 @@ export function makeGeo(layout: Layout, myColor: number, wanted: BoardStyle = 'c
   const orig = style === 'original';
   // Die Kurve läuft im Uhrzeigersinn, gespielt wird dagegen: wachsendes Feld = abnehmender Kurvenparameter.
   // Kreis: mein Startfeld unten in der Mitte. Kreuz: die Mitte meines Armendes liegt unten in der Mitte, mein
-  // Startfeld (in der Ecke, links davon) liegt ein Loch daneben, damit das Zielhaus neben den Seitenlöchern
-  // nach innen laufen kann.
-  const at = (f: number) => sample(curve, ((orig ? 1 : 0) - (f - startField(myColor))) / R);
+  // Startfeld liegt in der Ecke links davon (zwei Löcher von der Mitte entfernt).
+  const at = (f: number) => sample(curve, ((orig ? 2 : 0) - (f - startField(myColor))) / R);
   /** Mitte des Armendes einer Farbe (nur Kreuz) */
   const armEnd = (c: number) => sample(curve, -(startField(c) - startField(myColor)) / R);
   const ring = (f: number): Pt => at(f).p;
@@ -185,6 +185,14 @@ export function makeGeo(layout: Layout, myColor: number, wanted: BoardStyle = 'c
     return { x1: cc.x, y1: cc.y, x2: cc.x + 0.01, y2: cc.y, w: 68, cx: cc.x, cy: cc.y };
   };
   const fin = (c: number, s: number): Pt => {
+    if (orig) {
+      // Startfeld in der Ecke: erster Hausplatz ein Schritt zur Armmitte und einen nach innen, dann geradeaus nach innen
+      const { p } = at(startField(c));
+      const { p: mid, n } = armEnd(c);
+      const l = Math.hypot(mid.x - p.x, mid.y - p.y) || 1;
+      const t = { x: (mid.x - p.x) / l, y: (mid.y - p.y) / l };
+      return { x: p.x + t.x * spacing - n.x * spacing * (s + 1), y: p.y + t.y * spacing - n.y * spacing * (s + 1) };
+    }
     const { p, n } = at(startField(c));
     return { x: p.x - n.x * laneStep * (s + 1), y: p.y - n.y * laneStep * (s + 1) };
   };

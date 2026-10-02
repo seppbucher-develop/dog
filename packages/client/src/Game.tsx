@@ -251,7 +251,7 @@ function GameInner({ lobby, view }: { lobby: LobbyView; view: GameView }) {
                 aria-pressed={selected}
               >
                 <span className="rank">{CARD_TEXT[c]}</span>
-                <span className="hint">{cardHint(c, teams)}</span>
+                <span className="hint">{cardHint(c, teams, layout.rules.fourDirection === 'both')}</span>
               </button>
             );
           })}

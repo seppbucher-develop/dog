@@ -25,7 +25,7 @@ Spielerzahl an (16 Felder pro Abschnitt, kein „leerer“ Spieler).
 ### Kurzregeln
 
 Gespielt wird gegen den Uhrzeigersinn. Jeder hat 4 Kugeln, die einmal um das Brett ziehen und exakt ins Zielhaus
-müssen. Das Startfeld liegt in der Ecke des eigenen Abschnitts; von dort zweigt das Zielhaus ab. Ins Haus kommt man also
+müssen. Das Startfeld liegt in der Ecke des eigenen Abschnitts (Kreuzbrett: Eckloch am Armende); von dort zweigt das Zielhaus ab. Ins Haus kommt man also
 nur über das eigene Startfeld (Zählung: Startfeld = ein Schritt, dahinter folgen die vier Hausplätze); eine Kugel, die
 gerade erst herausgekommen ist, muss zuerst eine ganze Runde laufen. Gespielt werden 110 Karten
 (inklusive 6 Joker), pro Runde 6, 5, 4, 3, 2 Karten. Wer nicht ziehen kann, wirft alle Karten ab.
@@ -35,10 +35,10 @@ gerade erst herausgekommen ist, muss zuerst eine ganze Runde laufen. Gespielt we
 | Ass | herauskommen, 1 oder 11 Felder |
 | König | herauskommen, 13 Felder |
 | Dame | 12 Felder |
-| 4 | 4 Felder rückwärts |
-| 7 | beliebig auf mehrere Kugeln aufteilbar; alle übersprungenen Kugeln fliegen heim |
+| 4 | 4 Felder vorwärts oder rückwärts (einstellbar; rückwärts nie ins Haus) |
+| 7 | beliebig auf mehrere Kugeln aufteilbar (eigene; im Teamspiel die des Partners, wenn man fertig ist; einstellbar: alle Kugeln); alle übersprungenen Kugeln fliegen heim |
 | Bube | Teamspiel: zwei Kugeln tauschen; Einzelspiel: blind eine Karte eines Gegners ziehen |
-| Joker | ersetzt jede Karte |
+| Joker | ersetzt jede Karte, aber nicht für die letzte Kugel ins Haus |
 | 2, 3, 5, 6, 8, 9, 10 | so viele Felder vor |
 
 Auf dem eigenen Startfeld blockiert eine Kugel das Überspringen. Im Zielhaus kann man nicht überspringen. Ist ein
@@ -54,6 +54,8 @@ Spieler fertig, zieht er im Teamspiel für den Partner weiter; das Team gewinnt,
 | Bube: Tausch mit Kugeln des Partners | ja |
 | Bube: Tausch zweier eigener Kugeln (verhindert den Abwurf der Hand) | ja |
 | Bube ohne Gegnerkarten (Einzelspiel) | nicht spielbar |
+| 7: auf alle Kugeln aufteilbar | nein (nur eigene, bzw. Partner wenn fertig) |
+| 4 spielen | vorwärts oder rückwärts |
 | 7: dieselbe Kugel mehrfach aufteilen | nein (ändert die Stellungen praktisch nie) |
 | Brett bei 2 Spielern (4 Kugeln) | klein (2 Abschnitte) |
 | Teams bei 6 Spielern | 3 Teams zu 2 |

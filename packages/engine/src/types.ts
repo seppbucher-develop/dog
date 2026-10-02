@@ -7,6 +7,13 @@ export const RANKS: Rank[] = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10',
 export interface RuleSettings {
   /** 7: dieselbe Kugel darf mehrfach in einer Aufteilung vorkommen (ändert die erreichbaren Stellungen praktisch nie). */
   sevenRepeatPeg: boolean;
+  /**
+   * 7: darf auch auf fremde Kugeln (Gegner, Partner) aufgeteilt werden. Sonst nur eigene Kugeln, im Teamspiel
+   * zusätzlich die des Partners, sobald man selbst fertig ist.
+   */
+  sevenAnyPeg: boolean;
+  /** 4: 'backward' = nur rückwärts, 'both' = wahlweise vorwärts oder rückwärts (rückwärts nie ins Haus). */
+  fourDirection: 'backward' | 'both';
   /** Bube (Teamspiel): auch mit Kugeln des Partners tauschen, nicht nur mit Gegnern. */
   jackSwapPartner: boolean;
   /**
@@ -32,6 +39,8 @@ export interface RuleSettings {
 
 export const DEFAULT_RULES: RuleSettings = {
   sevenRepeatPeg: false,
+  sevenAnyPeg: false,
+  fourDirection: 'both',
   jackSwapPartner: true,
   jackSwapOwn: true,
   jackStealNoCards: 'unplayable',

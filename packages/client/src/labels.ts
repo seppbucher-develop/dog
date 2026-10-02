@@ -6,14 +6,14 @@ export const CARD_TEXT: Record<Card, string> = {
   J: 'B', Q: 'D', K: 'K', JOKER: '★',
 };
 
-export function cardHint(card: Card, teams: boolean): string {
+export function cardHint(card: Card, teams: boolean, fourBoth = false): string {
   switch (card) {
     case 'A': return 'Raus · 1 · 11';
     case 'K': return 'Raus · 13';
     case 'Q': return '12 Felder';
     case 'J': return teams ? 'Kugeln tauschen' : 'Karte ziehen';
     case 'JOKER': return 'jede Karte';
-    case '4': return '4 rückwärts';
+    case '4': return fourBoth ? '4 vor · zurück' : '4 rückwärts';
     case '7': return 'aufteilbar';
     default: return `${card} Felder`;
   }
@@ -53,6 +53,11 @@ export const RULE_FIELDS: RuleField[] = [
     options: [['unplayable', 'Nicht spielbar'], ['void', 'Ohne Wirkung ablegen']],
   },
   { key: 'sevenRepeatPeg', label: '7: dieselbe Kugel mehrfach aufteilen', hint: 'kaum spürbar', kind: 'bool' },
+  { key: 'sevenAnyPeg', label: '7: auf alle Kugeln aufteilbar', hint: 'sonst nur eigene (und die des Partners, wenn man fertig ist)', kind: 'bool' },
+  {
+    key: 'fourDirection', label: '4 spielen', kind: 'select',
+    options: [['both', 'Vorwärts oder rückwärts'], ['backward', 'Nur rückwärts']],
+  },
   {
     key: 'twoPlayerBoard', label: 'Brett bei 2 Spielern (4 Kugeln)', kind: 'select',
     options: [['compact', 'Klein (2 Abschnitte)'], ['full', 'Groß (4 Abschnitte)']],

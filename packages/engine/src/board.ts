@@ -15,7 +15,8 @@ export function resolveRules(config: GameConfig): RuleSettings {
   oneOf('sixPlayerTeams', r.sixPlayerTeams, ['threeOfTwo', 'twoOfThree']);
   oneOf('cardExchange', r.cardExchange, ['auto', 'on', 'off']);
   oneOf('firstPegOnStart', r.firstPegOnStart, ['auto', 'on', 'off']);
-  for (const k of ['sevenRepeatPeg', 'jackSwapPartner', 'jackSwapOwn', 'captureOwn'] as const) {
+  oneOf('fourDirection', r.fourDirection, ['backward', 'both']);
+  for (const k of ['sevenRepeatPeg', 'sevenAnyPeg', 'jackSwapPartner', 'jackSwapOwn', 'captureOwn'] as const) {
     if (typeof r[k] !== 'boolean') throw new Error(`Ungültige Regel ${k}`);
   }
   if (!Array.isArray(r.handSizes) || r.handSizes.length === 0 || !r.handSizes.every((n) => Number.isInteger(n) && n >= 1)) {

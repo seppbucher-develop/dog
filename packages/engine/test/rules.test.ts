@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyAction, createGame, layoutFor, legalPlays, controlledColors } from '../src';
+import { applyAction, createGame, layoutFor, legalPlays, controlledColors, type Card } from '../src';
 import { fin, peg, ring, scenario, start } from './helpers';
 
 describe('Einstellungen: Validierung', () => {
@@ -251,5 +251,60 @@ describe('firstPegOnStart: erste Kugel schon auf dem Startfeld', () => {
     s.hands[0] = ['5'];
     s.current = 0;
     expect(legalPlays(s, 0).length).toBeGreaterThan(0);
+  });
+});
+
+describe('4, Joker und 7 (neue Regeln)', () => {
+  const stepsOf = (s: ReturnType<typeof scenario>, card: Card, peg_: number) =>
+    legalPlays(s, 0)
+      .filter((p) => p.card === card)
+      .flatMap((p) => p.moves.filter((m) => m.t === 'move' && m.peg === peg_).map((m) => (m as { steps: number }).steps));
+
+  it('4 darf vorwärts und rückwärts gespielt werden, rückwärts nie ins Haus', () => {
+    const s = scenario({ players: 4 }, { pegs: { [peg(0, 0)]: ring(start(0) + 62) }, hands: [['4'], [], [], []] });
+    expect(stepsOf(s, '4', peg(0, 0)).sort()).toEqual([-4, 4]);
+    // rückwärts bleibt auf dem Ring (nie im Haus), vorwärts geht ins Haus
+    const back = applyAction(s, { t: 'play', player: 0, card: '4', moves: [{ t: 'move', peg: peg(0, 0), steps: -4 }] });
+    expect(back.pegs[0]!.pos).toEqual(ring(start(0) + 58));
+    // im Haus gibt es keinen Rückwärtszug
+    const inHouse = scenario({ players: 4 }, { pegs: { [peg(0, 0)]: fin(2) }, hands: [['4'], [], [], []] });
+    expect(stepsOf(inHouse, '4', peg(0, 0))).toEqual([]);
+  });
+
+  it('4 nur rückwärts, wenn so eingestellt', () => {
+    const s = scenario({ players: 4, rules: { fourDirection: 'backward' } }, { pegs: { [peg(0, 0)]: ring(10) }, hands: [['4'], [], [], []] });
+    expect(stepsOf(s, '4', peg(0, 0))).toEqual([-4]);
+  });
+
+  it('Mit dem Joker darf die letzte Kugel nicht ins Haus gebracht werden', () => {
+    const pegs = { [peg(0, 0)]: fin(3), [peg(0, 1)]: fin(2), [peg(0, 2)]: fin(1), [peg(0, 3)]: ring(start(0) + 46) };
+    const s = scenario({ players: 3 }, { pegs, hands: [['JOKER', '3'], [], []] });
+    // 3 Schritte ins Haus (fin 0): mit der 3 erlaubt, mit dem Joker nicht
+    const finishing = (card: Card) =>
+      legalPlays(s, 0).some((p) => p.card === card && p.moves.some((m) => m.t === 'move' && m.peg === peg(0, 3) && m.steps === 3));
+    expect(finishing('3')).toBe(true);
+    expect(legalPlays(s, 0).some((p) => p.card === 'JOKER' && p.as === '3')).toBe(false);
+    // nicht die letzte Kugel: der Joker bleibt normal spielbar
+    const s2 = scenario({ players: 3 }, { pegs: { [peg(0, 0)]: ring(start(0) + 46), [peg(0, 1)]: ring(5) }, hands: [['JOKER'], [], []] });
+    expect(legalPlays(s2, 0).some((p) => p.card === 'JOKER' && p.as === '3')).toBe(true);
+  });
+
+  it('7: standardmäßig nur eigene Kugeln, mit sevenAnyPeg auch fremde', () => {
+    const pegs = { [peg(0, 0)]: ring(0), [peg(1, 0)]: ring(20) };
+    const touched = (rules: object) => {
+      const s = scenario({ players: 3, rules }, { pegs, hands: [['7'], [], []] });
+      return new Set(legalPlays(s, 0).flatMap((p) => p.moves.map((m) => (m as { peg: number }).peg)));
+    };
+    expect(touched({})).toEqual(new Set([peg(0, 0)]));
+    expect(touched({ sevenAnyPeg: true })).toEqual(new Set([peg(0, 0), peg(1, 0)]));
+  });
+
+  it('7 im Teamspiel: Kugeln des Partners nur, wenn man selbst fertig ist', () => {
+    const own = { [peg(0, 0)]: ring(0), [peg(2, 0)]: ring(40) };
+    const s = scenario({ players: 4 }, { pegs: own, hands: [['7'], [], [], []] });
+    expect(legalPlays(s, 0).every((p) => p.moves.every((m) => (m as { peg: number }).peg === peg(0, 0)))).toBe(true);
+    const done = { [peg(0, 0)]: fin(0), [peg(0, 1)]: fin(1), [peg(0, 2)]: fin(2), [peg(0, 3)]: fin(3), [peg(2, 0)]: ring(40) };
+    const s2 = scenario({ players: 4 }, { pegs: done, hands: [['7'], [], [], []] });
+    expect(legalPlays(s2, 0).some((p) => p.moves.some((m) => (m as { peg: number }).peg === peg(2, 0)))).toBe(true);
   });
 });
