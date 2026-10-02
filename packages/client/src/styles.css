@@ -134,3 +134,7 @@ input.code { text-transform: uppercase; letter-spacing: 0.2em; font-weight: 700;
 .banner.update { background: var(--accent); display: flex; gap: 10px; justify-content: center; align-items: center; }
 .banner.update button { min-height: 30px; padding: 2px 10px; color: #26221b; background: #fffdf8; font-weight: 600; }
 .version { text-align: center; color: var(--muted); font-size: 0.8rem; margin: 18px 0 4px; }
+.controls { display: grid; gap: 8px; }
+.controls:not(:empty) { margin: 0 0 10px; }
+.tag { font-size: 0.72rem; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }
+.tag.now { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 700; }
