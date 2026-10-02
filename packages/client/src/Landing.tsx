@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { net, saveName, savedName } from './net';
+import { Notizen } from './Notizen';
 
 export function Landing() {
   const [name, setName] = useState(savedName());
@@ -42,6 +43,7 @@ export function Landing() {
           </div>
         </div>
       </div>
+      <Notizen />
     </div>
   );
 }

@@ -138,3 +138,13 @@ input.code { text-transform: uppercase; letter-spacing: 0.2em; font-weight: 700;
 .controls:not(:empty) { margin: 0 0 10px; }
 .tag { font-size: 0.72rem; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }
 .tag.now { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 700; }
+
+/* Notizen (Startseite) */
+.notizen summary { cursor: pointer; }
+.notizen summary h2 { display: inline; }
+.notizen-editor { margin-top: 10px; }
+.notizen-row { display: flex; align-items: center; gap: 8px; }
+.notizen-row input.notizen-text { flex: 1; border-color: transparent; background: transparent; }
+.notizen-row input.notizen-text:focus { border-color: var(--line); background: var(--panel); }
+.notizen-check { width: 20px; height: 20px; flex: none; }
+.notizen-erledigt .notizen-text { text-decoration: line-through; color: var(--muted); }
