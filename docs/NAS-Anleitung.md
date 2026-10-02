@@ -155,10 +155,12 @@ Wer von unterwegs aktualisieren will, kann einen zusätzlichen Container `dog-up
 
 ## 8. Fehlersuche
 
-- **Im Protokoll steht „WARNUNG: Spiele können nicht gespeichert werden“:** Der Container darf nicht in den Ordner
-  `data` schreiben. Das Spiel läuft trotzdem, verliert aber bei einem Neustart die Spiele. Abhilfe: per SSH `id` mit dem
-  NAS-Konto ausführen, die Zahlen für Benutzer und Gruppe in der Compose-Datei bei `user:` eintragen (z. B. `"1026:100"`)
-  und die Zeile aktivieren, dann das Projekt neu starten.
+- **Im Protokoll steht „WARNUNG: Spiele können nicht gespeichert werden … EACCES“:** Der Container (läuft als Benutzer `node`)
+  darf nicht in den Ordner `data` schreiben. Das Spiel läuft trotzdem, verliert aber bei einem Neustart oder Update die laufenden
+  Spiele. Abhilfe: In der File Station auf `data` rechtsklicken → **Eigenschaften → Berechtigung → Erstellen**, Benutzer/Gruppe
+  **Everyone** mit **Lesen** und **Schreiben**, „auf diesen Ordner, Unterordner und Dateien anwenden“, speichern und den Container
+  `dog` neu starten. Schnelle Alternative: in der Compose-Datei beim Dienst `dog` die Zeile `user: "0:0"` ergänzen (der Prozess
+  läuft dann als Administrator im Container). Die Datei `rooms.json` im Ordner `data` zeigt, dass das Speichern funktioniert.
 - **„Verbindung unterbrochen“ im Spiel:** Meist blockiert ein Zwischenschritt WebSockets. Bei Cloudflare ist nichts nötig.
   Falls du stattdessen den **Reverse Proxy von DSM** nutzt (Systemsteuerung → Anmeldeportal → Erweitert →
   Reverse Proxy), in der Regel unter „Benutzerdefinierter Header“ die Schaltfläche **Erstellen → WebSocket** wählen,
