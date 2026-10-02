@@ -190,7 +190,7 @@ export function makeGeo(layout: Layout, myColor: number, wanted: BoardStyle = 'c
 
   const spacing = curve.length / R;
   const fieldR = Math.min(14, spacing * 0.42);
-  const pegR = Math.max(8, Math.min(13, fieldR * 1.1));
+  const pegR = Math.max(9, Math.min(15, fieldR * 1.2));
   const radii = Array.from({ length: 64 }, (_, i) => Math.hypot(sample(curve, i / 64).p.x, sample(curve, i / 64).p.y));
   const laneStep = orig ? spacing : Math.max(26, Math.min(44, Math.min(...radii) * 0.15));
   const slotR = Math.min(fieldR * 1.15, laneStep * 0.46);

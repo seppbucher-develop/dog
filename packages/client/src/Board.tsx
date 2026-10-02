@@ -72,11 +72,11 @@ export function Board({ layout, geo, pegs, segColors, segNames, activeSegs, sele
             key={f}
             cx={p.x}
             cy={p.y}
-            r={start ? geo.fieldR * 1.35 : geo.fieldR}
+            r={start ? Math.min(geo.fieldR * 1.5, geo.spacing * 0.56) : geo.fieldR}
             fill={col}
-            fillOpacity={start ? 0.75 : 0.22}
+            fillOpacity={start ? 0.16 : 0.22}
             stroke={col}
-            strokeWidth={start ? 3 : 1.5}
+            strokeWidth={start ? 4.5 : 1.5}
           />
         );
       })}
@@ -117,6 +117,7 @@ export function Board({ layout, geo, pegs, segColors, segNames, activeSegs, sele
         const can = selectable.has(p.id);
         return (
           <g key={p.id} className="peg-move" style={{ transform: `translate(${pt.x}px, ${pt.y}px)` }}>
+            <circle r={geo.pegR + 2.5} fill="#fff" />
             <circle r={geo.pegR} fill={fill} stroke={stroke(fill)} strokeWidth={2} />
             <circle r={geo.pegR * 0.4} cx={-geo.pegR * 0.25} cy={-geo.pegR * 0.3} fill="#fff" fillOpacity={0.35} />
             {(can || focus === p.id) && (
