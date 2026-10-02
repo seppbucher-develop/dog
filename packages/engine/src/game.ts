@@ -1,5 +1,5 @@
 import { allInFinish, createPegs, layoutFor, type Layout } from './board';
-import { applyMoveToPegs, legalPlays } from './moves';
+import { applyMoveToPegs, legalPlays, sevenValid } from './moves';
 import { shuffle } from './rng';
 import { RANKS, type Action, type Card, type GameConfig, type GameState, type Play } from './types';
 
@@ -131,7 +131,14 @@ export function applyAction(prev: GameState, action: Action): GameState {
 
   const play: Play = { card: action.card, moves: action.moves };
   if (action.as !== undefined) play.as = action.as;
-  if (!legalPlays(state, action.player).some((p) => playsEqual(p, play))) throw new Error('Unzulässiger Spielzug');
+  const asRank = action.card === 'JOKER' ? action.as : action.card;
+  if (asRank === '7') {
+    // 7: beliebige Reihenfolge der Teilzüge, deshalb nicht gegen die (zusammengefasste) Liste prüfen
+    const handHas = state.hands[action.player]!.includes(action.card);
+    if (!handHas || (action.card === 'JOKER' && action.as !== '7') || !sevenValid(state.pegs, layout, action.player, action.moves, action.card === 'JOKER')) {
+      throw new Error('Unzulässiger Spielzug');
+    }
+  } else if (!legalPlays(state, action.player).some((p) => playsEqual(p, play))) throw new Error('Unzulässiger Spielzug');
 
   const hand = state.hands[action.player]!;
   hand.splice(hand.indexOf(action.card), 1);

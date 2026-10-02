@@ -189,6 +189,89 @@ function sevenPlays(pegs: Peg[], layout: Layout, mine: number[]): Move[][] {
   return results;
 }
 
+/** Kugeln, mit denen eine 7 gespielt werden darf (eigene bzw. die des Partners, bei `sevenAnyPeg` alle auf dem Brett). */
+export function sevenPegIds(pegs: Peg[], layout: Layout, player: number): number[] {
+  const colors = controlledColors({ pegs } as GameState, layout, player);
+  return pegs
+    .filter((p) => (layout.rules.sevenAnyPeg ? p.pos.t !== 'home' : colors.includes(p.color)))
+    .map((p) => p.id);
+}
+
+/**
+ * Teilzüge der 7: Aus der Stellung nach `prefix` die nächsten möglichen Teilzüge (Kugel + Schritte), aus denen
+ * sich die 7 noch vollständig verteilen lässt. `remaining` = noch zu verteilende Schritte (0 = fertig).
+ * Die Reihenfolge der Teilzüge ist frei; `joker` = als Joker gespielt (damit darf keine Farbe fertig werden).
+ */
+export function sevenNext(
+  pegs: Peg[],
+  layout: Layout,
+  player: number,
+  prefix: Move[],
+  joker = false,
+): { remaining: number; next: Move[]; pegs: Peg[] | null } {
+  const ids = sevenPegIds(pegs, layout, player);
+  const repeat = layout.rules.sevenRepeatPeg || layout.rules.sevenAnyPeg;
+  const colors = controlledColors({ pegs } as GameState, layout, player);
+  const unfinished = colors.filter((c) => !pegs.filter((p) => p.color === c).every((p) => p.pos.t === 'fin'));
+  let cur = pegs;
+  let remaining = 7;
+  const used: number[] = [];
+  for (const m of prefix) {
+    if (m.t !== 'move' || m.steps < 1 || m.steps > remaining || !ids.includes(m.peg) || (!repeat && used.includes(m.peg))) return { remaining, next: [], pegs: null };
+    const np = tryMove(cur, layout, m.peg, m.steps, true);
+    if (!np) return { remaining, next: [], pegs: null };
+    cur = np;
+    remaining -= m.steps;
+    used.push(m.peg);
+  }
+  const leafOk = (ps: Peg[]) => !joker || !unfinished.some((c) => ps.filter((p) => p.color === c).every((p) => p.pos.t === 'fin'));
+  const memo = new Map<string, boolean>();
+  let budget = 200_000;
+  const canFinish = (ps: Peg[], rem: number, usedIds: number[]): boolean => {
+    if (rem === 0) return leafOk(ps);
+    const key = `${rem}|${repeat ? '' : usedIds.join('.')}|${pegsKey(ps)}`;
+    const hit = memo.get(key);
+    if (hit !== undefined) return hit;
+    let ok = false;
+    if (budget-- > 0) {
+      outer: for (const id of ids) {
+        if (!repeat && usedIds.includes(id)) continue;
+        for (let k = rem; k >= 1; k--) {
+          const np = tryMove(ps, layout, id, k, true);
+          if (np && canFinish(np, rem - k, [...usedIds, id])) {
+            ok = true;
+            break outer;
+          }
+        }
+      }
+    }
+    memo.set(key, ok);
+    return ok;
+  };
+  const next: Move[] = [];
+  if (remaining > 0) {
+    for (const id of ids) {
+      if (!repeat && used.includes(id)) continue;
+      for (let k = 1; k <= remaining; k++) {
+        const np = tryMove(cur, layout, id, k, true);
+        if (np && canFinish(np, remaining - k, [...used, id])) next.push({ t: 'move', peg: id, steps: k });
+      }
+    }
+  }
+  return { remaining, next, pegs: cur };
+}
+
+/** Ist die Teilzugfolge eine vollständig verteilte, regelkonforme 7? */
+export function sevenValid(pegs: Peg[], layout: Layout, player: number, moves: Move[], joker = false): boolean {
+  if (moves.length === 0) return false;
+  const r = sevenNext(pegs, layout, player, moves, joker);
+  if (r.pegs === null || r.remaining !== 0) return false;
+  if (!joker) return true;
+  // Joker: keine Farbe darf damit fertig werden
+  const colors = controlledColors({ pegs } as GameState, layout, player);
+  return !colors.some((c) => !pegs.filter((p) => p.color === c).every((p) => p.pos.t === 'fin') && r.pegs!.filter((p) => p.color === c).every((p) => p.pos.t === 'fin'));
+}
+
 function movesForRank(state: GameState, layout: Layout, player: number, rank: Rank): Move[][] {
   const colors = controlledColors(state, layout, player);
   const mine = state.pegs.filter((p) => colors.includes(p.color));

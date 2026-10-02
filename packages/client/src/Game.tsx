@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { applyMoveToPegs, layoutFor, type Card, type Move, type Play, type Pos } from '@dog/engine';
+import { applyMoveToPegs, layoutFor, sevenNext, type Card, type Move, type Play, type Pos } from '@dog/engine';
 import type { GameView, LobbyView } from '@dog/protocol';
 import { Board, type BoardMarker } from './Board';
 import { NEUTRAL, colorHex, colorName } from './colors';
@@ -64,11 +64,14 @@ function GameInner({ lobby, view }: { lobby: LobbyView; view: GameView }) {
   const teams = layout.teams;
   const hand = sortHand(view.myHand);
 
-  const cands = candidates(legal, sel);
+  // 7: Teilzüge in beliebiger Reihenfolge, aus der Stellung berechnet (nicht aus der zusammengefassten Zugliste)
+  const isSeven = sel.card === '7' || (sel.card === 'JOKER' && sel.as === '7');
+  const seven = myTurn && isSeven ? sevenNext(view.pegs, layout, view.seat, sel.prefix, sel.card === 'JOKER') : null;
+  const cands = seven ? [] : candidates(legal, sel);
   const k = sel.prefix.length;
-  const opts = nextMoves(cands, k);
+  const opts = seven ? seven.next : nextMoves(cands, k);
   const onlyPlay = sel.card && cands.length === 1 && k === 0 ? cands[0]! : null;
-  const voidPlay = sel.card ? completed(cands, k) : null;
+  const voidPlay = sel.card && !seven ? completed(cands, k) : null;
 
   const submit = (p: Play) => {
     net.send({ t: 'play', card: p.card, ...(p.as ? { as: p.as } : {}), moves: p.moves });
@@ -78,6 +81,13 @@ function GameInner({ lobby, view }: { lobby: LobbyView; view: GameView }) {
 
   const choose = (m: Move) => {
     const next: Selection = { ...sel, prefix: [...sel.prefix, m] };
+    if (isSeven && sel.card) {
+      const r = sevenNext(view.pegs, layout, view.seat, next.prefix, sel.card === 'JOKER');
+      if (r.pegs && r.remaining === 0) return submit({ card: sel.card, ...(sel.as ? { as: sel.as } : {}), moves: next.prefix });
+      setSel(next);
+      setFocus(null);
+      return;
+    }
     const c = candidates(legal, next);
     const done = completed(c, next.prefix.length);
     if (done && !c.some((p) => p.moves.length > next.prefix.length)) submit(done);
@@ -112,9 +122,7 @@ function GameInner({ lobby, view }: { lobby: LobbyView; view: GameView }) {
   if (myTurn && sel.card && focus !== null) {
     optionsForPeg(opts, focus).forEach((m, i) => {
       if (m.t !== 'start' && m.t !== 'move') return;
-      const play = cands.find((p) => p.moves[k] && JSON.stringify(p.moves[k]) === JSON.stringify(m));
-      const seven = play?.card === '7' || play?.as === '7';
-      const after = applyMoveToPegs(view.pegs, layout, m, seven);
+      const after = applyMoveToPegs(view.pegs, layout, m, isSeven);
       const moved = after?.find((p) => p.id === m.peg);
       if (!moved) return;
       const pt = geo.peg(moved);
@@ -143,12 +151,23 @@ function GameInner({ lobby, view }: { lobby: LobbyView; view: GameView }) {
     if (!sel.card) return 'Du bist am Zug – wähle eine Karte.';
     if (sel.card === 'JOKER' && !sel.as) return 'Joker: wähle, als welche Karte er gespielt wird.';
     if (stealOpts.length > 0) return selectable.size > 0 ? 'Wähle eine Kugel (2 Felder) oder ziehe blind eine Karte eines Gegners.' : 'Ziehe blind eine Karte eines Gegners.';
-    if (sel.prefix.length > 0 && (sel.card === '7' || cands.some((p) => p.as === '7'))) return `7: noch ${sevenRemaining(sel.prefix)} Schritte verteilen – wähle die nächste Kugel.`;
+    if (seven) return `7: noch ${seven.remaining} Schritte verteilen – wähle ${sel.prefix.length > 0 ? 'die nächste' : 'eine'} Kugel.`;
     if (focus !== null && markers.length > 0) return 'Wähle das Ziel.';
     if (focus !== null) return 'Wähle die Kugel, mit der getauscht wird.';
     return selectable.size > 0 ? 'Wähle eine Kugel.' : 'Kein Zug mit dieser Karte.';
   })();
 
+  const nPlayers = view.handSizes.length;
+  let nextPlayer = -1;
+  if (view.phase === 'playing') {
+    for (let i = 1; i < nPlayers; i++) {
+      const q = (view.current + i) % nPlayers;
+      if (view.handSizes[q]! > 0) {
+        nextPlayer = q;
+        break;
+      }
+    }
+  }
   const last = view.lastPlay;
   const finished = view.phase === 'finished';
   const winnerNames = view.winners?.map((p) => names[p]).join(' & ');
@@ -196,19 +215,7 @@ function GameInner({ lobby, view }: { lobby: LobbyView; view: GameView }) {
         </div>
 
         <div className="card status" aria-live="polite">
-          <p className={myTurn || (view.phase === 'exchange' && !view.exchangeDone[view.seat]) ? 'prompt on' : 'prompt'}>{prompt}</p>
-          {(view.passes ?? []).slice(-3).map((e) => (
-            <p key={e.id} className="muted warn">
-              {names[e.player]}{e.player === view.seat ? ' (du)' : ''}: kein Zug möglich – {e.cards} {e.cards === 1 ? 'Karte' : 'Karten'} abgeworfen
-            </p>
-          ))}
-          {last && (
-            <p className="muted">
-              Letzter Zug – {names[last.player]}: Karte <b>{CARD_TEXT[last.card]}</b>
-              {last.as ? ` als ${CARD_TEXT[last.as]}` : ''}
-              {last.moves.length > 0 ? ` – ${last.moves.map((m) => moveText(m, names)).join(', ')}` : ' – ohne Wirkung'}
-            </p>
-          )}
+          <div className="controls">
           {myTurn && sel.card === 'JOKER' && (
             <div className="row joker-pick" role="group" aria-label="Joker einsetzen als">
               {jokerRanks(legal).map((r) => (
@@ -227,6 +234,20 @@ function GameInner({ lobby, view }: { lobby: LobbyView; view: GameView }) {
             {sel.card && sel.prefix.length > 0 && <button onClick={() => { setSel({ ...sel, prefix: sel.prefix.slice(0, -1) }); setFocus(null); }}>Letzten Schritt zurück</button>}
             {sel.card && <button onClick={() => { setSel(emptySel); setFocus(null); }}>Abbrechen</button>}
           </div>
+          </div>
+          <p className={myTurn || (view.phase === 'exchange' && !view.exchangeDone[view.seat]) ? 'prompt on' : 'prompt'}>{prompt}</p>
+          {(view.passes ?? []).slice(-3).map((e) => (
+            <p key={e.id} className="muted warn">
+              {names[e.player]}{e.player === view.seat ? ' (du)' : ''}: kein Zug möglich – {e.cards} {e.cards === 1 ? 'Karte' : 'Karten'} abgeworfen
+            </p>
+          ))}
+          {last && (
+            <p className="muted">
+              Letzter Zug – {names[last.player]}: Karte <b>{CARD_TEXT[last.card]}</b>
+              {last.as ? ` als ${CARD_TEXT[last.as]}` : ''}
+              {last.moves.length > 0 ? ` – ${last.moves.map((m) => moveText(m, names)).join(', ')}` : ' – ohne Wirkung'}
+            </p>
+          )}
         </div>
 
         <div className="card">
@@ -256,6 +277,8 @@ function GameInner({ lobby, view }: { lobby: LobbyView; view: GameView }) {
                     {teams && <small> · Team {String.fromCharCode(65 + team)}</small>}
                     {!s.connected && s.kind === 'human' && <small className="warn"> · getrennt</small>}
                   </span>
+                  {view.phase === 'playing' && view.current === p && <span className="tag now">am Zug</span>}
+                  {nextPlayer === p && <span className="tag">als Nächster</span>}
                   <span className="hs" title="Karten auf der Hand">🂠 {view.handSizes[p]}{view.phase === 'exchange' && view.exchangeDone[p] ? ' ✓' : ''}</span>
                   {isHost && s.kind === 'human' && !s.connected && (
                     <button onClick={() => net.send({ t: 'setBot', seat: p, level: 'intermediate' })}>durch Computer ersetzen</button>

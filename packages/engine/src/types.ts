@@ -36,7 +36,7 @@ export interface RuleSettings {
 }
 
 export const DEFAULT_RULES: RuleSettings = {
-  sevenRepeatPeg: false,
+  sevenRepeatPeg: true,
   sevenAnyPeg: false,
   fourDirection: 'both',
   jackSwapPartner: true,

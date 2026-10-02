@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyAction, createGame, layoutFor, legalPlays, controlledColors, type Card } from '../src';
+import { applyAction, createGame, layoutFor, legalPlays, controlledColors, sevenNext, sevenValid, type Card } from '../src';
 import { fin, peg, ring, scenario, start } from './helpers';
 
 describe('Einstellungen: Validierung', () => {
@@ -316,3 +316,47 @@ describe('4, Joker und 7 (neue Regeln)', () => {
     expect(legalPlays(s2, 0).some((p) => p.moves.some((m) => (m as { peg: number }).peg === peg(2, 0)))).toBe(true);
   });
 });
+
+describe('7 in beliebigen Teilzügen', () => {
+  const four = { players: 4 };
+  const mv = (peg_: number, steps: number) => ({ t: 'move' as const, peg: peg_, steps });
+  const setup = () =>
+    scenario(four, { pegs: { [peg(0, 0)]: ring(5), [peg(0, 1)]: ring(20), [peg(0, 2)]: ring(30) }, hands: [['7'], [], [], []] });
+
+  it('bietet Schritt für Schritt alle Kugeln und Schrittzahlen an, bis 7 verteilt sind', () => {
+    const s = setup();
+    const layout = layoutFor(four);
+    const first = sevenNext(s.pegs, layout, 0, []);
+    expect(first.remaining).toBe(7);
+    expect(new Set(first.next.map((m) => (m as { peg: number }).peg))).toEqual(new Set([peg(0, 0), peg(0, 1), peg(0, 2)]));
+    expect(first.next.filter((m) => (m as { peg: number }).peg === peg(0, 0)).map((m) => (m as { steps: number }).steps)).toEqual([1, 2, 3, 4, 5, 6, 7]);
+    // 1 + 1 + 1 + 1 + 1 + 1 + 1: sieben einzelne Teilzüge, auch mit derselben Kugel mehrmals
+    const seq = [mv(peg(0, 0), 1), mv(peg(0, 1), 1), mv(peg(0, 0), 1), mv(peg(0, 2), 1), mv(peg(0, 1), 1), mv(peg(0, 0), 1), mv(peg(0, 2), 1)];
+    expect(sevenValid(s.pegs, layout, 0, seq)).toBe(true);
+    expect(sevenValid(s.pegs, layout, 0, seq.slice(0, 6))).toBe(false); // noch nicht alles verteilt
+    const done = applyAction(s, { t: 'play', player: 0, card: '7', moves: seq });
+    expect(done.pegs[peg(0, 0)]!.pos).toEqual(ring(8));
+    expect(done.pegs[peg(0, 1)]!.pos).toEqual(ring(22));
+    expect(done.pegs[peg(0, 2)]!.pos).toEqual(ring(32));
+  });
+
+  it('Reihenfolge ist frei, fremde Kugeln und zu viele Schritte werden abgelehnt', () => {
+    const s = setup();
+    const layout = layoutFor(four);
+    expect(sevenValid(s.pegs, layout, 0, [mv(peg(0, 2), 4), mv(peg(0, 0), 3)])).toBe(true);
+    expect(sevenValid(s.pegs, layout, 0, [mv(peg(0, 0), 3), mv(peg(0, 2), 4)])).toBe(true);
+    expect(sevenValid(s.pegs, layout, 0, [mv(peg(0, 0), 8)])).toBe(false);
+    expect(sevenValid(s.pegs, layout, 0, [mv(peg(1, 0), 7)])).toBe(false);
+    expect(() => applyAction(s, { t: 'play', player: 0, card: '7', moves: [mv(peg(0, 0), 6)] })).toThrow();
+  });
+
+  it('Mit dem Joker als 7 darf die letzte Kugel nicht ins Haus', () => {
+    const pegs = { [peg(0, 0)]: fin(3), [peg(0, 1)]: fin(2), [peg(0, 2)]: fin(1), [peg(0, 3)]: ring(start(0) + 62) };
+    const s = scenario(four, { pegs, hands: [['JOKER', '7'], [], [], []] });
+    const layout = layoutFor(four);
+    expect(sevenValid(s.pegs, layout, 0, [mv(peg(0, 3), 3)])).toBe(false); // nur 3 von 7 verteilt
+    const single = scenario(four, { pegs: { [peg(0, 3)]: ring(start(0) + 57), [peg(0, 0)]: fin(0) }, hands: [['JOKER'], [], [], []] });
+    expect(sevenValid(single.pegs, layout, 0, [mv(peg(0, 3), 6)], true)).toBe(false);
+  });
+});
+
