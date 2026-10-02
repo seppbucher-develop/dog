@@ -26,6 +26,10 @@ export interface Geo {
   edgePath: string;
   /** Nest einer Farbe: Kapsel/Kreis zwischen zwei Punkten mit Breite w */
   nest(color: number): { x1: number; y1: number; x2: number; y2: number; w: number; cx: number; cy: number };
+  /** Breite des Holzrands (Strichbreite um den Umriss): alle Löcher liegen sicher innerhalb */
+  woodW: number;
+  /** Holzlasche unter dem Nest einer Farbe: vom Ring zum Nest, Breite w */
+  tab(color: number): { x1: number; y1: number; x2: number; y2: number; w: number };
   /** Mitte für den Text */
   centre: Pt;
   /** Radius der Zielfelder */
@@ -66,49 +70,58 @@ function toCurve(points: Pt[]): Curve {
 // geradeaus parallel zur Armseite).
 
 /**
- * Sternumriss mit n gleichen Armen (n = 3, 4). Jeder Arm hat 4 gleich lange Abschnitte zu je 4 Lochabständen:
- * Seite, Armende, Seite und die abgeschrägte Ecke zum nächsten Arm (Abschrägung statt spitzer Einbuchtung).
+ * Umriss aus Armen. `dirs` = Richtung jedes Arms (Grad, im Uhrzeigersinn ab der x-Achse, y nach unten) in der
+ * Reihenfolge im Uhrzeigersinn; Arm 0 zeigt nach unten und der Umriss beginnt in der Mitte seines Endes.
+ * Jeder Arm hat vier Abschnitte zu 4 Lochabständen: Seite hinaus, Armende, Seite zurück und die Verbindung zum
+ * nächsten Arm (abgeschrägt, bei gleicher Richtung eine Aussparung von 4 Breite und 4 Tiefe).
  */
-function starOutline(n: number): Pt[] {
-  const rot = (p: Pt, k: number): Pt => {
-    const a = (2 * Math.PI * k) / n; // wachsender Winkel = Uhrzeigersinn (y nach unten)
-    return { x: p.x * Math.cos(a) - p.y * Math.sin(a), y: p.x * Math.sin(a) + p.y * Math.cos(a) };
+function armsOutline(dirs: number[]): Pt[] {
+  const n = dirs.length;
+  const pts: Pt[] = [{ x: 0, y: 0 }];
+  let x = 0;
+  let y = 0;
+  let h = 0;
+  const fwd = (len: number) => {
+    x += Math.cos((h * Math.PI) / 180) * len;
+    y += Math.sin((h * Math.PI) / 180) * len;
+    pts.push({ x, y });
   };
-  // Abstand Y der Seitenenden von der Mitte so, dass die Abschrägung genau 4 Lochabstände lang ist
-  const chamfer = (y: number) => {
-    const q = rot({ x: 2, y }, 1);
-    return Math.hypot(q.x + 2, q.y - y);
+  const connect = (k: number) => {
+    // von der Seite zurück (Richtung d + 180) zur Seite hinaus des nächsten Arms
+    const delta = (((dirs[(k + 1) % n]! - dirs[k]!) % 360) + 360) % 360;
+    const turn = (delta - 180) / 2;
+    h += turn;
+    fwd(4);
+    h += turn;
   };
-  let lo = 2 / Math.tan(Math.PI / n);
-  let hi = lo + 20;
-  for (let i = 0; i < 60; i++) {
-    const mid = (lo + hi) / 2;
-    if (chamfer(mid) < 4) lo = mid;
-    else hi = mid;
+  for (let k = 0; k < n; k++) {
+    if (k === 0) {
+      h = dirs[0]! + 90; // Armende nach links (unten im Uhrzeigersinn)
+      fwd(2);
+    } else {
+      h = dirs[k]!;
+      fwd(4);
+      h += 90;
+      fwd(4);
+    }
+    h += 90;
+    fwd(4);
+    connect(k);
   }
-  const c = (lo + hi) / 2;
-  const L = c + 4;
-  const pts: Pt[] = [{ x: 0, y: L }, { x: -2, y: L }, { x: -2, y: c }];
-  for (let k = 1; k < n; k++) for (const q of [{ x: 2, y: c }, { x: 2, y: L }, { x: -2, y: L }, { x: -2, y: c }]) pts.push(rot(q, k));
-  pts.push({ x: 2, y: c }, { x: 2, y: L });
+  // Arm 0: Seite hinaus und erste Hälfte des Armendes
+  fwd(4);
+  h += 90;
+  fwd(2);
+  pts.pop(); // letzter Punkt = Startpunkt
   return pts;
-}
-
-/** Umriss für 6 Spieler: Arm unten und oben, je zwei Arme links und rechts; 96 Schritte, Armabstand je 16. */
-function sixOutline(): Pt[] {
-  const right: [number, number][] = [
-    [0, 11], [-2, 11], [-2, 7], [-3, 7], [-3, 5], [-8, 5], [-8, 1], [-3, 1], [-3, -1], [-8, -1], [-8, -5], [-3, -5], [-3, -7],
-    [-2, -7], [-2, -11], [2, -11], [2, -7], [3, -7], [3, -5], [8, -5], [8, -1], [3, -1], [3, 1], [8, 1], [8, 5], [3, 5], [3, 7], [2, 7], [2, 11],
-  ];
-  return right.map(([x, y]) => ({ x, y }));
 }
 
 function curveFor(style: BoardStyle, colors: number): Curve {
   let raw: Pt[];
   let target: number; // größte Ausdehnung in Pixeln
-  if (style === 'original' && colors === 4) [raw, target] = [starOutline(4), 660];
-  else if (style === 'original' && colors === 3) [raw, target] = [starOutline(3), 660];
-  else if (style === 'original' && colors === 6) [raw, target] = [sixOutline(), 720];
+  if (style === 'original' && colors === 4) [raw, target] = [armsOutline([90, 180, 270, 0]), 660];
+  else if (style === 'original' && colors === 3) [raw, target] = [armsOutline([90, 210, 330]), 660];
+  else if (style === 'original' && colors === 6) [raw, target] = [armsOutline([90, 90, 180, 270, 270, 0]), 720];
   else {
     raw = Array.from({ length: 720 }, (_, i) => {
       const a = Math.PI / 2 + (i / 720) * 2 * Math.PI;
@@ -250,6 +263,14 @@ export function makeGeo(layout: Layout, myColor: number, wanted: BoardStyle = 'c
 
   const edgePath = `M${curve.points.map((p) => `${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join('L')}Z`;
 
+  const woodW = 2 * Math.max(26, spacing * 0.95);
+  const tab = (c: number) => {
+    const cc = nestCentre(c);
+    const base = orig ? armEnd(c).p : at(startField(c)).p;
+    const nst = nest(c);
+    return { x1: base.x, y1: base.y, x2: cc.x, y2: cc.y, w: Math.hypot(nst.x2 - nst.x1, nst.y2 - nst.y1) + nst.w + 24 };
+  };
+
   return {
     ring,
     home,
@@ -262,6 +283,8 @@ export function makeGeo(layout: Layout, myColor: number, wanted: BoardStyle = 'c
     viewBox,
     edgePath,
     nest,
+    woodW,
+    tab,
     centre: { x: 0, y: 0 },
     slotR,
     style,

@@ -113,7 +113,8 @@ describe('Brettgeometrie', () => {
           }
           // Anker unten in der Mitte: Kreis = mein Startfeld, Kreuz = Mitte meines Armendes (zwei Felder vor dem Start)
           const anchor = geo.style === 'circle' ? geo.ring(myColor * 16) : geo.ring(myColor * 16 - 2);
-          expect(Math.abs(anchor.x)).toBeLessThan(geo.spacing * 0.6);
+          // Original-6er: mein Arm liegt unten rechts, sonst unten in der Mitte
+          if (!(geo.style === 'original' && layout.colors === 6)) expect(Math.abs(anchor.x)).toBeLessThan(geo.spacing * 0.6);
           expect(anchor.y).toBeGreaterThanOrEqual(Math.max(...pts.map((p) => p.y)) - 1e-6);
           const [vx, vy, vw, vh] = geo.viewBox.split(' ').map(Number) as [number, number, number, number];
           const inView = (p: { x: number; y: number }) => p.x >= vx && p.x <= vx + vw && p.y >= vy && p.y <= vy + vh;
@@ -164,7 +165,7 @@ describe('Brettgeometrie', () => {
     expect(homes[0]!.y / u).toBeGreaterThan(p(0).y);
   });
 
-  it('Kreuz mit 6 Spielern: 96 Schritte, Arme unten/oben und je zwei links/rechts', () => {
+  it('Kreuz mit 6 Spielern: 96 Schritte, je zwei Arme unten und oben, einer links und einer rechts (wie das Original)', () => {
     const layout = layoutFor({ players: 6 });
     const geo = makeGeo(layout, 0, 'original');
     const u = geo.spacing;
@@ -173,12 +174,16 @@ describe('Brettgeometrie', () => {
       const q = geo.ring(f + 1);
       expect(Math.hypot(p.x - q.x, p.y - q.y)).toBeCloseTo(u, 3);
     }
-    const tips = [0, 1, 2, 3, 4, 5].map((c) => geo.ring(c * 16 - 2));
-    const expected: [number, number][] = [[0, 11], [8, 3], [8, -3], [0, -11], [-8, -3], [-8, 3]]; // gegen den Uhrzeigersinn
-    tips.forEach((t, i) => {
-      expect(t.x / u).toBeCloseTo(expected[i]![0], 3);
-      expect(t.y / u).toBeCloseTo(expected[i]![1], 3);
-    });
+    // Armenden gegen den Uhrzeigersinn ab meinem Arm (unten rechts): rechts, oben rechts, oben links, links, unten links
+    const t = [0, 1, 2, 3, 4, 5].map((c) => geo.ring(c * 16 - 2));
+    expect(t[0]!.x).toBeGreaterThan(0);
+    expect(t[5]!.x / u).toBeCloseTo(-t[0]!.x / u, 3);
+    expect(t[5]!.y / u).toBeCloseTo(t[0]!.y / u, 3); // unten
+    expect(t[2]!.y / u).toBeCloseTo(t[3]!.y / u, 3); // oben
+    expect(t[2]!.y).toBeLessThan(t[1]!.y);
+    expect(t[1]!.x).toBeGreaterThan(t[0]!.x); // rechter Arm
+    expect(t[4]!.x).toBeLessThan(t[5]!.x); // linker Arm
+    expect(t[1]!.x / u).toBeCloseTo(-t[4]!.x / u, 3);
   });
 
   it('Kreuz mit 3 Spielern: drei gleiche Arme im Abstand von 120 Grad', () => {
