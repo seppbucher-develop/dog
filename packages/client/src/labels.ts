@@ -11,7 +11,8 @@ export function cardHint(card: Card, teams: boolean, fourBoth = false): string {
     case 'A': return 'Raus · 1 · 11';
     case 'K': return 'Raus · 13';
     case 'Q': return '12 Felder';
-    case 'J': return teams ? 'Kugeln tauschen' : 'Karte ziehen';
+    case 'J': return 'Kugeln tauschen';
+    case '2': return teams ? '2 Felder' : '2 Felder · Karte ziehen';
     case 'JOKER': return 'jede Karte';
     case '4': return fourBoth ? '4 vor · zurück' : '4 rückwärts';
     case '7': return 'aufteilbar';
@@ -47,11 +48,7 @@ export const RULE_FIELDS: RuleField[] = [
   },
   { key: 'captureOwn', label: 'Eigene und Team-Kugeln dürfen geschlagen werden', kind: 'bool' },
   { key: 'jackSwapPartner', label: 'Bube: Tausch mit Kugeln des Partners', hint: 'nur Teamspiel', kind: 'bool' },
-  { key: 'jackSwapOwn', label: 'Bube: Tausch zweier eigener Kugeln', hint: 'nur Teamspiel; verhindert Abwurf der Hand', kind: 'bool' },
-  {
-    key: 'jackStealNoCards', label: 'Bube ohne Gegnerkarten', hint: 'nur Einzelspiel', kind: 'select',
-    options: [['unplayable', 'Nicht spielbar'], ['void', 'Ohne Wirkung ablegen']],
-  },
+  { key: 'jackSwapOwn', label: 'Bube: Tausch zweier eigener Kugeln', hint: 'verhindert Abwurf der Hand', kind: 'bool' },
   { key: 'sevenRepeatPeg', label: '7: dieselbe Kugel mehrfach aufteilen', hint: 'kaum spürbar', kind: 'bool' },
   { key: 'sevenAnyPeg', label: '7: auf alle Kugeln aufteilbar', hint: 'sonst nur eigene (und die des Partners, wenn man fertig ist)', kind: 'bool' },
   {

@@ -10,7 +10,6 @@ export function resolveRules(config: GameConfig): RuleSettings {
   const oneOf = <T extends string>(name: string, v: T, allowed: T[]) => {
     if (!allowed.includes(v)) throw new Error(`Ungültige Regel ${name}: ${String(v)}`);
   };
-  oneOf('jackStealNoCards', r.jackStealNoCards, ['unplayable', 'void']);
   oneOf('twoPlayerBoard', r.twoPlayerBoard, ['compact', 'full']);
   oneOf('sixPlayerTeams', r.sixPlayerTeams, ['threeOfTwo', 'twoOfThree']);
   oneOf('cardExchange', r.cardExchange, ['auto', 'on', 'off']);

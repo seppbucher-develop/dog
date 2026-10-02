@@ -60,22 +60,31 @@ describe('Bube-Tausch mit eigenen Kugeln', () => {
   });
 });
 
-describe('Option 3: Bube im Einzelspiel ohne Gegnerkarten', () => {
-  const mk = (jackStealNoCards: 'unplayable' | 'void') =>
-    scenario(
-      { players: 3, rules: { jackStealNoCards } },
-      { pegs: { [peg(0, 0)]: ring(5), [peg(1, 0)]: ring(20) }, hands: [['J', '2'], [], []] },
-    );
-  it('unplayable: Bube nicht spielbar', () => {
-    expect(legalPlays(mk('unplayable'), 0).some((p) => p.card === 'J')).toBe(false);
+describe('Bube und 2 im Einzelspiel', () => {
+  const mk = (hands: Card[][]) =>
+    scenario({ players: 3 }, { pegs: { [peg(0, 0)]: ring(5), [peg(1, 0)]: ring(20) }, hands });
+  it('Bube tauscht auch im Einzelspiel nur Kugeln, nie Karten', () => {
+    const plays = legalPlays(mk([['J'], ['5'], []]), 0);
+    expect(plays).toHaveLength(1);
+    expect(plays[0]!.moves).toEqual([{ t: 'swap', a: peg(0, 0), b: peg(1, 0) }]);
   });
-  it('void: Bube wird ohne Wirkung abgelegt', () => {
-    const s = mk('void');
-    const play = legalPlays(s, 0).find((p) => p.card === 'J')!;
-    expect(play.moves).toEqual([]);
-    const s2 = applyAction(s, { t: 'play', player: 0, card: 'J', moves: [] });
-    expect(s2.hands[0]).toEqual(['2']);
-    expect(s2.discard).toContain('J');
+  it('Bube ist ohne tauschbare Kugeln nicht spielbar', () => {
+    const s = scenario({ players: 3 }, { pegs: { [peg(0, 0)]: ring(5) }, hands: [['J', '2'], ['5'], []] });
+    expect(legalPlays(s, 0).some((p) => p.card === 'J')).toBe(false);
+  });
+  it('2: fahren oder blind eine Karte ziehen (zählt als Zug)', () => {
+    const s = mk([['2'], ['5', '9'], []]);
+    const plays = legalPlays(s, 0);
+    expect(plays.filter((p) => p.moves[0]!.t === 'move')).toHaveLength(1);
+    expect(plays.filter((p) => p.moves[0]!.t === 'steal')).toHaveLength(2);
+    const s2 = applyAction(s, { t: 'play', player: 0, card: '2', moves: [{ t: 'steal', from: 1, idx: 0 }] });
+    expect(s2.hands[0]).toEqual(['5']);
+    expect(s2.hands[1]).toEqual(['9']);
+    expect(s2.current).toBe(1);
+  });
+  it('Teamspiel: mit der 2 kann man keine Karte ziehen', () => {
+    const s = scenario({ players: 4 }, { pegs: { [peg(0, 0)]: ring(5) }, hands: [['2'], ['5'], [], []] });
+    expect(legalPlays(s, 0).some((p) => p.moves.some((m) => m.t === 'steal'))).toBe(false);
   });
 });
 
@@ -200,7 +209,6 @@ describe('Regelkombinationen', () => {
               cardExchange,
               sevenRepeatPeg: players % 2 === 0,
               jackSwapPartner: captureOwn,
-              jackStealNoCards: captureOwn ? 'void' : 'unplayable',
               sixPlayerTeams: players === 6 && !captureOwn ? 'twoOfThree' : 'threeOfTwo',
               twoPlayerBoard: cardExchange === 'off' ? 'full' : 'compact',
               handSizes: cardExchange === 'off' ? [4, 2] : [6, 5, 4, 3, 2],

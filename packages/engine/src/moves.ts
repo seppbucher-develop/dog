@@ -225,22 +225,25 @@ function movesForRank(state: GameState, layout: Layout, player: number, rank: Ra
       for (const m of sevenPlays(state.pegs, layout, sevenPegs.map((p) => p.id))) out.push(m);
       break;
     case 'J':
-      if (layout.teams) {
-        for (const a of mine) {
-          for (const b of state.pegs) {
-            if (b.id === a.id) continue;
-            if (mine.includes(b) && b.id < a.id) continue; // Paar nur einmal
-            if (mine.includes(b) && !layout.rules.jackSwapOwn) continue;
-            if (!mine.includes(b) && !layout.rules.jackSwapPartner && layout.friendlyColors[a.color]!.includes(b.color)) continue;
-            if (trySwap(state.pegs, a.id, b.id)) out.push([{ t: 'swap', a: a.id, b: b.id }]);
-          }
+      // Der Bube dient immer nur zum Tauschen zweier Kugeln
+      for (const a of mine) {
+        for (const b of state.pegs) {
+          if (b.id === a.id) continue;
+          if (mine.includes(b) && b.id < a.id) continue; // Paar nur einmal
+          if (mine.includes(b) && !layout.rules.jackSwapOwn) continue;
+          if (!mine.includes(b) && !layout.rules.jackSwapPartner && layout.friendlyColors[a.color]!.includes(b.color)) continue;
+          if (trySwap(state.pegs, a.id, b.id)) out.push([{ t: 'swap', a: a.id, b: b.id }]);
         }
-      } else {
+      }
+      break;
+    case '2':
+      forward(2);
+      // Einzelspiel (2, 3, 5 Spieler): statt 2 zu fahren darf man blind eine Karte eines Gegners ziehen (zählt als Zug)
+      if (!layout.teams) {
         state.hands.forEach((h, q) => {
           if (q === player) return;
           for (let idx = 0; idx < h.length; idx++) out.push([{ t: 'steal', from: q, idx }]);
         });
-        if (out.length === 0 && layout.rules.jackStealNoCards === 'void') out.push([]);
       }
       break;
     default:

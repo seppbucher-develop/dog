@@ -141,7 +141,7 @@ function GameInner({ lobby, view }: { lobby: LobbyView; view: GameView }) {
     if (view.phase === 'exchange') return view.exchangeDone[view.seat] ? 'Warte auf die anderen Spieler …' : `Wähle eine Karte, die du an ${names[layout.giveTo[view.seat]!]} (${colorName(lobby.seats[layout.giveTo[view.seat]!]?.color ?? 0)}, Platz ${layout.giveTo[view.seat]! + 1}) abgibst.`;
     if (!myTurn) return `${names[view.current]} ist am Zug …`;
     if (!sel.card) return 'Du bist am Zug – wähle eine Karte.';
-    if (stealOpts.length > 0) return 'Ziehe blind eine Karte eines Gegners.';
+    if (stealOpts.length > 0) return selectable.size > 0 ? 'Wähle eine Kugel (2 Felder) oder ziehe blind eine Karte eines Gegners.' : 'Ziehe blind eine Karte eines Gegners.';
     if (sel.prefix.length > 0 && (sel.card === '7' || cands.some((p) => p.as === '7'))) return `7: noch ${sevenRemaining(sel.prefix)} Schritte verteilen – wähle die nächste Kugel.`;
     if (focus !== null && markers.length > 0) return 'Wähle das Ziel.';
     if (focus !== null) return 'Wähle die Kugel, mit der getauscht wird.';

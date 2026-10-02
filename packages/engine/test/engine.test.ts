@@ -179,18 +179,19 @@ describe('Bube', () => {
     expect(s2.pegs[peg(1, 0)]!.pos).toEqual(ring(5));
   });
 
-  it('Einzelspiel: zieht blind eine Karte vom Gegner in die Hand', () => {
+  it('Einzelspiel: Bube tauscht Kugeln mit einem Gegner', () => {
     let s = scenario({ players: 3 }, {
       pegs: { [peg(0, 0)]: ring(5), [peg(1, 0)]: ring(20) },
       hands: [['J', '2'], ['5', '9'], []],
       current: 0,
     });
     const plays = legalPlays(s, 0).filter((p) => p.card === 'J');
-    expect(plays).toHaveLength(2); // idx 0 und 1 beim einzigen Gegner mit Karten
-    s = applyAction(s, { t: 'play', player: 0, card: 'J', moves: [{ t: 'steal', from: 1, idx: 1 }] });
-    expect(s.hands[0]).toContain('9');
-    expect(s.hands[1]).toEqual(['5']);
+    expect(plays).toHaveLength(1);
+    s = applyAction(s, { t: 'play', player: 0, card: 'J', moves: plays[0]!.moves });
+    expect(s.pegs[peg(0, 0)]!.pos).toEqual(ring(20));
+    expect(s.pegs[peg(1, 0)]!.pos).toEqual(ring(5));
   });
+
 });
 
 describe('Ablauf', () => {

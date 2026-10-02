@@ -17,12 +17,10 @@ export interface RuleSettings {
   /** Bube (Teamspiel): auch mit Kugeln des Partners tauschen, nicht nur mit Gegnern. */
   jackSwapPartner: boolean;
   /**
-   * Bube (Teamspiel): auch zwei eigene Kugeln tauschen. Ändert das Brett meist nicht, verhindert aber den
+   * Bube: auch zwei eigene Kugeln tauschen. Ändert das Brett meist nicht, verhindert aber den
    * Abwurf der ganzen Hand, wenn sonst kein Zug möglich wäre.
    */
   jackSwapOwn: boolean;
-  /** Bube (Einzelspiel), wenn kein Gegner Karten hat: 'unplayable' = nicht spielbar, 'void' = wird ohne Wirkung abgelegt. */
-  jackStealNoCards: 'unplayable' | 'void';
   /** 2 Spieler mit 4 Kugeln: Brett mit 2 (compact) oder 4 (full) Abschnitten. */
   twoPlayerBoard: 'compact' | 'full';
   /** 6 Spieler: 3 Teams zu 2 (Partner gegenüber) oder 2 Teams zu 3 (abwechselnd sitzend). */
@@ -43,7 +41,6 @@ export const DEFAULT_RULES: RuleSettings = {
   fourDirection: 'both',
   jackSwapPartner: true,
   jackSwapOwn: true,
-  jackStealNoCards: 'unplayable',
   twoPlayerBoard: 'compact',
   sixPlayerTeams: 'threeOfTwo',
   cardExchange: 'auto',
@@ -77,7 +74,7 @@ export type Move =
   /** steps > 0 vorwärts, -4 rückwärts */
   | { t: 'move'; peg: number; steps: number }
   | { t: 'swap'; a: number; b: number }
-  /** Bube im Einzelspiel: blind eine Karte (Position idx) eines Gegners ziehen */
+  /** 2 im Einzelspiel: blind eine Karte (Position idx) eines Gegners ziehen, statt 2 zu fahren (zählt als Zug) */
   | { t: 'steal'; from: number; idx: number };
 
 export type Action =
