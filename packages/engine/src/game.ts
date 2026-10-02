@@ -66,6 +66,7 @@ function settle(state: GameState, layout: Layout): void {
       continue;
     }
     if (legalPlays(state, cur).length === 0) {
+      (state.passed ??= []).push({ player: cur, cards: state.hands[cur]!.length });
       state.discard.push(...state.hands[cur]!);
       state.hands[cur] = [];
       state.current = (cur + 1) % n;
@@ -103,6 +104,7 @@ export function applyAction(prev: GameState, action: Action): GameState {
   const n = state.config.players;
 
   if (state.phase === 'finished') throw new Error('Spiel ist beendet');
+  state.passed = [];
 
   if (action.t === 'exchange') {
     if (state.phase !== 'exchange') throw new Error('Kein Kartentausch aktiv');

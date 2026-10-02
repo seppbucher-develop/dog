@@ -219,6 +219,11 @@ function GameInner({ lobby, view }: { lobby: LobbyView; view: GameView }) {
 
         <div className="card status" aria-live="polite">
           <p className={myTurn || (view.phase === 'exchange' && !view.exchangeDone[view.seat]) ? 'prompt on' : 'prompt'}>{prompt}</p>
+          {(view.passes ?? []).slice(-3).map((e) => (
+            <p key={e.id} className="muted warn">
+              {names[e.player]}{e.player === view.seat ? ' (du)' : ''}: kein Zug möglich – {e.cards} {e.cards === 1 ? 'Karte' : 'Karten'} abgeworfen
+            </p>
+          ))}
           {last && (
             <p className="muted">
               Letzter Zug – {names[last.player]}: Karte <b>{CARD_TEXT[last.card]}</b>

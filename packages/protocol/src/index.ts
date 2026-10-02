@@ -97,6 +97,14 @@ export interface GameView {
   /** Legale Züge, nur wenn der Spieler am Zug ist */
   legal: Play[] | null;
   lastPlay: LastPlay | null;
+  /** Letzte Fälle, in denen jemand keinen Zug hatte und die Hand abgeworfen wurde (neueste zuletzt) */
+  passes: PassEvent[];
+}
+
+export interface PassEvent {
+  id: number;
+  player: number;
+  cards: number;
 }
 
 export type ServerMessage =

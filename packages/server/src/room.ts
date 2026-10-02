@@ -16,6 +16,7 @@ import type {
   ClientMessage,
   GameView,
   LastPlay,
+  PassEvent,
   LobbyPhase,
   LobbyView,
   SeatSpec,
@@ -85,6 +86,9 @@ export class Room {
   participants = new Map<string, Participant>();
   game: GameState | null = null;
   lastPlay: LastPlay | null = null;
+  private passLog: PassEvent[] = [];
+  private passSeq = 0;
+  private lastPassed: unknown = null;
   lastActivity: number;
   closed = false;
   private botPending = false;
@@ -328,8 +332,10 @@ export class Room {
     if (open >= 0) throw new Error(`Platz ${open + 1} ist noch frei – Mitspieler bewilligen oder Computer einsetzen`);
     const config: GameConfig = { players: this.seats.length, eightPegs: this.eightPegs, rules: this.rules };
     this.game = createGame(config, newSeed());
+    this.recordPasses();
     this.rand = makeRand(newSeed());
     this.lastPlay = null;
+    this.passLog = [];
     this.phase = 'playing';
     // Wartende Anfragen verfallen mit dem Spielstart
     for (const p of [...this.participants.values()]) if (p.status === 'pending' || p.status === 'rejected') this.removeParticipant(p, 'Das Spiel hat begonnen');
@@ -356,14 +362,25 @@ export class Room {
 
   // ---------- Spiel ----------
 
+  /** Automatische Abwürfe der letzten Aktion ins Protokoll übernehmen (jede Aktion nur einmal). */
+  private recordPasses(): void {
+    const passed = this.game?.passed;
+    if (!passed || passed === this.lastPassed) return;
+    this.lastPassed = passed;
+    for (const e of passed) this.passLog.push({ id: ++this.passSeq, ...e });
+    this.passLog = this.passLog.slice(-5);
+  }
+
   private playerAction(me: Participant, msg: Extract<ClientMessage, { t: 'exchange' | 'play' }>): void {
     if (this.phase !== 'playing' || !this.game) throw new Error('Kein laufendes Spiel');
     if (me.seat === null) throw new Error('Du sitzt nicht am Tisch');
     if (msg.t === 'exchange') {
       this.game = applyAction(this.game, { t: 'exchange', player: me.seat, card: msg.card });
+      this.recordPasses();
     } else {
       const action = { t: 'play' as const, player: me.seat, card: msg.card, moves: msg.moves, ...(msg.as ? { as: msg.as } : {}) };
       this.game = applyAction(this.game, action);
+      this.recordPasses();
       this.lastPlay = { player: me.seat, card: msg.card, moves: msg.moves, ...(msg.as ? { as: msg.as } : {}) };
     }
     this.changed();
@@ -385,6 +402,7 @@ export class Room {
         }
       }
       this.game = g;
+      this.recordPasses();
       if (g.phase === 'exchange') return;
     }
     const spec = this.seats[g.current]?.spec;
@@ -398,6 +416,7 @@ export class Room {
       if (s?.spec.kind !== 'bot') return;
       const action = chooseAction(cur, cur.current, s.spec.level, this.rand);
       this.game = applyAction(cur, action);
+      this.recordPasses();
       this.lastPlay = { player: action.player, card: action.card, moves: action.moves, ...(action.as ? { as: action.as } : {}) };
       this.changed();
     }, this.deps.botDelayMs);
@@ -473,6 +492,7 @@ export class Room {
       winners: g.winners,
       legal: g.phase === 'playing' && g.current === seat ? legalPlays(g, seat) : null,
       lastPlay: this.lastPlay,
+      passes: this.passLog,
     };
   }
 
