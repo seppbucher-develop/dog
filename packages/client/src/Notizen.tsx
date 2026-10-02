@@ -85,7 +85,7 @@ export function Notizen() {
   };
 
   const todoUmschalten = () => {
-    const id = anzeige.some((z) => z.id === aktiv.current) ? aktiv.current! : anzeige[anzeige.length - 1].id;
+    const id = anzeige.some((z) => z.id === aktiv.current) ? aktiv.current! : anzeige[anzeige.length - 1]!.id;
     aendere((l) => schalteTodo(l, id));
     fokus.current = { id, ende: true };
   };

@@ -63,12 +63,12 @@ export function fuegeTextEin(l: Zeile[], id: string, vorne: string, text: string
     if (m) {
       k.todo = true;
       k.erledigt = m[1] !== ' ';
-      k.text = m[2];
+      k.text = m[2] ?? '';
     } else k.text = t;
     if (i === 0) k.text = vorne + k.text;
     if (i === teile.length - 1) k.text += hinten;
     return k;
   });
   const i = l.findIndex((x) => x.id === id);
-  return { liste: [...l.slice(0, i), ...neue, ...l.slice(i + 1)], letzte: neue[neue.length - 1].id };
+  return { liste: [...l.slice(0, i), ...neue, ...l.slice(i + 1)], letzte: neue[neue.length - 1]!.id };
 }
