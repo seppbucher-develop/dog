@@ -6,7 +6,7 @@ Computerspielern in vier Stärken.
 - **Online spielen:** Ein Spielinitiator erstellt ein Spiel, Mitspieler treten per Code oder Link bei und werden vom
   Initiator **bewilligt**. Bis zu 5 der Plätze können Computerspieler sein.
 - **Plätze und Farben:** Der Initiator legt fest, wer wo sitzt und mit welcher Kugelfarbe spielt.
-- **Original-Bretter** bei 3, 4 und 6 Spielern in Kreuzform (jeder Spieler hat einen Arm: Löcher hinaus, über das Ende und zurück, Zielhaus in der Armmitte) oder als Kreis; wechselbar im Spiel.
+- **Original-Bretter** bei 3, 4 und 6 Spielern in Kreuzform (jeder Spieler hat einen Arm: Löcher hinaus, über das Ende und zurück, Startfeld in der Ecke des Armendes, Zielhaus von dort nach innen) oder als Kreis; wechselbar im Spiel.
 - **Regeln einstellbar** (siehe unten), damit jede Runde nach ihren Hausregeln spielen kann.
 - Läuft auf dem eigenen NAS: [Anleitung für Synology](docs/NAS-Anleitung.md).
 
@@ -24,7 +24,10 @@ Spielerzahl an (16 Felder pro Abschnitt, kein „leerer“ Spieler).
 
 ### Kurzregeln
 
-Jeder hat 4 Kugeln, die einmal um das Brett ziehen und exakt ins Zielhaus müssen. Gespielt werden 110 Karten
+Gespielt wird gegen den Uhrzeigersinn. Jeder hat 4 Kugeln, die einmal um das Brett ziehen und exakt ins Zielhaus
+müssen. Das Startfeld liegt in der Ecke des eigenen Abschnitts; von dort zweigt das Zielhaus ab. Ins Haus kommt man also
+nur über das eigene Startfeld (Zählung: Startfeld = ein Schritt, dahinter folgen die vier Hausplätze); eine Kugel, die
+gerade erst herausgekommen ist, muss zuerst eine ganze Runde laufen. Gespielt werden 110 Karten
 (inklusive 6 Joker), pro Runde 6, 5, 4, 3, 2 Karten. Wer nicht ziehen kann, wirft alle Karten ab.
 
 | Karte | Wirkung |

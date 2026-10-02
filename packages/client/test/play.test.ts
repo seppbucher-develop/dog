@@ -98,8 +98,8 @@ describe('Brettgeometrie', () => {
             expect(d).toBeGreaterThan(geo.spacing * 0.5);
             expect(d).toBeLessThan(geo.spacing * 1.01);
           }
-          // Anker unten in der Mitte: Kreis = mein Startfeld, Kreuz = Mitte meines Armendes (Feld vor dem Start)
-          const anchor = geo.style === 'circle' ? geo.ring(myColor * 16) : geo.ring(myColor * 16 - 1 + R);
+          // Anker unten in der Mitte: Kreis = mein Startfeld, Kreuz = Mitte meines Armendes (Feld nach dem Start)
+          const anchor = geo.style === 'circle' ? geo.ring(myColor * 16) : geo.ring(myColor * 16 + 1);
           expect(Math.abs(anchor.x)).toBeLessThan(geo.spacing * 0.6);
           expect(anchor.y).toBeGreaterThanOrEqual(Math.max(...pts.map((p) => p.y)) - 1e-6);
           const [vx, vy, vw, vh] = geo.viewBox.split(' ').map(Number) as [number, number, number, number];
@@ -125,16 +125,18 @@ describe('Brettgeometrie', () => {
       expect(Math.abs(Math.abs(p.x / u) * 2 - Math.round(Math.abs(p.x / u) * 2))).toBeLessThan(1e-6); // ganzzahlig (Mitte der Ränder eingeschlossen)
     }
     for (const c of [0, 1, 2, 3]) {
-      const tip = geo.ring(c * 16 - 1 + 64);
+      const tip = geo.ring(c * 16 + 1);
       expect(Math.hypot(tip.x, tip.y) / u).toBeCloseTo(8, 3);
     }
-    // Seitenlinien des Arms: 6 Löcher hinaus (x = +2), 5 Löcher über das Ende, 6 zurück; Start = ein Loch links der Armmitte
+    // Start in der Ecke des Armendes (ein Loch links der Armmitte); gespielt wird nach rechts, gegen den Uhrzeigersinn
     const start = geo.ring(0);
     expect(start.x / u).toBeCloseTo(-1, 3);
     expect(start.y / u).toBeCloseTo(8, 3);
-    // Zielhaus in der Armmitte, vier Löcher nach innen
+    expect(geo.ring(1).x / u).toBeCloseTo(0, 3);
+    expect(geo.ring(2).x / u).toBeCloseTo(1, 3);
+    // Zielhaus zweigt vom Startfeld ab, vier Löcher nach innen
     for (let s = 0; s < 4; s++) {
-      expect(geo.fin(0, s).x / u).toBeCloseTo(0, 3);
+      expect(geo.fin(0, s).x / u).toBeCloseTo(-1, 3);
       expect(geo.fin(0, s).y / u).toBeCloseTo(7 - s, 3);
     }
     // Nest: vier Löcher in einer Reihe außerhalb des Armendes
@@ -152,8 +154,8 @@ describe('Brettgeometrie', () => {
       const q = geo.ring(f + 1);
       expect(Math.hypot(p.x - q.x, p.y - q.y)).toBeCloseTo(u, 3);
     }
-    const tips = [0, 1, 2, 3, 4, 5].map((c) => geo.ring(c * 16 - 1 + 96));
-    const expected: [number, number][] = [[0, 11], [-8, 3], [-8, -3], [0, -11], [8, -3], [8, 3]];
+    const tips = [0, 1, 2, 3, 4, 5].map((c) => geo.ring(c * 16 + 1));
+    const expected: [number, number][] = [[0, 11], [8, 3], [8, -3], [0, -11], [-8, -3], [-8, 3]]; // gegen den Uhrzeigersinn
     tips.forEach((t, i) => {
       expect(t.x / u).toBeCloseTo(expected[i]![0], 3);
       expect(t.y / u).toBeCloseTo(expected[i]![1], 3);
@@ -163,7 +165,7 @@ describe('Brettgeometrie', () => {
   it('Kreuz mit 3 Spielern: drei gleiche Arme im Abstand von 120 Grad', () => {
     const layout = layoutFor({ players: 3 });
     const geo = makeGeo(layout, 0, 'original');
-    const tips = [0, 1, 2].map((c) => geo.ring(c * 16 - 1 + 48));
+    const tips = [0, 1, 2].map((c) => geo.ring(c * 16 + 1));
     const cx = (tips[0]!.x + tips[1]!.x + tips[2]!.x) / 3;
     const cy = (tips[0]!.y + tips[1]!.y + tips[2]!.y) / 3;
     const d = tips.map((t) => Math.hypot(t.x - cx, t.y - cy));
@@ -172,6 +174,34 @@ describe('Brettgeometrie', () => {
     // Abstand der Armenden untereinander gleich (gleichseitiges Dreieck)
     const e = [Math.hypot(tips[0]!.x - tips[1]!.x, tips[0]!.y - tips[1]!.y), Math.hypot(tips[1]!.x - tips[2]!.x, tips[1]!.y - tips[2]!.y)];
     expect(e[1]).toBeCloseTo(e[0]!, 3);
+  });
+
+  it('Gespielt wird gegen den Uhrzeigersinn; das Zielhaus zweigt vom Startfeld ab', () => {
+    for (const style of styles) {
+      for (const players of [3, 4, 6]) {
+        const layout = layoutFor({ players });
+        const geo = makeGeo(layout, 0, style);
+        const R = layout.ringSize;
+        // Kreuzprodukt der Schritte um den Mittelpunkt: auf dem Bildschirm (y nach unten) bedeutet < 0 gegen den Uhrzeigersinn
+        let area = 0;
+        for (let f = 0; f < R; f++) {
+          const a = geo.ring(f);
+          const b = geo.ring(f + 1);
+          area += a.x * b.y - b.x * a.y;
+        }
+        expect(area).toBeLessThan(0);
+        // Spielreihenfolge = Sitzreihenfolge: der nächste Abschnitt liegt gegen den Uhrzeigersinn
+        const c0 = geo.ring(0);
+        const c1 = geo.ring(16);
+        expect(c0.x * c1.y - c0.y * c1.x).toBeLessThan(0);
+        // Das Zielhaus beginnt am Startfeld: kein Ringloch liegt dem ersten Hausplatz näher als das Startfeld
+        for (const c of layout.usedColors) {
+          const z = geo.fin(c, 0);
+          const dist = (f: number) => Math.hypot(geo.ring(f).x - z.x, geo.ring(f).y - z.y);
+          expect(dist(c * 16)).toBeLessThanOrEqual(Math.min(...Array.from({ length: R }, (_, f) => dist(f))) + 1e-6);
+        }
+      }
+    }
   });
 
   it('Originalform nur bei 3, 4 und 6 Abschnitten; sonst Kreis', () => {

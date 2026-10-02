@@ -53,7 +53,8 @@ export interface GameConfig {
 
 export type Pos =
   | { t: 'home' }
-  | { t: 'ring'; f: number } // absolutes Ringfeld
+  /** absolutes Ringfeld; `lap` = Kugel hat die Runde vollendet und steht wieder auf dem eigenen Startfeld (bereit fürs Zielhaus) */
+  | { t: 'ring'; f: number; lap?: true }
   | { t: 'fin'; s: number }; // Zielhaus-Platz 0..3
 
 export interface Peg {

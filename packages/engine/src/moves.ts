@@ -13,7 +13,7 @@ import { RANKS, type GameState, type Move, type Peg, type Play, type Rank } from
 const clonePegs = (pegs: Peg[]): Peg[] => pegs.map((p) => ({ ...p, pos: { ...p.pos } }));
 
 export const pegsKey = (pegs: Peg[]): string =>
-  pegs.map((p) => (p.pos.t === 'home' ? 'h' : p.pos.t === 'ring' ? `r${p.pos.f}` : `f${p.pos.s}`)).join(',');
+  pegs.map((p) => (p.pos.t === 'home' ? 'h' : p.pos.t === 'ring' ? `r${p.pos.f}${p.pos.lap ? 'l' : ''}` : `f${p.pos.s}`)).join(',');
 
 function ringPegAt(pegs: Peg[], f: number): Peg | undefined {
   return pegs.find((p) => p.pos.t === 'ring' && p.pos.f === f);
@@ -57,13 +57,14 @@ export function tryMove(
     dest = peg.pos;
     for (let i = 1; i <= steps; i++) {
       const q = prog + i;
-      if (q <= R - 1) {
+      if (q <= R) {
+        // q === R: wieder auf dem eigenen Startfeld (Runde vollendet); das Zielhaus beginnt dahinter
         const f = mod(startField(peg.color) + q, R);
         if (!ringOk(f)) return null;
         crossed.push(f);
-        dest = { t: 'ring', f };
+        dest = q === R ? { t: 'ring', f, lap: true } : { t: 'ring', f };
       } else {
-        const slot = q - R;
+        const slot = q - R - 1;
         if (slot >= FINISH_SLOTS || !finFree(slot)) return null;
         dest = { t: 'fin', s: slot };
       }

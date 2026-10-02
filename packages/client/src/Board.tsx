@@ -40,7 +40,7 @@ export function Board({ layout, geo, pegs, segColors, segNames, activeSegs, sele
       {/* Zielhäuser */}
       {layout.usedColors.map((c) => {
         const col = segColors[c] ?? NEUTRAL;
-        const a = geo.ring(((c * 16 - 1) % R + R) % R);
+        const a = geo.ring(c * 16);
         const z = geo.fin(c, 3);
         return (
           <g key={`fin${c}`}>

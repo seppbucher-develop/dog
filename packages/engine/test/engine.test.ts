@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyAction, createGame, fullDeck, legalPlays, layoutFor } from '../src';
+import { applyAction, createGame, fullDeck, legalPlays, layoutFor, type Card } from '../src';
 import { fin, peg, ring, scenario, start } from './helpers';
 
 const four = { players: 4 };
@@ -95,12 +95,45 @@ describe('Bewegung', () => {
   it('Ziel: exakt hinein, nicht über eigene Kugeln im Zielhaus', () => {
     const s = scenario(four, {
       pegs: { [peg(0, 0)]: ring(start(0) + 62), [peg(0, 1)]: fin(1) },
-      hands: [['2', '3', 'A'], [], [], []],
+      hands: [['3', '5'], [], [], []],
     });
     const plays = legalPlays(s, 0);
-    // 2 Schritte -> fin 0 (frei), 3 Schritte -> fin 1 (besetzt) unzulässig
-    expect(plays.some((p) => p.card === '2' && p.moves[0]!.t === 'move' && (p.moves[0] as { peg: number }).peg === peg(0, 0))).toBe(true);
-    expect(plays.some((p) => p.card === '3' && p.moves[0]!.t === 'move' && (p.moves[0] as { peg: number }).peg === peg(0, 0))).toBe(false);
+    const moves = (card: string) => plays.some((p) => p.card === card && p.moves[0]!.t === 'move' && (p.moves[0] as { peg: number }).peg === peg(0, 0));
+    // 3 Schritte -> fin 0 (frei), 5 Schritte -> über die besetzte fin 1 hinweg, unzulässig
+    expect(moves('3')).toBe(true);
+    expect(moves('5')).toBe(false);
+  });
+
+  it('Ins Haus geht es nur über das Startfeld: es zählt als Schritt, das Haus beginnt dahinter', () => {
+    const s = scenario(four, { pegs: { [peg(0, 0)]: ring(start(0) + 62) }, hands: [['2', '3', '8'], [], [], []] });
+    const play = (card: Card) => legalPlays(s, 0).find((p) => p.card === card && p.moves[0]!.t === 'move');
+    // 2 Schritte: genau auf das Startfeld (Runde vollendet), noch nicht im Haus
+    expect(applyAction(s, { t: 'play', player: 0, card: '2', moves: play('2')!.moves }).pegs[0]!.pos).toEqual({ t: 'ring', f: start(0), lap: true });
+    // 3 Schritte: über das Startfeld hinweg auf den ersten Hausplatz
+    expect(applyAction(s, { t: 'play', player: 0, card: '3', moves: play('3')!.moves }).pegs[0]!.pos).toEqual(fin(0));
+    // 8 Schritte: zu weit (Haus hat 4 Plätze)
+    expect(play('8')).toBeUndefined();
+  });
+
+  it('Eine Kugel, die gerade erst auf das Startfeld kam, muss erst eine Runde laufen', () => {
+    const s = scenario(four, { pegs: { [peg(0, 0)]: ring(start(0)) }, hands: [['2'], [], [], []] });
+    const next = applyAction(s, { t: 'play', player: 0, card: '2', moves: [{ t: 'move', peg: peg(0, 0), steps: 2 }] });
+    expect(next.pegs[0]!.pos).toEqual(ring(start(0) + 2));
+  });
+
+  it('Kugel, die auf dem Startfeld die Runde vollendet hat, zieht von dort ins Haus', () => {
+    const s = scenario(four, { pegs: { [peg(0, 0)]: { t: 'ring', f: start(0), lap: true } }, hands: [['2'], [], [], []] });
+    const plays = legalPlays(s, 0);
+    expect(plays).toHaveLength(1);
+    expect(applyAction(s, { t: 'play', player: 0, card: '2', moves: plays[0]!.moves }).pegs[0]!.pos).toEqual(fin(1));
+  });
+
+  it('Eigene Kugel auf dem Startfeld versperrt den Weg ins Haus', () => {
+    const s = scenario(four, {
+      pegs: { [peg(0, 0)]: ring(start(0) + 62), [peg(0, 1)]: ring(start(0)) },
+      hands: [['3'], [], [], []],
+    });
+    expect(legalPlays(s, 0).some((p) => p.moves[0]!.t === 'move' && (p.moves[0] as { peg: number }).peg === peg(0, 0))).toBe(false);
   });
 
   it('Im Zielhaus weiterrücken', () => {
@@ -173,8 +206,8 @@ describe('Ablauf', () => {
 
   it('Sieg im Einzelspiel, wenn alle Kugeln im Ziel', () => {
     const pegs = { [peg(0, 0)]: fin(3), [peg(0, 1)]: fin(2), [peg(0, 2)]: fin(1), [peg(0, 3)]: ring(start(0) + 47) };
-    let s = scenario({ players: 3 }, { pegs, hands: [['A'], ['5'], ['5']] });
-    s = applyAction(s, { t: 'play', player: 0, card: 'A', moves: [{ t: 'move', peg: peg(0, 3), steps: 1 }] });
+    let s = scenario({ players: 3 }, { pegs, hands: [['2'], ['5'], ['5']] });
+    s = applyAction(s, { t: 'play', player: 0, card: '2', moves: [{ t: 'move', peg: peg(0, 3), steps: 2 }] });
     expect(s.phase).toBe('finished');
     expect(s.winners).toEqual([0]);
   });

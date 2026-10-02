@@ -113,9 +113,13 @@ export function createPegs(layout: Layout): Peg[] {
   return pegs;
 }
 
-/** Schritte seit dem eigenen Startfeld (0..ringSize-1) für eine Kugel auf dem Ring. */
+/**
+ * Schritte seit dem eigenen Startfeld für eine Kugel auf dem Ring: 0..ringSize-1, nach vollendeter Runde
+ * (wieder auf dem Startfeld, `lap`) genau ringSize. Das Zielhaus beginnt hinter dem Startfeld.
+ */
 export function progress(layout: Layout, peg: Peg): number {
   if (peg.pos.t !== 'ring') throw new Error('Kugel nicht auf dem Ring');
+  if (peg.pos.lap) return layout.ringSize;
   return mod(peg.pos.f - startField(peg.color), layout.ringSize);
 }
 
@@ -134,7 +138,7 @@ export function allInFinish(state: GameState, color: number): boolean {
 
 /**
  * Farben, die der Spieler gerade bewegen darf. Ist er selbst fertig (nur Teamspiel), spielt er zusätzlich
- * für den nächsten Teamkollegen (im Uhrzeigersinn), der noch nicht fertig ist.
+ * für den nächsten Teamkollegen (in Spielrichtung, gegen den Uhrzeigersinn), der noch nicht fertig ist.
  */
 export function controlledColors(state: GameState, layout: Layout, player: number): number[] {
   const own = layout.colorsOf[player]!;
