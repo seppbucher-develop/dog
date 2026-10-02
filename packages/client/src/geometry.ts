@@ -57,26 +57,41 @@ function toCurve(points: Pt[]): Curve {
 }
 
 // Kreuzförmige Originalbretter. Einheit = Lochabstand. Jeder Spieler hat einen Arm (Breite 4): Die Löcher laufen
-// an einer Seite hinaus, über das Armende und an der anderen Seite zurück (16 Löcher pro Arm). Das Zielhaus liegt
-// in der Mitte des Arms, die Nestlöcher in einer Reihe am Armende. Start des Umrisses = Mitte des Armendes unten;
+// an einer Seite hinaus, über das Armende und an der anderen Seite zurück (16 Löcher pro Arm). Das Zielhaus zweigt
+// vom Startfeld ab, die Nestlöcher liegen in einer Reihe am Armende. Start des Umrisses = Mitte des Armendes unten;
 // von dort im Uhrzeigersinn folgen die Arme der übrigen Spieler. Gespielt wird entgegengesetzt: Die Felder
 // (und die Spielreihenfolge) laufen auf dem Bildschirm gegen den Uhrzeigersinn. Das Startfeld liegt in der Ecke
-// des Armendes; von dort zweigt das Zielhaus nach innen ab (erster Hausplatz schräg neben dem Startfeld, dann
+// des Armendes (rechts, vom Spieler aus gesehen: die Kugeln laufen von dort nach rechts weg und kommen von links
+// zurück); von dort zweigt das Zielhaus nach innen ab (erster Hausplatz schräg neben dem Startfeld, dann
 // geradeaus parallel zur Armseite).
 
-/** Sternumriss mit n gleichen Armen (n = 3, 4): Armachse Λ = c + 6, wobei c der Abstand der Einbuchtung ist. */
+/**
+ * Sternumriss mit n gleichen Armen (n = 3, 4). Jeder Arm hat 4 gleich lange Abschnitte zu je 4 Lochabständen:
+ * Seite, Armende, Seite und die abgeschrägte Ecke zum nächsten Arm (Abschrägung statt spitzer Einbuchtung).
+ */
 function starOutline(n: number): Pt[] {
-  const c = 2 / Math.tan(Math.PI / n);
-  const L = c + 6;
   const rot = (p: Pt, k: number): Pt => {
     const a = (2 * Math.PI * k) / n; // wachsender Winkel = Uhrzeigersinn (y nach unten)
     return { x: p.x * Math.cos(a) - p.y * Math.sin(a), y: p.x * Math.sin(a) + p.y * Math.cos(a) };
   };
+  // Abstand Y der Seitenenden von der Mitte so, dass die Abschrägung genau 4 Lochabstände lang ist
+  const chamfer = (y: number) => {
+    const q = rot({ x: 2, y }, 1);
+    return Math.hypot(q.x + 2, q.y - y);
+  };
+  let lo = 2 / Math.tan(Math.PI / n);
+  let hi = lo + 20;
+  for (let i = 0; i < 60; i++) {
+    const mid = (lo + hi) / 2;
+    if (chamfer(mid) < 4) lo = mid;
+    else hi = mid;
+  }
+  const c = (lo + hi) / 2;
+  const L = c + 4;
   const pts: Pt[] = [{ x: 0, y: L }, { x: -2, y: L }, { x: -2, y: c }];
   for (let k = 1; k < n; k++) for (const q of [{ x: 2, y: c }, { x: 2, y: L }, { x: -2, y: L }, { x: -2, y: c }]) pts.push(rot(q, k));
-  pts.push({ x: 2, y: L });
-  // doppelte Punkte (Einbuchtungen, die zwei Arme teilen) entfernen
-  return pts.filter((p, i) => i === 0 || Math.hypot(p.x - pts[i - 1]!.x, p.y - pts[i - 1]!.y) > 1e-6);
+  pts.push({ x: 2, y: c }, { x: 2, y: L });
+  return pts;
 }
 
 /** Umriss für 6 Spieler: Arm unten und oben, je zwei Arme links und rechts; 96 Schritte, Armabstand je 16. */
@@ -139,8 +154,8 @@ export function makeGeo(layout: Layout, myColor: number, wanted: BoardStyle = 'c
   const orig = style === 'original';
   // Die Kurve läuft im Uhrzeigersinn, gespielt wird dagegen: wachsendes Feld = abnehmender Kurvenparameter.
   // Kreis: mein Startfeld unten in der Mitte. Kreuz: die Mitte meines Armendes liegt unten in der Mitte, mein
-  // Startfeld liegt in der Ecke links davon (zwei Löcher von der Mitte entfernt).
-  const at = (f: number) => sample(curve, ((orig ? 2 : 0) - (f - startField(myColor))) / R);
+  // Startfeld liegt in der rechten Ecke (zwei Löcher von der Mitte entfernt), von dort laufen die Felder nach rechts.
+  const at = (f: number) => sample(curve, ((orig ? -2 : 0) - (f - startField(myColor))) / R);
   /** Mitte des Armendes einer Farbe (nur Kreuz) */
   const armEnd = (c: number) => sample(curve, -(startField(c) - startField(myColor)) / R);
   const ring = (f: number): Pt => at(f).p;

@@ -111,8 +111,8 @@ describe('Brettgeometrie', () => {
             expect(d).toBeGreaterThan(geo.spacing * 0.5);
             expect(d).toBeLessThan(geo.spacing * 1.01);
           }
-          // Anker unten in der Mitte: Kreis = mein Startfeld, Kreuz = Mitte meines Armendes (zwei Felder nach dem Start)
-          const anchor = geo.style === 'circle' ? geo.ring(myColor * 16) : geo.ring(myColor * 16 + 2);
+          // Anker unten in der Mitte: Kreis = mein Startfeld, Kreuz = Mitte meines Armendes (zwei Felder vor dem Start)
+          const anchor = geo.style === 'circle' ? geo.ring(myColor * 16) : geo.ring(myColor * 16 - 2);
           expect(Math.abs(anchor.x)).toBeLessThan(geo.spacing * 0.6);
           expect(anchor.y).toBeGreaterThanOrEqual(Math.max(...pts.map((p) => p.y)) - 1e-6);
           const [vx, vy, vw, vh] = geo.viewBox.split(' ').map(Number) as [number, number, number, number];
@@ -127,35 +127,41 @@ describe('Brettgeometrie', () => {
     }
   });
 
-  it('Kreuz mit 4 Spielern: Raster, Arme 16 Löcher, Armenden im Abstand 8 vom Zentrum', () => {
+  it('Kreuz mit 4 Spielern: je Arm vier Abschnitte zu 4 (Seite, Ende, Seite, Abschrägung), Start in der rechten Ecke', () => {
     const layout = layoutFor({ players: 4 });
     const geo = makeGeo(layout, 0, 'original');
     const u = geo.spacing;
     for (let f = 0; f < 64; f++) {
       const p = geo.ring(f);
       const q = geo.ring(f + 1);
-      expect(Math.hypot(p.x - q.x, p.y - q.y)).toBeCloseTo(u, 3); // im Raster: immer genau ein Schritt
-      expect(Math.abs(Math.abs(p.x / u) * 2 - Math.round(Math.abs(p.x / u) * 2))).toBeLessThan(1e-6); // ganzzahlig (Mitte der Ränder eingeschlossen)
+      expect(Math.hypot(p.x - q.x, p.y - q.y)).toBeCloseTo(u, 3); // immer genau ein Schritt
     }
+    const L = 6 + 2 * Math.SQRT2; // Armende: 2 + 2*sqrt2 (Abschrägung 4 bei 45 Grad) + Seite 4
     for (const c of [0, 1, 2, 3]) {
-      const tip = geo.ring(c * 16 + 2);
-      expect(Math.hypot(tip.x, tip.y) / u).toBeCloseTo(8, 3);
+      const tip = geo.ring(c * 16 - 2);
+      expect(Math.hypot(tip.x, tip.y) / u).toBeCloseTo(L, 3);
     }
-    // Start in der Ecke des Armendes (Eckloch, zwei Löcher links der Armmitte); gespielt wird nach rechts, gegen den Uhrzeigersinn
-    const start = geo.ring(0);
-    expect(start.x / u).toBeCloseTo(-2, 3);
-    expect(start.y / u).toBeCloseTo(8, 3);
-    expect(geo.ring(2).x / u).toBeCloseTo(0, 3);
-    expect(geo.ring(3).x / u).toBeCloseTo(1, 3);
+    // Seiten: 4 Löcherabstände geradeaus, Armende 4, dann Abschrägung
+    const p = (f: number) => ({ x: geo.ring(f).x / u, y: geo.ring(f).y / u });
+    // Start = rechte Ecke des unteren Armendes; von dort laufen die Felder nach oben (rechte Seite), gegen den Uhrzeigersinn
+    expect(p(0).x).toBeCloseTo(2, 3);
+    expect(p(0).y).toBeCloseTo(p(-2).y, 3);
+    expect(p(-2).x).toBeCloseTo(0, 3);
+    expect(p(-4).x).toBeCloseTo(-2, 3); // Armende ist 4 breit, links davon die linke Ecke
+    for (let i = 1; i <= 4; i++) expect(p(i).x).toBeCloseTo(2, 3); // rechte Seite: 4 Felder aufwärts
+    expect(p(4).y).toBeCloseTo(p(0).y - 4, 3);
+    // Abschrägung: 4 Felder im Winkel von 45 Grad
+    expect(p(8).x - p(4).x).toBeCloseTo(4 / Math.SQRT2, 3);
+    expect(Math.abs(p(8).y - p(4).y)).toBeCloseTo(4 / Math.SQRT2, 3);
     // Zielhaus zweigt vom Startfeld ab: schräg neben das Startfeld, dann vier Plätze nach innen
     for (let s = 0; s < 4; s++) {
-      expect(geo.fin(0, s).x / u).toBeCloseTo(-1, 3);
-      expect(geo.fin(0, s).y / u).toBeCloseTo(7 - s, 3);
+      expect(geo.fin(0, s).x / u).toBeCloseTo(1, 3);
+      expect(geo.fin(0, s).y / u).toBeCloseTo(p(0).y - 1 - s, 3);
     }
     // Nest: vier Löcher in einer Reihe außerhalb des Armendes
     const homes = [0, 1, 2, 3].map((i) => geo.home(0, i));
     expect(new Set(homes.map((h) => h.y.toFixed(3))).size).toBe(1);
-    expect(homes[0]!.y / u).toBeGreaterThan(8);
+    expect(homes[0]!.y / u).toBeGreaterThan(p(0).y);
   });
 
   it('Kreuz mit 6 Spielern: 96 Schritte, Arme unten/oben und je zwei links/rechts', () => {
@@ -167,7 +173,7 @@ describe('Brettgeometrie', () => {
       const q = geo.ring(f + 1);
       expect(Math.hypot(p.x - q.x, p.y - q.y)).toBeCloseTo(u, 3);
     }
-    const tips = [0, 1, 2, 3, 4, 5].map((c) => geo.ring(c * 16 + 2));
+    const tips = [0, 1, 2, 3, 4, 5].map((c) => geo.ring(c * 16 - 2));
     const expected: [number, number][] = [[0, 11], [8, 3], [8, -3], [0, -11], [-8, -3], [-8, 3]]; // gegen den Uhrzeigersinn
     tips.forEach((t, i) => {
       expect(t.x / u).toBeCloseTo(expected[i]![0], 3);
@@ -178,7 +184,7 @@ describe('Brettgeometrie', () => {
   it('Kreuz mit 3 Spielern: drei gleiche Arme im Abstand von 120 Grad', () => {
     const layout = layoutFor({ players: 3 });
     const geo = makeGeo(layout, 0, 'original');
-    const tips = [0, 1, 2].map((c) => geo.ring(c * 16 + 2));
+    const tips = [0, 1, 2].map((c) => geo.ring(c * 16 - 2));
     const cx = (tips[0]!.x + tips[1]!.x + tips[2]!.x) / 3;
     const cy = (tips[0]!.y + tips[1]!.y + tips[2]!.y) / 3;
     const d = tips.map((t) => Math.hypot(t.x - cx, t.y - cy));
