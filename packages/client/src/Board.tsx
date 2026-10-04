@@ -20,6 +20,8 @@ interface Props {
   /** Brettabschnitte, deren Spieler gerade am Zug ist */
   activeSegs: Set<number>;
   selectable: Set<number>;
+  /** Zusätzlich anklickbare Kugeln (ohne Hervorhebung), z. B. um einen Grund anzuzeigen */
+  clickable?: Set<number>;
   focus: number | null;
   markers: BoardMarker[];
   onPeg(id: number): void;
@@ -29,7 +31,7 @@ interface Props {
 
 const stroke = (fill: string) => (fill === '#f6f3ea' ? '#8a8474' : '#15151a');
 
-export function Board({ layout, geo, pegs, segColors, segNames, activeSegs, selectable, focus, markers, onPeg, onMarker, centerLines }: Props) {
+export function Board({ layout, geo, pegs, segColors, segNames, activeSegs, selectable, clickable, focus, markers, onPeg, onMarker, centerLines }: Props) {
   const R = layout.ringSize;
   const fields = Array.from({ length: R }, (_, f) => f);
   return (
@@ -120,6 +122,9 @@ export function Board({ layout, geo, pegs, segColors, segNames, activeSegs, sele
             <circle r={geo.pegR + 2.5} fill="#fff" />
             <circle r={geo.pegR} fill={fill} stroke={stroke(fill)} strokeWidth={2} />
             <circle r={geo.pegR * 0.4} cx={-geo.pegR * 0.25} cy={-geo.pegR * 0.3} fill="#fff" fillOpacity={0.35} />
+            {!can && focus !== p.id && clickable?.has(p.id) && (
+              <circle r={geo.pegR + 5} fill="transparent" onClick={() => onPeg(p.id)} role="button" aria-label="Kugel wählen" />
+            )}
             {(can || focus === p.id) && (
               <circle
                 r={geo.pegR + 5}
