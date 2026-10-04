@@ -71,8 +71,8 @@ export interface Peg {
 
 export type Move =
   | { t: 'start'; peg: number }
-  /** steps > 0 vorwärts, -4 rückwärts */
-  | { t: 'move'; peg: number; steps: number }
+  /** steps > 0 vorwärts, -4 rückwärts; `pass` = am Zielhaus vorbei weiterlaufen statt hineinzuziehen */
+  | { t: 'move'; peg: number; steps: number; pass?: true }
   | { t: 'swap'; a: number; b: number }
   /** 2 im Einzelspiel: blind eine Karte (Position idx) eines Gegners ziehen, statt 2 zu fahren (zählt als Zug) */
   | { t: 'steal'; from: number; idx: number };

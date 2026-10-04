@@ -93,12 +93,23 @@ export function sevenClick(
   if (!merge && !repeat && prefix.some((m) => m.t === 'move' && m.peg === pegId)) {
     return { reason: 'Diese Kugel wurde schon gezogen – bei der 7 darf jede Kugel nur einmal gezogen werden.' };
   }
-  const next: Move[] = merge ? [...prefix.slice(0, -1), { t: 'move', peg: pegId, steps: last.steps + 1 }] : [...prefix, { t: 'move', peg: pegId, steps: 1 }];
   const before = sevenNext(pegs, layout, player, prefix, joker);
   if (!before.pegs || before.remaining === 0) return { reason: 'Die 7 ist bereits vollständig verteilt.' };
-  const r = sevenNext(pegs, layout, player, next, joker);
+  const build = (pass: boolean): Move[] => {
+    const m: Move = { t: 'move', peg: pegId, steps: merge ? last.steps + 1 : 1, ...(pass ? { pass: true as const } : {}) };
+    return merge ? [...prefix.slice(0, -1), m] : [...prefix, m];
+  };
+  // Zuerst ins Haus ziehen; geht das nicht (oder lässt sich die 7 so nicht beenden), am Haus vorbei weiterlaufen
+  const tries = merge && last.pass ? [true] : [false, true];
+  let next: Move[] = build(false);
+  let r = sevenNext(pegs, layout, player, next, joker);
+  for (const pass of tries) {
+    next = build(pass);
+    r = sevenNext(pegs, layout, player, next, joker);
+    if (r.pegs && (r.remaining === 0 ? sevenValid(pegs, layout, player, next, joker) : r.next.length > 0)) break;
+  }
   if (!r.pegs) {
-    if (!tryMove(before.pegs, layout, pegId, 1, true)) {
+    if (!tryMove(before.pegs, layout, pegId, 1, true) && !tryMove(before.pegs, layout, pegId, 1, true, true)) {
       return { reason: 'Ein Feld weiter ist die Kugel blockiert (Kugel auf einem Startfeld, eigene Kugel im Weg oder Zielhaus voll).' };
     }
     return { reason: 'Dieser Schritt ist nicht möglich.' };
@@ -118,6 +129,6 @@ export function sevenClick(
 /** Letzten Schritt der 7 zurücknehmen: bei zusammengefassten Feldern nur ein Feld. */
 export function sevenUndo(prefix: Move[]): Move[] {
   const last = prefix[prefix.length - 1];
-  if (last && last.t === 'move' && last.steps > 1) return [...prefix.slice(0, -1), { ...last, steps: last.steps - 1 }];
+  if (last && last.t === 'move' && last.steps > 1) return [...prefix.slice(0, -1), { t: 'move', peg: last.peg, steps: last.steps - 1 }];
   return prefix.slice(0, -1);
 }

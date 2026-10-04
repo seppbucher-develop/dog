@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyAction, createGame, layoutFor, legalPlays, controlledColors, sevenNext, sevenValid, type Card } from '../src';
+import { applyAction, createGame, layoutFor, legalPlays, controlledColors, sevenNext, sevenValid, type Card, type Pos } from '../src';
 import { fin, peg, ring, scenario, start } from './helpers';
 
 describe('Einstellungen: Validierung', () => {
@@ -266,7 +266,7 @@ describe('4, Joker und 7 (neue Regeln)', () => {
   const stepsOf = (s: ReturnType<typeof scenario>, card: Card, peg_: number) =>
     legalPlays(s, 0)
       .filter((p) => p.card === card)
-      .flatMap((p) => p.moves.filter((m) => m.t === 'move' && m.peg === peg_).map((m) => (m as { steps: number }).steps));
+      .flatMap((p) => p.moves.filter((m) => m.t === 'move' && m.peg === peg_ && !m.pass).map((m) => (m as { steps: number }).steps));
 
   it('4 darf vorwärts und rückwärts gespielt werden, rückwärts nie ins Haus', () => {
     const s = scenario({ players: 4 }, { pegs: { [peg(0, 0)]: ring(start(0) + 62) }, hands: [['4'], [], [], []] });
@@ -291,7 +291,7 @@ describe('4, Joker und 7 (neue Regeln)', () => {
     const finishing = (card: Card) =>
       legalPlays(s, 0).some((p) => p.card === card && p.moves.some((m) => m.t === 'move' && m.peg === peg(0, 3) && m.steps === 3));
     expect(finishing('3')).toBe(true);
-    expect(legalPlays(s, 0).some((p) => p.card === 'JOKER' && p.as === '3')).toBe(false);
+    expect(legalPlays(s, 0).some((p) => p.card === 'JOKER' && p.as === '3' && !p.moves.some((m) => m.t === 'move' && m.pass))).toBe(false);
     // nicht die letzte Kugel: der Joker bleibt normal spielbar
     const s2 = scenario({ players: 3 }, { pegs: { [peg(0, 0)]: ring(start(0) + 46), [peg(0, 1)]: ring(5) }, hands: [['JOKER'], [], []] });
     expect(legalPlays(s2, 0).some((p) => p.card === 'JOKER' && p.as === '3')).toBe(true);
@@ -360,3 +360,34 @@ describe('7 in beliebigen Teilzügen', () => {
   });
 });
 
+
+describe('Am Zielhaus vorbeilaufen', () => {
+  const two = { players: 3 } as const;
+  it('Mit belegtem ersten Hausplatz muss man vorbeilaufen', () => {
+    const s = scenario(two, {
+      pegs: { [peg(0, 0)]: { t: 'ring', f: start(0), lap: true }, [peg(0, 1)]: fin(0) },
+      hands: [['3'], [], []],
+    });
+    const plays = legalPlays(s, 0).filter((p) => p.moves[0]!.t === 'move' && (p.moves[0] as { peg: number }).peg === peg(0, 0));
+    expect(plays).toEqual([{ card: '3', moves: [{ t: 'move', peg: peg(0, 0), steps: 3, pass: true }] }]);
+    const s2 = applyAction(s, { t: 'play', player: 0, card: '3', moves: plays[0]!.moves });
+    expect(s2.pegs[peg(0, 0)]!.pos).toEqual({ t: 'ring', f: start(0) + 3, lap: true });
+  });
+  it('Zu viele Augen fürs Haus: vorbeilaufen statt ins Haus; sonst beides wählbar', () => {
+    const base = { [peg(0, 0)]: { t: 'ring', f: start(0) - 2 } as Pos };
+    const s = scenario(two, { pegs: base, hands: [['5', '6'], [], []] });
+    const mine = (card: string) => legalPlays(s, 0).filter((p) => p.card === card).map((p) => p.moves[0]);
+    expect(mine('5')).toEqual([
+      { t: 'move', peg: peg(0, 0), steps: 5 },
+      { t: 'move', peg: peg(0, 0), steps: 5, pass: true },
+    ]);
+    const s2 = scenario(two, { pegs: { ...base, [peg(0, 1)]: fin(2) }, hands: [['5'], [], []] });
+    expect(legalPlays(s2, 0).map((p) => p.moves[0])).toEqual([{ t: 'move', peg: peg(0, 0), steps: 5, pass: true }]);
+  });
+  it('Nach dem Vorbeilaufen geht es in der nächsten Runde ins Haus', () => {
+    const s = scenario(two, { pegs: { [peg(0, 0)]: { t: 'ring', f: start(0) + 3, lap: true } }, hands: [['3'], [], []] });
+    expect(legalPlays(s, 0)).toHaveLength(1);
+    const far = scenario(two, { pegs: { [peg(0, 0)]: { t: 'ring', f: start(0) - 1, lap: true } }, hands: [['3'], [], []] });
+    expect(legalPlays(far, 0).map((p) => p.moves[0])).toContainEqual({ t: 'move', peg: peg(0, 0), steps: 3 });
+  });
+});

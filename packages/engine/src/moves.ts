@@ -31,6 +31,7 @@ export function tryMove(
   pegId: number,
   steps: number,
   capturePassed: boolean,
+  pass = false,
 ): Peg[] | null {
   const peg = pegs.find((p) => p.id === pegId);
   if (!peg || peg.pos.t === 'home' || steps === 0) return null;
@@ -44,31 +45,37 @@ export function tryMove(
     return !(o && o.id !== peg.id && isBlocker(o));
   };
 
+  if (pass && (steps < 0 || peg.pos.t !== 'ring')) return null;
   if (steps < 0) {
     if (peg.pos.t !== 'ring') return null;
+    const k = mod(peg.pos.f - startField(peg.color), R);
+    const keepLap = peg.pos.lap === true && k > 0 && k >= -steps;
     let f = peg.pos.f;
     for (let i = 0; i < -steps; i++) {
       f = mod(f - 1, R);
       if (!ringOk(f)) return null;
       crossed.push(f);
     }
-    dest = { t: 'ring', f };
+    dest = keepLap ? { t: 'ring', f, lap: true } : { t: 'ring', f };
   } else if (peg.pos.t === 'ring') {
-    const prog = progress(layout, peg);
-    dest = peg.pos;
-    for (let i = 1; i <= steps; i++) {
-      const q = prog + i;
-      if (q <= R) {
-        // q === R: wieder auf dem eigenen Startfeld (Runde vollendet); das Zielhaus beginnt dahinter
-        const f = mod(startField(peg.color) + q, R);
-        if (!ringOk(f)) return null;
-        crossed.push(f);
-        dest = q === R ? { t: 'ring', f, lap: true } : { t: 'ring', f };
-      } else {
-        const slot = q - R - 1;
-        if (slot >= FINISH_SLOTS || !finFree(slot)) return null;
-        dest = { t: 'fin', s: slot };
-      }
+    const sf = startField(peg.color);
+    // Schritte bis zum eigenen Startfeld (Einfahrt ins Zielhaus): 0 = steht schon darauf (Runde vollendet)
+    const toStart = peg.pos.lap ? mod(sf - peg.pos.f, R) : R - mod(peg.pos.f - sf, R);
+    const beyond = steps - toStart;
+    if (pass && (beyond <= 0 || beyond >= R)) return null; // "am Haus vorbei" gibt es nur hinter dem Startfeld
+    const ringSteps = beyond > 0 && !pass ? toStart : steps;
+    let f = peg.pos.f;
+    for (let i = 1; i <= ringSteps; i++) {
+      f = mod(f + 1, R);
+      if (!ringOk(f)) return null;
+      crossed.push(f);
+    }
+    if (beyond > 0 && !pass) {
+      const slot = beyond - 1;
+      for (let i = 0; i <= slot; i++) if (i >= FINISH_SLOTS || !finFree(i)) return null;
+      dest = { t: 'fin', s: slot };
+    } else {
+      dest = peg.pos.lap || ringSteps >= toStart ? { t: 'ring', f, lap: true } : { t: 'ring', f };
     }
   } else {
     let slot = peg.pos.s;
@@ -126,7 +133,7 @@ export function applyMoveToPegs(pegs: Peg[], layout: Layout, m: Move, isSeven: b
     case 'start':
       return tryStart(pegs, layout, m.peg);
     case 'move':
-      return tryMove(pegs, layout, m.peg, m.steps, isSeven);
+      return tryMove(pegs, layout, m.peg, m.steps, isSeven, m.pass === true);
     case 'swap':
       return trySwap(pegs, m.a, m.b);
     case 'steal':
@@ -170,17 +177,19 @@ function sevenPlays(pegs: Peg[], layout: Layout, mine: number[]): Move[][] {
     for (const id of mine) {
       if (!repeat && used.includes(id)) continue;
       for (let k = remaining; k >= 1; k--) {
-        const np = tryMove(cur, layout, id, k, true);
-        if (!np) continue;
-        const move: Move = { t: 'move', peg: id, steps: k };
-        if (k === remaining) {
-          const lk = pegsKey(np);
-          if (!leafSeen.has(lk)) {
-            leafSeen.add(lk);
-            results.push([...seq, move]);
+        for (const pass of [false, true]) {
+          const np = tryMove(cur, layout, id, k, true, pass);
+          if (!np) continue;
+          const move: Move = pass ? { t: 'move', peg: id, steps: k, pass: true } : { t: 'move', peg: id, steps: k };
+          if (k === remaining) {
+            const lk = pegsKey(np);
+            if (!leafSeen.has(lk)) {
+              leafSeen.add(lk);
+              results.push([...seq, move]);
+            }
+          } else {
+            dfs(np, remaining - k, [...seq, move], [...used, id]);
           }
-        } else {
-          dfs(np, remaining - k, [...seq, move], [...used, id]);
         }
       }
     }
@@ -218,7 +227,7 @@ export function sevenNext(
   const used: number[] = [];
   for (const m of prefix) {
     if (m.t !== 'move' || m.steps < 1 || m.steps > remaining || !ids.includes(m.peg) || (!repeat && used.includes(m.peg))) return { remaining, next: [], pegs: null };
-    const np = tryMove(cur, layout, m.peg, m.steps, true);
+    const np = tryMove(cur, layout, m.peg, m.steps, true, m.pass === true);
     if (!np) return { remaining, next: [], pegs: null };
     cur = np;
     remaining -= m.steps;
@@ -237,10 +246,12 @@ export function sevenNext(
       outer: for (const id of ids) {
         if (!repeat && usedIds.includes(id)) continue;
         for (let k = rem; k >= 1; k--) {
-          const np = tryMove(ps, layout, id, k, true);
-          if (np && canFinish(np, rem - k, [...usedIds, id])) {
-            ok = true;
-            break outer;
+          for (const pass of [false, true]) {
+            const np = tryMove(ps, layout, id, k, true, pass);
+            if (np && canFinish(np, rem - k, [...usedIds, id])) {
+              ok = true;
+              break outer;
+            }
           }
         }
       }
@@ -253,8 +264,10 @@ export function sevenNext(
     for (const id of ids) {
       if (!repeat && used.includes(id)) continue;
       for (let k = 1; k <= remaining; k++) {
-        const np = tryMove(cur, layout, id, k, true);
-        if (np && canFinish(np, remaining - k, [...used, id])) next.push({ t: 'move', peg: id, steps: k });
+        for (const pass of [false, true]) {
+          const np = tryMove(cur, layout, id, k, true, pass);
+          if (np && canFinish(np, remaining - k, [...used, id])) next.push(pass ? { t: 'move', peg: id, steps: k, pass: true } : { t: 'move', peg: id, steps: k });
+        }
       }
     }
   }
@@ -279,7 +292,10 @@ function movesForRank(state: GameState, layout: Layout, player: number, rank: Ra
   const sevenPegs = layout.rules.sevenAnyPeg ? state.pegs.filter((p) => p.pos.t !== 'home') : mine;
   const out: Move[][] = [];
   const forward = (n: number) => {
-    for (const p of mine) if (tryMove(state.pegs, layout, p.id, n, false)) out.push([{ t: 'move', peg: p.id, steps: n }]);
+    for (const p of mine) {
+      if (tryMove(state.pegs, layout, p.id, n, false)) out.push([{ t: 'move', peg: p.id, steps: n }]);
+      if (tryMove(state.pegs, layout, p.id, n, false, true)) out.push([{ t: 'move', peg: p.id, steps: n, pass: true }]);
+    }
   };
   const start = () => {
     for (const c of colors) {

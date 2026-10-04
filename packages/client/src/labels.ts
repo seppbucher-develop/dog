@@ -23,7 +23,7 @@ export function cardHint(card: Card, teams: boolean, fourBoth = false): string {
 export function moveText(m: Move, names: string[]): string {
   switch (m.t) {
     case 'start': return 'kommt heraus';
-    case 'move': return m.steps < 0 ? `zieht ${-m.steps} zurück` : `zieht ${m.steps} vor`;
+    case 'move': return m.steps < 0 ? `zieht ${-m.steps} zurück` : `zieht ${m.steps} vor${m.pass ? ' (am Haus vorbei)' : ''}`;
     case 'swap': return 'tauscht zwei Kugeln';
     case 'steal': return `zieht eine Karte von ${names[m.from] ?? '?'}`;
   }
