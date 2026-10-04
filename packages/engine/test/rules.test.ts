@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyAction, createGame, layoutFor, legalPlays, controlledColors, sevenNext, sevenValid, type Card } from '../src';
+import { applyAction, createGame, layoutFor, legalPlays, controlledColors, sevenNext, sevenValid, type Card, type Pos } from '../src';
 import { fin, peg, ring, scenario, start } from './helpers';
 
 describe('Einstellungen: Validierung', () => {
