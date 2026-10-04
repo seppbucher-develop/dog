@@ -98,15 +98,17 @@ describe('Bewegung', () => {
       hands: [['3', '5'], [], [], []],
     });
     const plays = legalPlays(s, 0);
-    const moves = (card: string) => plays.some((p) => p.card === card && p.moves[0]!.t === 'move' && (p.moves[0] as { peg: number }).peg === peg(0, 0));
-    // 3 Schritte -> fin 0 (frei), 5 Schritte -> über die besetzte fin 1 hinweg, unzulässig
+    const moves = (card: string, pass = false) =>
+      plays.some((p) => p.card === card && p.moves[0]!.t === 'move' && (p.moves[0] as { peg: number }).peg === peg(0, 0) && !!(p.moves[0] as { pass?: boolean }).pass === pass);
+    // 3 Schritte -> fin 0 (frei), 5 Schritte -> über die besetzte fin 1 hinweg ins Haus unzulässig, aber am Haus vorbei erlaubt
     expect(moves('3')).toBe(true);
     expect(moves('5')).toBe(false);
+    expect(moves('5', true)).toBe(true);
   });
 
   it('Ins Haus geht es nur über das Startfeld: es zählt als Schritt, das Haus beginnt dahinter', () => {
     const s = scenario(four, { pegs: { [peg(0, 0)]: ring(start(0) + 62) }, hands: [['2', '3', '8'], [], [], []] });
-    const play = (card: Card) => legalPlays(s, 0).find((p) => p.card === card && p.moves[0]!.t === 'move');
+    const play = (card: Card) => legalPlays(s, 0).find((p) => p.card === card && p.moves[0]!.t === 'move' && !(p.moves[0] as { pass?: boolean }).pass);
     // 2 Schritte: genau auf das Startfeld (Runde vollendet), noch nicht im Haus
     expect(applyAction(s, { t: 'play', player: 0, card: '2', moves: play('2')!.moves }).pegs[0]!.pos).toEqual({ t: 'ring', f: start(0), lap: true });
     // 3 Schritte: über das Startfeld hinweg auf den ersten Hausplatz
@@ -124,7 +126,7 @@ describe('Bewegung', () => {
   it('Kugel, die auf dem Startfeld die Runde vollendet hat, zieht von dort ins Haus', () => {
     const s = scenario(four, { pegs: { [peg(0, 0)]: { t: 'ring', f: start(0), lap: true } }, hands: [['2'], [], [], []] });
     const plays = legalPlays(s, 0);
-    expect(plays).toHaveLength(1);
+    expect(plays).toHaveLength(2); // ins Haus oder am Haus vorbei
     expect(applyAction(s, { t: 'play', player: 0, card: '2', moves: plays[0]!.moves }).pegs[0]!.pos).toEqual(fin(1));
   });
 

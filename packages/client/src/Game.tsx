@@ -138,7 +138,7 @@ function GameInner({ lobby, view }: { lobby: LobbyView; view: GameView }) {
       const moved = after?.find((p) => p.id === m.peg);
       if (!moved) return;
       const pt = geo.peg(moved);
-      markers.push({ id: String(i), x: pt.x, y: pt.y, label: m.t === 'start' ? 'Raus' : m.steps > 0 ? `+${m.steps}` : `${m.steps}` });
+      markers.push({ id: String(i), x: pt.x, y: pt.y, label: m.t === 'start' ? 'Raus' : m.steps > 0 ? `+${m.steps}${m.pass ? ' vorbei' : ''}` : `${m.steps}` });
     });
   }
   const onMarker = (id: string) => {

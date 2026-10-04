@@ -162,7 +162,7 @@ function move(v: unknown): Move {
     case 'start':
       return { t: 'start', peg: int(v.peg, 'Kugel', 0, 63) };
     case 'move':
-      return { t: 'move', peg: int(v.peg, 'Kugel', 0, 63), steps: int(v.steps, 'Schritte', -13, 13) };
+      return { t: 'move', peg: int(v.peg, 'Kugel', 0, 63), steps: int(v.steps, 'Schritte', -13, 13), ...(v.pass === true ? { pass: true as const } : {}) };
     case 'swap':
       return { t: 'swap', a: int(v.a, 'Kugel', 0, 63), b: int(v.b, 'Kugel', 0, 63) };
     case 'steal':
