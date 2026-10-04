@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { applyAction, createGame, layoutFor, legalPlays, type Play } from '@dog/engine';
-import { candidates, completed, emptySel, jokerRanks, movablePegs, nextMoves, optionsForPeg, sevenRemaining, type Selection } from '../src/play';
+import { applyAction, createGame, layoutFor, legalPlays, startField, type Move, type Play } from '@dog/engine';
+import { candidates, completed, emptySel, jokerRanks, movablePegs, nextMoves, optionsForPeg, sevenClick, sevenRemaining, sevenUndo, type Selection } from '../src/play';
 import { hasOriginalShape, makeGeo, type BoardStyle } from '../src/geometry';
 
 const plays: Play[] = [
@@ -266,5 +266,58 @@ describe('Brettgeometrie', () => {
         }
       }
     }
+  });
+});
+
+describe('7: Klick auf eine Kugel zieht sofort ein Feld', () => {
+  const setup = () => {
+    const g = createGame({ players: 3 }, 1);
+    const layout = layoutFor(g.config);
+    for (const p of g.pegs) p.pos = { t: 'home' };
+    const mine = g.pegs.filter((p) => p.color === layout.colorsOf[0]![0]!);
+    mine[0]!.pos = { t: 'ring', f: startField(mine[0]!.color) + 2 };
+    mine[1]!.pos = { t: 'ring', f: startField(mine[1]!.color) + 10 };
+    return { g, layout, a: mine[0]!.id, b: mine[1]!.id, home: mine[2]!.id };
+  };
+
+  it('Felder derselben Kugel werden zusammengefasst, nach 7 Feldern ist der Zug fertig', () => {
+    const { g, layout, a } = setup();
+    let prefix: Move[] = [];
+    for (let i = 1; i <= 7; i++) {
+      const r = sevenClick(g.pegs, layout, 0, prefix, a, false);
+      expect('reason' in r).toBe(false);
+      if ('reason' in r) return;
+      prefix = r.prefix;
+      expect(r.done).toBe(i === 7);
+    }
+    expect(prefix).toEqual([{ t: 'move', peg: a, steps: 7 }]);
+  });
+
+  it('Rückgängig nimmt nur ein Feld zurück', () => {
+    expect(sevenUndo([{ t: 'move', peg: 1, steps: 3 }])).toEqual([{ t: 'move', peg: 1, steps: 2 }]);
+    expect(sevenUndo([{ t: 'move', peg: 1, steps: 1 }])).toEqual([]);
+  });
+
+  it('Kugel im Haus: Grund wird geliefert', () => {
+    const { g, layout, home } = setup();
+    const r = sevenClick(g.pegs, layout, 0, [], home, false);
+    expect(r).toHaveProperty('reason');
+  });
+
+  it('Fremde Kugel: Grund wird geliefert', () => {
+    const { g, layout } = setup();
+    const other = g.pegs.find((p) => p.color !== layout.colorsOf[0]![0]!)!;
+    other.pos = { t: 'ring', f: 5 };
+    expect(sevenClick(g.pegs, layout, 0, [], other.id, false)).toHaveProperty('reason');
+  });
+
+  it('Joker als 2 bietet im Einzelspiel auch das Ziehen einer Karte an', () => {
+    const g = createGame({ players: 3 }, 2);
+    g.phase = 'playing';
+    g.current = 0;
+    g.hands[0] = ['JOKER'];
+    const legal = legalPlays(g, 0);
+    const c = candidates(legal, { card: 'JOKER', as: '2', prefix: [] });
+    expect(nextMoves(c, 0).some((m) => m.t === 'steal')).toBe(true);
   });
 });
