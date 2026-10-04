@@ -235,6 +235,22 @@ function GameInner({ lobby, view }: { lobby: LobbyView; view: GameView }) {
             {sel.card && <button onClick={() => { setSel(emptySel); setFocus(null); }}>Abbrechen</button>}
           </div>
           </div>
+          {myTurn && stealOpts.length > 0 && (
+            <div className="steal" role="group" aria-label="Karte eines Gegners ziehen">
+              {lobby.seats.map((_, p) =>
+                stealOpts.some((m) => m.from === p) ? (
+                  <div key={p} className="steal-from">
+                    <span className="muted">{names[p]}:</span>
+                    <span className="backs">
+                      {stealOpts.filter((m) => m.from === p).map((m) => (
+                        <button key={m.idx} className="back" aria-label={`Karte von ${names[p]} ziehen`} onClick={() => choose(m)} />
+                      ))}
+                    </span>
+                  </div>
+                ) : null,
+              )}
+            </div>
+          )}
           <p className={myTurn || (view.phase === 'exchange' && !view.exchangeDone[view.seat]) ? 'prompt on' : 'prompt'}>{prompt}</p>
           {(view.passes ?? []).slice(-3).map((e) => (
             <p key={e.id} className="muted warn">
@@ -282,13 +298,6 @@ function GameInner({ lobby, view }: { lobby: LobbyView; view: GameView }) {
                   <span className="hs" title="Karten auf der Hand">🂠 {view.handSizes[p]}{view.phase === 'exchange' && view.exchangeDone[p] ? ' ✓' : ''}</span>
                   {isHost && s.kind === 'human' && !s.connected && (
                     <button onClick={() => net.send({ t: 'setBot', seat: p, level: 'intermediate' })}>durch Computer ersetzen</button>
-                  )}
-                  {view.phase === 'playing' && stealOpts.some((m) => m.from === p) && (
-                    <span className="backs">
-                      {stealOpts.filter((m) => m.from === p).map((m) => (
-                        <button key={m.idx} className="back" aria-label="Karte ziehen" onClick={() => choose(m)} />
-                      ))}
-                    </span>
                   )}
                 </li>
               );

@@ -110,7 +110,9 @@ input.code { text-transform: uppercase; letter-spacing: 0.2em; font-weight: 700;
 .player.turn { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
 .pn { flex: 1 1 140px; }
 .hs { font-variant-numeric: tabular-nums; color: var(--muted); }
-.backs { display: flex; gap: 4px; flex-wrap: wrap; width: 100%; }
+.backs { display: flex; gap: 4px; flex-wrap: wrap; }
+.steal { display: grid; gap: 6px; margin: 6px 0; }
+.steal-from { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .back { width: 34px; height: 48px; min-height: 48px; padding: 0; border-radius: 6px; background: repeating-linear-gradient(45deg, var(--accent), var(--accent) 5px, #fff3 5px, #fff3 10px); border: 2px solid var(--ink); }
 .prompt { margin: 0 0 6px; font-weight: 500; }
 .prompt.on { color: var(--accent); font-weight: 700; font-size: 1.05rem; }
