@@ -50,7 +50,7 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
 button.big { font-size: 1.15rem; padding: 12px 28px; }
 button:focus-visible, select:focus-visible, input:focus-visible, summary:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
-input:not([type='checkbox']), select { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; min-height: 38px; }
+input:not([type='checkbox']), select, textarea { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; min-height: 38px; }
 label { display: block; margin: 8px 0; }
 label input:not([type='checkbox']) { display: block; width: 100%; margin-top: 4px; }
 label.inline { display: inline-flex; align-items: center; gap: 6px; margin: 0; }
@@ -146,7 +146,7 @@ input.code { text-transform: uppercase; letter-spacing: 0.2em; font-weight: 700;
 .notizen summary h2 { display: inline; }
 .notizen-editor { margin-top: 10px; }
 .notizen-row { display: flex; align-items: center; gap: 8px; }
-.notizen-row input.notizen-text { flex: 1; border-color: transparent; background: transparent; }
-.notizen-row input.notizen-text:focus { border-color: var(--line); background: var(--panel); }
+.notizen-row .notizen-text { flex: 1; min-width: 0; border-color: transparent; background: transparent; resize: none; overflow: hidden; font: inherit; line-height: 1.4; overflow-wrap: anywhere; }
+.notizen-row .notizen-text:focus { border-color: var(--line); background: var(--panel); }
 .notizen-check { width: 20px; height: 20px; flex: none; }
 .notizen-erledigt .notizen-text { text-decoration: line-through; color: var(--muted); }
