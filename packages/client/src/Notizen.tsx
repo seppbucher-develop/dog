@@ -4,6 +4,13 @@ import {
   schalteTodo, setzeErledigt, setzeText, speichereNotizen, type Zeile,
 } from './notizenModel';
 
+/** Textfeld wächst mit dem Inhalt (lange Notizen brechen um statt abzuschneiden). */
+function passeHoeheAn(el: HTMLTextAreaElement) {
+  if (!el.scrollHeight) return;
+  el.style.height = 'auto';
+  el.style.height = `${el.scrollHeight}px`;
+}
+
 /** Notizen auf der Startseite; gespeichert nur im Browser (localStorage). */
 export function Notizen() {
   const [liste, setListe] = useState<Zeile[]>(ladeNotizen);
@@ -21,7 +28,7 @@ export function Notizen() {
 
   useEffect(() => {
     if (!fokus.current) return;
-    const input = root.current?.querySelector<HTMLInputElement>(`[data-id="${fokus.current.id}"] .notizen-text`);
+    const input = root.current?.querySelector<HTMLTextAreaElement>(`[data-id="${fokus.current.id}"] .notizen-text`);
     if (input) {
       input.focus();
       if (fokus.current.ende) input.setSelectionRange(input.value.length, input.value.length);
@@ -44,7 +51,7 @@ export function Notizen() {
   const anzeige = liste.length ? liste : [platzhalter];
   const nachbar = (id: string, d: -1 | 1) => anzeige[anzeige.findIndex((z) => z.id === id) + d]?.id;
 
-  const taste = (e: React.KeyboardEvent<HTMLInputElement>, z: Zeile) => {
+  const taste = (e: React.KeyboardEvent<HTMLTextAreaElement>, z: Zeile) => {
     if (e.key === 'Enter') {
       e.preventDefault();
       const neu = neueZeile(z.todo);
@@ -70,7 +77,7 @@ export function Notizen() {
     }
   };
 
-  const einfuegen = (e: React.ClipboardEvent<HTMLInputElement>, z: Zeile) => {
+  const einfuegen = (e: React.ClipboardEvent<HTMLTextAreaElement>, z: Zeile) => {
     const text = e.clipboardData.getData('text');
     if (!text.includes('\n')) return;
     e.preventDefault();
@@ -119,13 +126,14 @@ export function Notizen() {
                 onChange={(e) => aendere((l) => setzeErledigt(l, z.id, e.target.checked))}
               />
             )}
-            <input
-              type="text"
+            <textarea
+              rows={1}
               className="notizen-text"
               value={z.text}
               placeholder={anzeige.length <= 1 ? 'Notiz schreiben …' : ''}
               onFocus={() => { aktiv.current = z.id; }}
-              onChange={(e) => aendere((l) => setzeText(l, z.id, e.target.value))}
+              onChange={(e) => { passeHoeheAn(e.target); aendere((l) => setzeText(l, z.id, e.target.value)); }}
+              ref={(el) => { if (el) passeHoeheAn(el); }}
               onKeyDown={(e) => taste(e, z)}
               onPaste={(e) => einfuegen(e, z)}
             />
