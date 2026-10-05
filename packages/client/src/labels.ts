@@ -50,7 +50,10 @@ export const RULE_FIELDS: RuleField[] = [
   { key: 'jackSwapPartner', label: 'Bube: Tausch mit Kugeln des Partners', hint: 'nur Teamspiel', kind: 'bool' },
   { key: 'jackSwapOwn', label: 'Bube: Tausch zweier eigener Kugeln', hint: 'verhindert Abwurf der Hand', kind: 'bool' },
   { key: 'sevenRepeatPeg', label: '7: dieselbe Kugel mehrfach aufteilen', hint: 'kaum spürbar', kind: 'bool' },
-  { key: 'sevenAnyPeg', label: '7: auf alle Kugeln aufteilbar', hint: 'sonst nur eigene (und die des Partners, wenn man fertig ist)', kind: 'bool' },
+  {
+    key: 'sevenAnyPeg', label: '7: auf alle Kugeln aufteilbar', hint: 'sonst nur eigene (und die des Partners, wenn man fertig ist)', kind: 'select',
+    options: [['auto', 'Automatisch (bei 2, 3, 5 Spielern)'], ['on', 'Immer'], ['off', 'Nie']],
+  },
   {
     key: 'fourDirection', label: '4 spielen', kind: 'select',
     options: [['both', 'Vorwärts oder rückwärts'], ['backward', 'Nur rückwärts']],

@@ -7,7 +7,7 @@ import { net } from './net';
 
 const teamName = (i: number) => `Team ${String.fromCharCode(65 + i)}`;
 
-const specOf = (s: SeatView): SeatSpec => (s.kind === 'human' ? { kind: 'human', color: s.color } : { kind: 'bot', level: s.level ?? 'intermediate', color: s.color });
+const specOf = (s: SeatView): SeatSpec => (s.kind === 'human' ? { kind: 'human', color: s.color } : { kind: 'bot', level: s.level ?? 'expert', color: s.color });
 
 function ColorDots({ value, onPick, disabled }: { value: number; onPick: (c: number) => void; disabled?: boolean }) {
   return (
@@ -43,7 +43,7 @@ export function Lobby({ lobby }: { lobby: LobbyView }) {
 
   const setCount = (count: number) => {
     const seats = lobby.seats.map(specOf);
-    while (seats.length < count) seats.push({ kind: 'bot', level: 'intermediate' });
+    while (seats.length < count) seats.push({ kind: 'bot', level: 'expert' });
     seats.length = count;
     configure(seats, count === 2 ? lobby.eightPegs : false);
   };
@@ -119,7 +119,7 @@ export function Lobby({ lobby }: { lobby: LobbyView }) {
               <li key={i} className={`seat${isMe ? ' me' : ''}`}>
                 <span className="pos">Platz {i + 1}{team >= 0 && <small> · {teamName(team)}</small>}</span>
                 <span className="who">
-                  {s.kind === 'bot' ? `Computer (${LEVEL_LABEL[s.level ?? 'intermediate']})` : s.filled ? `${s.name}${isMe ? ' (du)' : ''}${s.connected ? '' : ' – getrennt'}` : '— wartet auf Mitspieler —'}
+                  {s.kind === 'bot' ? `Computer (${LEVEL_LABEL[s.level ?? 'expert']})` : s.filled ? `${s.name}${isMe ? ' (du)' : ''}${s.connected ? '' : ' – getrennt'}` : '— wartet auf Mitspieler —'}
                 </span>
                 {isHost ? (
                   <>

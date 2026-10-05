@@ -322,7 +322,8 @@ describe('7: Klick auf eine Kugel zieht sofort ein Feld', () => {
   });
 
   it('Fremde Kugel: Grund wird geliefert', () => {
-    const { g, layout } = setup();
+    const { g } = setup();
+    const layout = layoutFor({ ...g.config, rules: { sevenAnyPeg: 'off' } });
     const other = g.pegs.find((p) => p.color !== layout.colorsOf[0]![0]!)!;
     other.pos = { t: 'ring', f: 5 };
     expect(sevenClick(g.pegs, layout, 0, [], other.id, false)).toHaveProperty('reason');

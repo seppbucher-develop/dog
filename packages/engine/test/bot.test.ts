@@ -75,11 +75,11 @@ describe('Bots', () => {
 
   it('Stufen sind in der Stärke geordnet (Experte gegen Mittel im Einzelspiel)', () => {
     let expertWins = 0;
-    const games = 18;
+    const games = 36;
     for (let g = 0; g < games; g++) {
       const winners = playGame({ players: 3 }, ['expert', 'intermediate', 'beginner'], 200 + g);
       if (winners.includes(0)) expertWins++;
     }
-    expect(expertWins).toBeGreaterThanOrEqual(8); // Zufallsniveau wäre 6 von 18
+    expect(expertWins).toBeGreaterThanOrEqual(16); // Zufallsniveau wäre 12 von 36
   });
 });

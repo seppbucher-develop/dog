@@ -22,7 +22,7 @@ function GameInner({ lobby, view }: { lobby: LobbyView; view: GameView }) {
   // Computer tragen die Farbe im Namen, damit sie sich unterscheiden lassen
   const names = lobby.seats.map((s, i) => (s.kind === 'bot' ? `Computer ${colorName(s.color)}` : (s.name ?? `Spieler ${i + 1}`)));
   const boardLines = lobby.seats.map((s, i) =>
-    s.kind === 'bot' ? [names[i]!, LEVEL_LABEL[s.level ?? 'intermediate']!] : [names[i]!.length > 14 ? `${names[i]!.slice(0, 13)}…` : names[i]!],
+    s.kind === 'bot' ? [names[i]!, LEVEL_LABEL[s.level ?? 'expert']!] : [names[i]!.length > 14 ? `${names[i]!.slice(0, 13)}…` : names[i]!],
   );
 
   const seatOfColor: number[] = [];
@@ -316,7 +316,7 @@ function GameInner({ lobby, view }: { lobby: LobbyView; view: GameView }) {
                   <span className="swatch" style={{ background: colorHex(s.color) }} title={colorName(s.color)} />
                   <span className="pn">
                     {names[p]}
-                    {s.kind === 'bot' && <small> · {LEVEL_LABEL[s.level ?? 'intermediate']}</small>}
+                    {s.kind === 'bot' && <small> · {LEVEL_LABEL[s.level ?? 'expert']}</small>}
                     {p === view.seat && ' (du)'}
                     {teams && <small> · Team {String.fromCharCode(65 + team)}</small>}
                     {!s.connected && s.kind === 'human' && <small className="warn"> · getrennt</small>}
@@ -325,7 +325,7 @@ function GameInner({ lobby, view }: { lobby: LobbyView; view: GameView }) {
                   {nextPlayer === p && <span className="tag">als Nächster</span>}
                   <span className="hs" title="Karten auf der Hand">🂠 {view.handSizes[p]}{view.phase === 'exchange' && view.exchangeDone[p] ? ' ✓' : ''}</span>
                   {isHost && s.kind === 'human' && !s.connected && (
-                    <button onClick={() => net.send({ t: 'setBot', seat: p, level: 'intermediate' })}>durch Computer ersetzen</button>
+                    <button onClick={() => net.send({ t: 'setBot', seat: p, level: 'expert' })}>durch Computer ersetzen</button>
                   )}
                 </li>
               );

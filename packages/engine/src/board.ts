@@ -15,7 +15,8 @@ export function resolveRules(config: GameConfig): RuleSettings {
   oneOf('cardExchange', r.cardExchange, ['auto', 'on', 'off']);
   oneOf('firstPegOnStart', r.firstPegOnStart, ['auto', 'on', 'off']);
   oneOf('fourDirection', r.fourDirection, ['backward', 'both']);
-  for (const k of ['sevenRepeatPeg', 'sevenAnyPeg', 'jackSwapPartner', 'jackSwapOwn', 'captureOwn'] as const) {
+  oneOf('sevenAnyPeg', r.sevenAnyPeg, ['auto', 'on', 'off']);
+  for (const k of ['sevenRepeatPeg', 'jackSwapPartner', 'jackSwapOwn', 'captureOwn'] as const) {
     if (typeof r[k] !== 'boolean') throw new Error(`Ungültige Regel ${k}`);
   }
   if (!Array.isArray(r.handSizes) || r.handSizes.length === 0 || !r.handSizes.every((n) => Number.isInteger(n) && n >= 1)) {
@@ -43,6 +44,8 @@ export interface Layout {
   exchangeOn: boolean;
   /** Erste Kugel jeder Farbe beginnt auf dem Startfeld */
   startPegOut: boolean;
+  /** 7 darf auf alle Kugeln auf dem Brett aufgeteilt werden */
+  sevenAny: boolean;
   /** Je Farbe: alle Farben des Teams (eigene inklusive) */
   friendlyColors: number[][];
 }
@@ -95,6 +98,7 @@ export function layoutFor(config: GameConfig): Layout {
     giveTo,
     exchangeOn: rules.cardExchange === 'on' || (rules.cardExchange === 'auto' && teams),
     startPegOut: rules.firstPegOnStart === 'on' || (rules.firstPegOnStart === 'auto' && !teams),
+    sevenAny: rules.sevenAnyPeg === 'on' || (rules.sevenAnyPeg === 'auto' && !teams),
     friendlyColors,
   };
 }

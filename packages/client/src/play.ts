@@ -96,7 +96,7 @@ export function sevenClick(
   }
   const last = prefix[prefix.length - 1];
   const merge = last !== undefined && last.t === 'move' && last.peg === pegId && last.steps > 0;
-  const repeat = layout.rules.sevenRepeatPeg || layout.rules.sevenAnyPeg;
+  const repeat = layout.rules.sevenRepeatPeg || layout.sevenAny;
   if (!merge && !repeat && prefix.some((m) => m.t === 'move' && m.peg === pegId)) {
     return { reason: 'Diese Kugel wurde schon gezogen – bei der 7 darf jede Kugel nur einmal gezogen werden.' };
   }
