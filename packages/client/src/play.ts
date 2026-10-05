@@ -71,7 +71,13 @@ export function sevenRemaining(prefix: Move[]): number {
   return 7 - prefix.reduce((n, m) => n + (m.t === 'move' && m.steps > 0 ? m.steps : 0), 0);
 }
 
-/** Klick auf eine Kugel bei der 7: sie zieht sofort ein Feld (aufeinanderfolgende Felder derselben Kugel werden zusammengefasst). */
+export type SevenStep = { prefix: Move[]; done: boolean };
+
+/**
+ * Klick auf eine Kugel bei der 7: sie zieht sofort ein Feld (aufeinanderfolgende Felder derselben Kugel werden zusammengefasst).
+ * Steht die Kugel dabei auf dem eigenen Startfeld und kann sowohl ins Zielhaus als auch weiter in die nächste Runde, kommt
+ * `choice` zurück; `pass` entscheidet dann (true = am Haus vorbei).
+ */
 export function sevenClick(
   pegs: Peg[],
   layout: Layout,
@@ -79,7 +85,8 @@ export function sevenClick(
   prefix: Move[],
   pegId: number,
   joker: boolean,
-): { prefix: Move[]; done: boolean } | { reason: string } {
+  pass?: boolean,
+): SevenStep | { choice: { house: SevenStep; pass: SevenStep } } | { reason: string } {
   const peg = pegs.find((p) => p.id === pegId);
   if (!peg) return { reason: 'Unbekannte Kugel.' };
   if (!sevenPegIds(pegs, layout, player).includes(pegId)) {
@@ -95,40 +102,38 @@ export function sevenClick(
   }
   const before = sevenNext(pegs, layout, player, prefix, joker);
   if (!before.pegs || before.remaining === 0) return { reason: 'Die 7 ist bereits vollständig verteilt.' };
-  const build = (pass: boolean): Move[] => {
-    const m: Move = { t: 'move', peg: pegId, steps: merge ? last.steps + 1 : 1, ...(pass ? { pass: true as const } : {}) };
-    return merge ? [...prefix.slice(0, -1), m] : [...prefix, m];
+  const attempt = (passVariant: boolean): SevenStep | { reason: string } => {
+    const mv = (steps: number): Move => (passVariant ? { t: 'move', peg: pegId, steps, pass: true } : { t: 'move', peg: pegId, steps });
+    const next: Move[] = merge ? [...prefix.slice(0, -1), mv(last.steps + 1)] : [...prefix, mv(1)];
+    const r = sevenNext(pegs, layout, player, next, joker);
+    if (!r.pegs) {
+      if (!tryMove(before.pegs!, layout, pegId, 1, true)) {
+        return { reason: 'Ein Feld weiter ist die Kugel blockiert (Kugel auf einem Startfeld, eigene Kugel im Weg oder Zielhaus voll).' };
+      }
+      return { reason: 'Dieser Schritt ist nicht möglich.' };
+    }
+    if (r.remaining === 0) {
+      if (!sevenValid(pegs, layout, player, next, joker)) {
+        return { reason: joker ? 'Mit dem Joker darf keine Farbe fertig werden – dieser Schritt ist nicht erlaubt.' : 'Dieser Schritt ist nicht erlaubt.' };
+      }
+      return { prefix: next, done: true };
+    }
+    if (r.next.length === 0) {
+      return { reason: `Mit diesem Schritt lässt sich die 7 nicht mehr vollständig spielen (die übrigen ${r.remaining} Schritte passen nirgends).` };
+    }
+    return { prefix: next, done: false };
   };
-  // Zuerst ins Haus ziehen; geht das nicht (oder lässt sich die 7 so nicht beenden), am Haus vorbei weiterlaufen
-  const tries = merge && last.pass ? [true] : [false, true];
-  let next: Move[] = build(false);
-  let r = sevenNext(pegs, layout, player, next, joker);
-  for (const pass of tries) {
-    next = build(pass);
-    r = sevenNext(pegs, layout, player, next, joker);
-    if (r.pegs && (r.remaining === 0 ? sevenValid(pegs, layout, player, next, joker) : r.next.length > 0)) break;
-  }
-  if (!r.pegs) {
-    if (!tryMove(before.pegs, layout, pegId, 1, true) && !tryMove(before.pegs, layout, pegId, 1, true, true)) {
-      return { reason: 'Ein Feld weiter ist die Kugel blockiert (Kugel auf einem Startfeld, eigene Kugel im Weg oder Zielhaus voll).' };
-    }
-    return { reason: 'Dieser Schritt ist nicht möglich.' };
-  }
-  if (r.remaining === 0) {
-    if (!sevenValid(pegs, layout, player, next, joker)) {
-      return { reason: joker ? 'Mit dem Joker darf keine Farbe fertig werden – dieser Schritt ist nicht erlaubt.' : 'Dieser Schritt ist nicht erlaubt.' };
-    }
-    return { prefix: next, done: true };
-  }
-  if (r.next.length === 0) {
-    return { reason: `Mit diesem Schritt lässt sich die 7 nicht mehr vollständig spielen (die übrigen ${r.remaining} Schritte passen nirgends).` };
-  }
-  return { prefix: next, done: false };
+  if (pass !== undefined) return attempt(pass);
+  if (merge && last.pass) return attempt(true);
+  const house = attempt(false);
+  const around = attempt(true);
+  if (!('reason' in house) && !('reason' in around)) return { choice: { house, pass: around } };
+  return 'reason' in house ? (!('reason' in around) ? around : house) : house;
 }
 
 /** Letzten Schritt der 7 zurücknehmen: bei zusammengefassten Feldern nur ein Feld. */
 export function sevenUndo(prefix: Move[]): Move[] {
   const last = prefix[prefix.length - 1];
-  if (last && last.t === 'move' && last.steps > 1) return [...prefix.slice(0, -1), { t: 'move', peg: last.peg, steps: last.steps - 1 }];
+  if (last && last.t === 'move' && last.steps > 1 && !last.pass) return [...prefix.slice(0, -1), { t: 'move', peg: last.peg, steps: last.steps - 1 }];
   return prefix.slice(0, -1);
 }

@@ -286,11 +286,28 @@ describe('7: Klick auf eine Kugel zieht sofort ein Feld', () => {
     for (let i = 1; i <= 7; i++) {
       const r = sevenClick(g.pegs, layout, 0, prefix, a, false);
       expect('reason' in r).toBe(false);
-      if ('reason' in r) return;
+      if (!('prefix' in r)) return;
       prefix = r.prefix;
       expect(r.done).toBe(i === 7);
     }
     expect(prefix).toEqual([{ t: 'move', peg: a, steps: 7 }]);
+  });
+
+  it('Auf dem Startfeld: Wahl zwischen Haus und neuer Runde', () => {
+    const { g, layout, a } = setup();
+    const R = layout.ringSize;
+    g.pegs.find((p) => p.id === a)!.pos = { t: 'ring', f: (startField(g.pegs.find((p) => p.id === a)!.color) - 5 + R) % R };
+    let prefix: Move[] = [];
+    for (let i = 1; i <= 5; i++) {
+      const r = sevenClick(g.pegs, layout, 0, prefix, a, false);
+      if (!('prefix' in r)) throw new Error('kein Schritt');
+      prefix = r.prefix;
+    }
+    const c = sevenClick(g.pegs, layout, 0, prefix, a, false);
+    if (!('choice' in c)) throw new Error('keine Wahl');
+    expect(c.choice.house.prefix).toEqual([{ t: 'move', peg: a, steps: 6 }]);
+    expect(c.choice.pass.prefix).toEqual([{ t: 'move', peg: a, steps: 6, pass: true }]);
+    expect(sevenClick(g.pegs, layout, 0, prefix, a, false, true)).toEqual(c.choice.pass);
   });
 
   it('Rückgängig nimmt nur ein Feld zurück', () => {
