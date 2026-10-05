@@ -56,7 +56,8 @@ export function tryMove(
       if (!ringOk(f)) return null;
       crossed.push(f);
     }
-    dest = keepLap ? { t: 'ring', f, lap: true } : { t: 'ring', f };
+    // Rückwärts genau auf das eigene Startfeld: die Kugel ist wieder bereit fürs Zielhaus
+    dest = keepLap || (k > 0 && k === -steps) ? { t: 'ring', f, lap: true } : { t: 'ring', f };
   } else if (peg.pos.t === 'ring') {
     const sf = startField(peg.color);
     // Schritte bis zum eigenen Startfeld (Einfahrt ins Zielhaus): 0 = steht schon darauf (Runde vollendet)

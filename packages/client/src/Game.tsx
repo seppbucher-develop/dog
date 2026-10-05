@@ -192,7 +192,7 @@ function GameInner({ lobby, view }: { lobby: LobbyView; view: GameView }) {
         <Board
           layout={layout}
           geo={geo}
-          pegs={view.pegs}
+          pegs={seven?.pegs ?? view.pegs}
           segColors={segColors}
           segNames={segNames}
           activeSegs={activeSegs}
