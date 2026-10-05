@@ -71,7 +71,7 @@ export interface RoomSnapshot {
   lastActivity: number;
 }
 
-const DEFAULT_LEVEL: BotLevel = 'intermediate';
+const DEFAULT_LEVEL: BotLevel = 'expert';
 const MAX_PENDING = 10;
 
 export const newToken = () => randomBytes(24).toString('hex');

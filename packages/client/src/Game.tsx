@@ -6,7 +6,7 @@ import { NEUTRAL, colorHex, colorName } from './colors';
 import { hasOriginalShape, makeGeo, type BoardStyle } from './geometry';
 import { CARD_TEXT, LEVEL_LABEL, cardHint, moveText } from './labels';
 import { net } from './net';
-import { candidates, completed, emptySel, jokerRanks, movablePegs, nextMoves, optionsForPeg, playableCards, sevenClick, sevenUndo, type Selection } from './play';
+import { candidates, completed, emptySel, jokerRanks, movablePegs, nextMoves, optionsForPeg, playableCards, sevenClick, sevenUndo, type Selection, type SevenStep } from './play';
 
 const ORDER: Card[] = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'JOKER'];
 const sortHand = (h: Card[]) => [...h].sort((a, b) => ORDER.indexOf(a) - ORDER.indexOf(b));
@@ -22,7 +22,7 @@ function GameInner({ lobby, view }: { lobby: LobbyView; view: GameView }) {
   // Computer tragen die Farbe im Namen, damit sie sich unterscheiden lassen
   const names = lobby.seats.map((s, i) => (s.kind === 'bot' ? `Computer ${colorName(s.color)}` : (s.name ?? `Spieler ${i + 1}`)));
   const boardLines = lobby.seats.map((s, i) =>
-    s.kind === 'bot' ? [names[i]!, LEVEL_LABEL[s.level ?? 'intermediate']!] : [names[i]!.length > 14 ? `${names[i]!.slice(0, 13)}…` : names[i]!],
+    s.kind === 'bot' ? [names[i]!, LEVEL_LABEL[s.level ?? 'expert']!] : [names[i]!.length > 14 ? `${names[i]!.slice(0, 13)}…` : names[i]!],
   );
 
   const seatOfColor: number[] = [];
@@ -51,6 +51,7 @@ function GameInner({ lobby, view }: { lobby: LobbyView; view: GameView }) {
   const [focus, setFocus] = useState<number | null>(null);
   const [xCard, setXCard] = useState<Card | null>(null);
   const [note, setNote] = useState<string | null>(null);
+  const [fork, setFork] = useState<{ house: SevenStep; pass: SevenStep } | null>(null);
 
   // Neuer Spielstand vom Server: angefangene Auswahl verwerfen
   const stateKey = JSON.stringify([view.phase, view.current, view.myHand, view.pegs.map((p) => p.pos)]);
@@ -59,6 +60,7 @@ function GameInner({ lobby, view }: { lobby: LobbyView; view: GameView }) {
     setFocus(null);
     setXCard(null);
     setNote(null);
+    setFork(null);
   }, [stateKey]);
 
   const myTurn = view.phase === 'playing' && view.current === view.seat && view.legal !== null;
@@ -99,15 +101,23 @@ function GameInner({ lobby, view }: { lobby: LobbyView; view: GameView }) {
     }
   };
 
+  const applySeven = (r: SevenStep) => {
+    setFork(null);
+    if (!sel.card) return;
+    if (r.done) return submit({ card: sel.card, ...(sel.as ? { as: sel.as } : {}), moves: r.prefix });
+    setSel({ ...sel, prefix: r.prefix });
+  };
+
   const onPeg = (id: number) => {
     if (!myTurn || !sel.card) return;
+    if (fork) return;
     if (isSeven) {
       // 7: Klick zieht die Kugel sofort ein Feld
       const r = sevenClick(view.pegs, layout, view.seat, sel.prefix, id, sel.card === 'JOKER');
       if ('reason' in r) return setNote(r.reason);
       setNote(null);
-      if (r.done) return submit({ card: sel.card, ...(sel.as ? { as: sel.as } : {}), moves: r.prefix });
-      setSel({ ...sel, prefix: r.prefix });
+      if ('choice' in r) return setFork(r.choice);
+      applySeven(r);
       return;
     }
     if (focus !== null && focus !== id) {
@@ -155,6 +165,7 @@ function GameInner({ lobby, view }: { lobby: LobbyView; view: GameView }) {
     setSel(sel.card === c ? emptySel : { card: c, prefix: [] });
     setFocus(null);
     setNote(null);
+    setFork(null);
   };
 
   const prompt = (() => {
@@ -164,6 +175,7 @@ function GameInner({ lobby, view }: { lobby: LobbyView; view: GameView }) {
     if (!sel.card) return 'Du bist am Zug – wähle eine Karte.';
     if (sel.card === 'JOKER' && !sel.as) return 'Joker: wähle, als welche Karte er gespielt wird.';
     if (stealOpts.length > 0) return selectable.size > 0 ? 'Wähle eine Kugel (2 Felder) oder ziehe blind eine Karte eines Gegners.' : 'Ziehe blind eine Karte eines Gegners.';
+    if (fork) return 'Die Kugel steht auf dem Startfeld: ins Zielhaus ziehen oder in eine neue Runde weiterlaufen?';
     if (seven) return `${note ? `${note} ` : ''}7: noch ${seven.remaining} Schritte – jeder Klick auf eine Kugel zieht sie ein Feld.`;
     if (focus !== null && markers.length > 0) return 'Wähle das Ziel.';
     if (focus !== null) return 'Wähle die Kugel, mit der getauscht wird.';
@@ -245,8 +257,10 @@ function GameInner({ lobby, view }: { lobby: LobbyView; view: GameView }) {
             )}
             {onlyPlay && <button className="primary" onClick={() => submit(onlyPlay)}>Zug ausführen</button>}
             {voidPlay && voidPlay.moves.length === 0 && <button onClick={() => submit(voidPlay)}>Ohne Wirkung ablegen</button>}
-            {sel.card && sel.prefix.length > 0 && <button onClick={() => { setSel({ ...sel, prefix: isSeven ? sevenUndo(sel.prefix) : sel.prefix.slice(0, -1) }); setFocus(null); setNote(null); }}>Letzten Schritt zurück</button>}
-            {sel.card && <button onClick={() => { setSel(emptySel); setFocus(null); }}>Abbrechen</button>}
+            {fork && <button className="primary" onClick={() => applySeven(fork.house)}>Ins Haus ziehen</button>}
+            {fork && <button className="primary" onClick={() => applySeven(fork.pass)}>Neue Runde (am Haus vorbei)</button>}
+            {sel.card && sel.prefix.length > 0 && <button onClick={() => { setSel({ ...sel, prefix: isSeven ? sevenUndo(sel.prefix) : sel.prefix.slice(0, -1) }); setFocus(null); setNote(null); setFork(null); }}>Letzten Schritt zurück</button>}
+            {sel.card && <button onClick={() => { setSel(emptySel); setFocus(null); setFork(null); }}>Abbrechen</button>}
           </div>
           </div>
           {myTurn && stealOpts.length > 0 && (
@@ -302,7 +316,7 @@ function GameInner({ lobby, view }: { lobby: LobbyView; view: GameView }) {
                   <span className="swatch" style={{ background: colorHex(s.color) }} title={colorName(s.color)} />
                   <span className="pn">
                     {names[p]}
-                    {s.kind === 'bot' && <small> · {LEVEL_LABEL[s.level ?? 'intermediate']}</small>}
+                    {s.kind === 'bot' && <small> · {LEVEL_LABEL[s.level ?? 'expert']}</small>}
                     {p === view.seat && ' (du)'}
                     {teams && <small> · Team {String.fromCharCode(65 + team)}</small>}
                     {!s.connected && s.kind === 'human' && <small className="warn"> · getrennt</small>}
@@ -311,7 +325,7 @@ function GameInner({ lobby, view }: { lobby: LobbyView; view: GameView }) {
                   {nextPlayer === p && <span className="tag">als Nächster</span>}
                   <span className="hs" title="Karten auf der Hand">🂠 {view.handSizes[p]}{view.phase === 'exchange' && view.exchangeDone[p] ? ' ✓' : ''}</span>
                   {isHost && s.kind === 'human' && !s.connected && (
-                    <button onClick={() => net.send({ t: 'setBot', seat: p, level: 'intermediate' })}>durch Computer ersetzen</button>
+                    <button onClick={() => net.send({ t: 'setBot', seat: p, level: 'expert' })}>durch Computer ersetzen</button>
                   )}
                 </li>
               );

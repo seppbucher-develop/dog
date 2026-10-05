@@ -297,14 +297,15 @@ describe('4, Joker und 7 (neue Regeln)', () => {
     expect(legalPlays(s2, 0).some((p) => p.card === 'JOKER' && p.as === '3')).toBe(true);
   });
 
-  it('7: standardmäßig nur eigene Kugeln, mit sevenAnyPeg auch fremde', () => {
+  it('7: Einzelspiel standardmäßig alle Kugeln, mit sevenAnyPeg off nur eigene', () => {
     const pegs = { [peg(0, 0)]: ring(0), [peg(1, 0)]: ring(20) };
     const touched = (rules: object) => {
       const s = scenario({ players: 3, rules }, { pegs, hands: [['7'], [], []] });
       return new Set(legalPlays(s, 0).flatMap((p) => p.moves.map((m) => (m as { peg: number }).peg)));
     };
-    expect(touched({})).toEqual(new Set([peg(0, 0)]));
-    expect(touched({ sevenAnyPeg: true })).toEqual(new Set([peg(0, 0), peg(1, 0)]));
+    expect(touched({})).toEqual(new Set([peg(0, 0), peg(1, 0)])); // Einzelspiel: automatisch alle Kugeln
+    expect(touched({ sevenAnyPeg: 'off' })).toEqual(new Set([peg(0, 0)]));
+    expect(touched({ sevenAnyPeg: 'on' })).toEqual(new Set([peg(0, 0), peg(1, 0)]));
   });
 
   it('7 im Teamspiel: Kugeln des Partners nur, wenn man selbst fertig ist', () => {

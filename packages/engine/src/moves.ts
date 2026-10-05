@@ -169,7 +169,7 @@ function sevenPlays(pegs: Peg[], layout: Layout, mine: number[]): Move[][] {
   const results: Move[][] = [];
   const leafSeen = new Set<string>();
   // Bei fremden Kugeln wäre der Aufwand ohne Zusammenfassen gleicher Stellungen enorm; das Ergebnis ändert sich praktisch nie.
-  const repeat = layout.rules.sevenRepeatPeg || layout.rules.sevenAnyPeg;
+  const repeat = layout.rules.sevenRepeatPeg || layout.sevenAny;
   const visited = new Set<string>();
   const dfs = (cur: Peg[], remaining: number, seq: Move[], used: number[]) => {
     const vk = `${remaining}|${repeat ? '' : used.join('.')}|${pegsKey(cur)}`;
@@ -203,7 +203,7 @@ function sevenPlays(pegs: Peg[], layout: Layout, mine: number[]): Move[][] {
 export function sevenPegIds(pegs: Peg[], layout: Layout, player: number): number[] {
   const colors = controlledColors({ pegs } as GameState, layout, player);
   return pegs
-    .filter((p) => (layout.rules.sevenAnyPeg ? p.pos.t !== 'home' : colors.includes(p.color)))
+    .filter((p) => (layout.sevenAny ? p.pos.t !== 'home' : colors.includes(p.color)))
     .map((p) => p.id);
 }
 
@@ -220,7 +220,7 @@ export function sevenNext(
   joker = false,
 ): { remaining: number; next: Move[]; pegs: Peg[] | null } {
   const ids = sevenPegIds(pegs, layout, player);
-  const repeat = layout.rules.sevenRepeatPeg || layout.rules.sevenAnyPeg;
+  const repeat = layout.rules.sevenRepeatPeg || layout.sevenAny;
   const colors = controlledColors({ pegs } as GameState, layout, player);
   const unfinished = colors.filter((c) => !pegs.filter((p) => p.color === c).every((p) => p.pos.t === 'fin'));
   let cur = pegs;
@@ -290,7 +290,7 @@ function movesForRank(state: GameState, layout: Layout, player: number, rank: Ra
   const colors = controlledColors(state, layout, player);
   const mine = state.pegs.filter((p) => colors.includes(p.color));
   // 7: wahlweise auf alle Kugeln auf dem Brett aufteilbar
-  const sevenPegs = layout.rules.sevenAnyPeg ? state.pegs.filter((p) => p.pos.t !== 'home') : mine;
+  const sevenPegs = layout.sevenAny ? state.pegs.filter((p) => p.pos.t !== 'home') : mine;
   const out: Move[][] = [];
   const forward = (n: number) => {
     for (const p of mine) {
