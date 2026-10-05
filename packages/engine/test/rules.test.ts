@@ -390,4 +390,17 @@ describe('Am Zielhaus vorbeilaufen', () => {
     const far = scenario(two, { pegs: { [peg(0, 0)]: { t: 'ring', f: start(0) - 1, lap: true } }, hands: [['3'], [], []] });
     expect(legalPlays(far, 0).map((p) => p.moves[0])).toContainEqual({ t: 'move', peg: peg(0, 0), steps: 3 });
   });
+  it('4 vor, 4 zurück aufs Startfeld: mit der 2 wahlweise ins Haus oder vorwärts', () => {
+    const s = scenario(two, { pegs: { [peg(0, 0)]: { t: 'ring', f: start(0) + 4 } }, hands: [['4', '2'], [], []] });
+    const back = legalPlays(s, 0).find((p) => p.card === '4' && (p.moves[0] as { steps: number }).steps === -4)!;
+    const s2 = applyAction(s, { t: 'play', player: 0, card: '4', moves: back.moves });
+    expect(s2.pegs[peg(0, 0)]!.pos).toEqual({ t: 'ring', f: start(0), lap: true });
+    s2.current = 0;
+    s2.hands[0] = ['2'];
+    const m = legalPlays(s2, 0).map((p) => p.moves[0]).filter((x) => x && x.t === 'move');
+    expect(m).toEqual([
+      { t: 'move', peg: peg(0, 0), steps: 2 },
+      { t: 'move', peg: peg(0, 0), steps: 2, pass: true },
+    ]);
+  });
 });
