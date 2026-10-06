@@ -90,7 +90,9 @@ export function sevenClick(
 ): SevenStep | { choice: { house: SevenStep; pass: SevenStep } } | { reason: string } | { targets: SevenTarget[] } {
   const peg = pegs.find((p) => p.id === pegId);
   if (!peg) return { reason: 'Unbekannte Kugel.' };
-  if (!sevenPegIds(pegs, layout, player).includes(pegId)) {
+  // Berechtigung nach den bisherigen Teilzügen: Sind die eigenen Kugeln im Haus, darf der Partner den Rest ziehen
+  const cur = sevenNext(pegs, layout, player, prefix, joker).pegs ?? pegs;
+  if (!sevenPegIds(cur, layout, player).includes(pegId)) {
     return {
       reason: peg.pos.t === 'home' ? 'Diese Kugel steht noch im Haus – mit der 7 kann sie nicht ziehen.' : 'Mit der 7 darfst du nur deine eigenen Kugeln (bzw. die deines Partners) ziehen.',
     };
