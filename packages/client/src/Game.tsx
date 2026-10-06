@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
-import { applyMoveToPegs, layoutFor, sevenNext, type Card, type Move, type Play, type Pos } from '@dog/engine';
+import { applyMoveToPegs, layoutFor, sevenNext, type Card, type Move, type Peg, type Play, type Pos } from '@dog/engine';
 import type { GameView, LobbyView } from '@dog/protocol';
 import { Board, type BoardMarker } from './Board';
 import { NEUTRAL, colorHex, colorName } from './colors';
 import { hasOriginalShape, makeGeo, type BoardStyle } from './geometry';
 import { CARD_TEXT, LEVEL_LABEL, cardHint, moveText } from './labels';
 import { net } from './net';
-import { candidates, completed, emptySel, jokerRanks, movablePegs, nextMoves, optionsForPeg, playableCards, sevenClick, sevenUndo, type Selection, type SevenStep } from './play';
+import { candidates, completed, emptySel, jokerRanks, movablePegs, nextMoves, optionsForPeg, playableCards, sevenClick, sevenTargets, sevenUndo, type Selection, type SevenStep } from './play';
 
 const ORDER: Card[] = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'JOKER'];
 const sortHand = (h: Card[]) => [...h].sort((a, b) => ORDER.indexOf(a) - ORDER.indexOf(b));
@@ -51,7 +51,8 @@ function GameInner({ lobby, view }: { lobby: LobbyView; view: GameView }) {
   const [focus, setFocus] = useState<number | null>(null);
   const [xCard, setXCard] = useState<Card | null>(null);
   const [note, setNote] = useState<string | null>(null);
-  const [fork, setFork] = useState<{ house: SevenStep; pass: SevenStep } | null>(null);
+  // Nach dem Abschicken bleiben die Kugeln am Ziel stehen, bis der Server den neuen Stand schickt
+  const [sentPegs, setSentPegs] = useState<Peg[] | null>(null);
 
   // Neuer Spielstand vom Server: angefangene Auswahl verwerfen
   const stateKey = JSON.stringify([view.phase, view.current, view.myHand, view.pegs.map((p) => p.pos)]);
@@ -60,8 +61,15 @@ function GameInner({ lobby, view }: { lobby: LobbyView; view: GameView }) {
     setFocus(null);
     setXCard(null);
     setNote(null);
-    setFork(null);
+    setSentPegs(null);
   }, [stateKey]);
+
+  // Lehnt der Server den Zug ab, kommt kein neuer Stand: nach kurzer Zeit wieder den echten Stand zeigen
+  useEffect(() => {
+    if (!sentPegs) return;
+    const t = setTimeout(() => setSentPegs(null), 4000);
+    return () => clearTimeout(t);
+  }, [sentPegs]);
 
   const myTurn = view.phase === 'playing' && view.current === view.seat && view.legal !== null;
   const legal = view.legal ?? [];
@@ -78,6 +86,8 @@ function GameInner({ lobby, view }: { lobby: LobbyView; view: GameView }) {
   const voidPlay = sel.card && !seven ? completed(cands, k) : null;
 
   const submit = (p: Play) => {
+    const after = p.card === '7' || p.as === '7' ? sevenNext(view.pegs, layout, view.seat, p.moves, p.card === 'JOKER').pegs : p.moves.reduce<Peg[] | null>((ps, m) => (ps ? applyMoveToPegs(ps, layout, m, false) : null), view.pegs);
+    if (after) setSentPegs(after);
     net.send({ t: 'play', card: p.card, ...(p.as ? { as: p.as } : {}), moves: p.moves });
     setSel(emptySel);
     setFocus(null);
@@ -102,22 +112,21 @@ function GameInner({ lobby, view }: { lobby: LobbyView; view: GameView }) {
   };
 
   const applySeven = (r: SevenStep) => {
-    setFork(null);
     if (!sel.card) return;
     if (r.done) return submit({ card: sel.card, ...(sel.as ? { as: sel.as } : {}), moves: r.prefix });
     setSel({ ...sel, prefix: r.prefix });
+    setFocus(null);
   };
 
   const onPeg = (id: number) => {
     if (!myTurn || !sel.card) return;
-    if (fork) return;
     if (isSeven) {
-      // 7: Klick zieht die Kugel sofort ein Feld
-      const r = sevenClick(view.pegs, layout, view.seat, sel.prefix, id, sel.card === 'JOKER');
+      // 7: Kugel wählen, dann das Zielfeld anklicken
+      const r = sevenClick(view.pegs, layout, view.seat, sel.prefix, id, sel.card === 'JOKER', undefined, true);
       if ('reason' in r) return setNote(r.reason);
+      if (!('targets' in r) || r.targets.length === 0) return setNote('Diese Kugel kann mit der 7 nicht ziehen.');
       setNote(null);
-      if ('choice' in r) return setFork(r.choice);
-      applySeven(r);
+      setFocus(id);
       return;
     }
     if (focus !== null && focus !== id) {
@@ -141,7 +150,12 @@ function GameInner({ lobby, view }: { lobby: LobbyView; view: GameView }) {
   }
 
   const markers: BoardMarker[] = [];
-  if (myTurn && sel.card && focus !== null) {
+  const sevenMarks = seven && focus !== null ? sevenTargets(view.pegs, layout, view.seat, sel.prefix, focus, sel.card === 'JOKER') : [];
+  sevenMarks.forEach((t, i) => {
+    const pt = geo.peg(t.peg);
+    markers.push({ id: String(i), x: pt.x, y: pt.y, label: `+${t.steps}${t.pass ? ' vorbei' : ''}` });
+  });
+  if (myTurn && sel.card && focus !== null && !isSeven) {
     optionsForPeg(opts, focus).forEach((m, i) => {
       if (m.t !== 'start' && m.t !== 'move') return;
       const after = applyMoveToPegs(view.pegs, layout, m, isSeven);
@@ -152,6 +166,11 @@ function GameInner({ lobby, view }: { lobby: LobbyView; view: GameView }) {
     });
   }
   const onMarker = (id: string) => {
+    if (isSeven) {
+      const t = sevenMarks[Number(id)];
+      if (t) applySeven(t.step);
+      return;
+    }
     const m = optionsForPeg(opts, focus ?? -1).filter((x) => x.t === 'start' || x.t === 'move')[Number(id)];
     if (m) choose(m);
   };
@@ -165,7 +184,6 @@ function GameInner({ lobby, view }: { lobby: LobbyView; view: GameView }) {
     setSel(sel.card === c ? emptySel : { card: c, prefix: [] });
     setFocus(null);
     setNote(null);
-    setFork(null);
   };
 
   const prompt = (() => {
@@ -175,8 +193,7 @@ function GameInner({ lobby, view }: { lobby: LobbyView; view: GameView }) {
     if (!sel.card) return 'Du bist am Zug – wähle eine Karte.';
     if (sel.card === 'JOKER' && !sel.as) return 'Joker: wähle, als welche Karte er gespielt wird.';
     if (stealOpts.length > 0) return selectable.size > 0 ? 'Wähle eine Kugel (2 Felder) oder ziehe blind eine Karte eines Gegners.' : 'Ziehe blind eine Karte eines Gegners.';
-    if (fork) return 'Die Kugel steht auf dem Startfeld: ins Zielhaus ziehen oder in eine neue Runde weiterlaufen?';
-    if (seven) return `${note ? `${note} ` : ''}7: noch ${seven.remaining} Schritte – jeder Klick auf eine Kugel zieht sie ein Feld.`;
+    if (seven) return `${note ? `${note} ` : ''}7: noch ${seven.remaining} Schritte – ${focus !== null ? 'wähle das Zielfeld.' : 'wähle eine Kugel.'}`;
     if (focus !== null && markers.length > 0) return 'Wähle das Ziel.';
     if (focus !== null) return 'Wähle die Kugel, mit der getauscht wird.';
     return selectable.size > 0 ? 'Wähle eine Kugel.' : 'Kein Zug mit dieser Karte.';
@@ -204,7 +221,7 @@ function GameInner({ lobby, view }: { lobby: LobbyView; view: GameView }) {
         <Board
           layout={layout}
           geo={geo}
-          pegs={seven?.pegs ?? view.pegs}
+          pegs={sentPegs ?? seven?.pegs ?? view.pegs}
           segColors={segColors}
           segNames={segNames}
           activeSegs={activeSegs}
@@ -257,10 +274,8 @@ function GameInner({ lobby, view }: { lobby: LobbyView; view: GameView }) {
             )}
             {onlyPlay && <button className="primary" onClick={() => submit(onlyPlay)}>Zug ausführen</button>}
             {voidPlay && voidPlay.moves.length === 0 && <button onClick={() => submit(voidPlay)}>Ohne Wirkung ablegen</button>}
-            {fork && <button className="primary" onClick={() => applySeven(fork.house)}>Ins Haus ziehen</button>}
-            {fork && <button className="primary" onClick={() => applySeven(fork.pass)}>Neue Runde (am Haus vorbei)</button>}
-            {sel.card && sel.prefix.length > 0 && <button onClick={() => { setSel({ ...sel, prefix: isSeven ? sevenUndo(sel.prefix) : sel.prefix.slice(0, -1) }); setFocus(null); setNote(null); setFork(null); }}>Letzten Schritt zurück</button>}
-            {sel.card && <button onClick={() => { setSel(emptySel); setFocus(null); setFork(null); }}>Abbrechen</button>}
+            {sel.card && sel.prefix.length > 0 && <button onClick={() => { setSel({ ...sel, prefix: isSeven ? sevenUndo(sel.prefix) : sel.prefix.slice(0, -1) }); setFocus(null); setNote(null); }}>Letzten Schritt zurück</button>}
+            {sel.card && <button onClick={() => { setSel(emptySel); setFocus(null); }}>Abbrechen</button>}
           </div>
           </div>
           {myTurn && stealOpts.length > 0 && (
