@@ -186,9 +186,10 @@ function GameInner({ lobby, view }: { lobby: LobbyView; view: GameView }) {
     setNote(null);
   };
 
+  const starter = (view.dealer + 1) % view.handSizes.length;
   const prompt = (() => {
     if (view.phase === 'finished') return 'Spiel beendet';
-    if (view.phase === 'exchange') return view.exchangeDone[view.seat] ? 'Warte auf die anderen Spieler …' : `Wähle eine Karte, die du an ${names[layout.giveTo[view.seat]!]} (${colorName(lobby.seats[layout.giveTo[view.seat]!]?.color ?? 0)}, Platz ${layout.giveTo[view.seat]! + 1}) abgibst.`;
+    if (view.phase === 'exchange') return view.exchangeDone[view.seat] ? `Warte auf die anderen Spieler … (${names[starter]} beginnt)` : `Wähle eine Karte, die du an ${names[layout.giveTo[view.seat]!]} (${colorName(lobby.seats[layout.giveTo[view.seat]!]?.color ?? 0)}, Platz ${layout.giveTo[view.seat]! + 1}) abgibst. ${names[starter]} beginnt.`;
     if (!myTurn) return `${names[view.current]} ist am Zug …`;
     if (!sel.card) return 'Du bist am Zug – wähle eine Karte.';
     if (sel.card === 'JOKER' && !sel.as) return 'Joker: wähle, als welche Karte er gespielt wird.';
@@ -231,7 +232,7 @@ function GameInner({ lobby, view }: { lobby: LobbyView; view: GameView }) {
           markers={markers}
           onPeg={onPeg}
           onMarker={onMarker}
-          centerLines={[`Runde ${view.round + 1}`, `Stapel: ${view.deckCount}`]}
+          centerLines={[`Runde ${view.round + 1}`, `Stapel: ${view.deckCount}`, `Geber: ${names[view.dealer]}`]}
         />
       </div>
 
@@ -337,6 +338,8 @@ function GameInner({ lobby, view }: { lobby: LobbyView; view: GameView }) {
                     {!s.connected && s.kind === 'human' && <small className="warn"> · getrennt</small>}
                   </span>
                   {view.phase === 'playing' && view.current === p && <span className="tag now">am Zug</span>}
+                  {view.dealer === p && view.phase !== 'finished' && <span className="tag" title="hat die Karten gegeben">Geber</span>}
+                  {view.phase === 'exchange' && starter === p && <span className="tag now">beginnt</span>}
                   {nextPlayer === p && <span className="tag">als Nächster</span>}
                   <span className="hs" title="Karten auf der Hand">🂠 {view.handSizes[p]}{view.phase === 'exchange' && view.exchangeDone[p] ? ' ✓' : ''}</span>
                   {isHost && s.kind === 'human' && !s.connected && (
