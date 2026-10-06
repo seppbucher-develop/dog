@@ -86,7 +86,8 @@ export function sevenClick(
   pegId: number,
   joker: boolean,
   pass?: boolean,
-): SevenStep | { choice: { house: SevenStep; pass: SevenStep } } | { reason: string } {
+  targets?: boolean,
+): SevenStep | { choice: { house: SevenStep; pass: SevenStep } } | { reason: string } | { targets: SevenTarget[] } {
   const peg = pegs.find((p) => p.id === pegId);
   if (!peg) return { reason: 'Unbekannte Kugel.' };
   if (!sevenPegIds(pegs, layout, player).includes(pegId)) {
@@ -102,9 +103,9 @@ export function sevenClick(
   }
   const before = sevenNext(pegs, layout, player, prefix, joker);
   if (!before.pegs || before.remaining === 0) return { reason: 'Die 7 ist bereits vollständig verteilt.' };
-  const attempt = (passVariant: boolean): SevenStep | { reason: string } => {
+  const attempt = (passVariant: boolean, extra = 1): SevenStep | { reason: string } => {
     const mv = (steps: number): Move => (passVariant ? { t: 'move', peg: pegId, steps, pass: true } : { t: 'move', peg: pegId, steps });
-    const next: Move[] = merge ? [...prefix.slice(0, -1), mv(last.steps + 1)] : [...prefix, mv(1)];
+    const next: Move[] = merge ? [...prefix.slice(0, -1), mv(last.steps + extra)] : [...prefix, mv(extra)];
     const r = sevenNext(pegs, layout, player, next, joker);
     if (!r.pegs) {
       if (!tryMove(before.pegs!, layout, pegId, 1, true)) {
@@ -123,6 +124,24 @@ export function sevenClick(
     }
     return { prefix: next, done: false };
   };
+  if (targets) {
+    const out: SevenTarget[] = [];
+    for (let n = 1; n <= before.remaining; n++) {
+      const variants = merge && last.pass ? [true] : [false, true];
+      const found: SevenTarget[] = [];
+      for (const v of variants) {
+        const r = attempt(v, n);
+        if ('reason' in r) continue;
+        const pegsAfter = sevenNext(pegs, layout, player, r.prefix, joker).pegs!;
+        const moved = pegsAfter.find((p) => p.id === pegId)!;
+        // Varianten, die auf demselben Feld enden, sind gleichwertig
+        if (found.some((f) => JSON.stringify(f.peg.pos) === JSON.stringify(moved.pos))) continue;
+        found.push({ step: r, steps: (merge ? last.steps : 0) + n, pass: v, peg: moved });
+      }
+      out.push(...found);
+    }
+    return { targets: out };
+  }
   if (pass !== undefined) return attempt(pass);
   if (merge && last.pass) return attempt(true);
   const house = attempt(false);
@@ -136,4 +155,19 @@ export function sevenUndo(prefix: Move[]): Move[] {
   const last = prefix[prefix.length - 1];
   if (last && last.t === 'move' && last.steps > 1 && !last.pass) return [...prefix.slice(0, -1), { t: 'move', peg: last.peg, steps: last.steps - 1 }];
   return prefix.slice(0, -1);
+}
+
+export interface SevenTarget {
+  step: SevenStep;
+  /** Gesamtschritte der Kugel in diesem Zug */
+  steps: number;
+  pass: boolean;
+  /** Kugel nach dem Zug (für die Markierung auf dem Brett) */
+  peg: Peg;
+}
+
+/** Alle Zielfelder, die eine Kugel bei der 7 mit den noch offenen Schritten erreichen kann. */
+export function sevenTargets(pegs: Peg[], layout: Layout, player: number, prefix: Move[], pegId: number, joker: boolean): SevenTarget[] {
+  const r = sevenClick(pegs, layout, player, prefix, pegId, joker, undefined, true);
+  return 'targets' in r ? r.targets : [];
 }

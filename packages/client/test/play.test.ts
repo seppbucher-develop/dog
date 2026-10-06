@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { applyAction, createGame, layoutFor, legalPlays, startField, type Move, type Play } from '@dog/engine';
-import { candidates, completed, emptySel, jokerRanks, movablePegs, nextMoves, optionsForPeg, sevenClick, sevenRemaining, sevenUndo, type Selection } from '../src/play';
+import { candidates, completed, emptySel, jokerRanks, movablePegs, nextMoves, optionsForPeg, sevenClick, sevenRemaining, sevenTargets, sevenUndo, type Selection } from '../src/play';
 import { hasOriginalShape, makeGeo, type BoardStyle } from '../src/geometry';
 
 const plays: Play[] = [
@@ -308,6 +308,17 @@ describe('7: Klick auf eine Kugel zieht sofort ein Feld', () => {
     expect(c.choice.house.prefix).toEqual([{ t: 'move', peg: a, steps: 6 }]);
     expect(c.choice.pass.prefix).toEqual([{ t: 'move', peg: a, steps: 6, pass: true }]);
     expect(sevenClick(g.pegs, layout, 0, prefix, a, false, true)).toEqual(c.choice.pass);
+  });
+
+  it('Zielfelder: jede Schrittzahl bis 7 ist ein Ziel, am Haus gibt es zwei Varianten', () => {
+    const { g, layout, a } = setup();
+    const t = sevenTargets(g.pegs, layout, 0, [], a, false);
+    expect(t.map((x) => x.steps)).toEqual([1, 2, 3, 4, 5, 6, 7]);
+    expect(t[6]!.step.done).toBe(true);
+    const R = layout.ringSize;
+    g.pegs.find((p) => p.id === a)!.pos = { t: 'ring', f: (startField(g.pegs.find((p) => p.id === a)!.color) - 2 + R) % R };
+    const n = sevenTargets(g.pegs, layout, 0, [], a, false).filter((x) => x.steps === 4);
+    expect(n.map((x) => x.pass).sort()).toEqual([false, true]);
   });
 
   it('Rückgängig nimmt nur ein Feld zurück', () => {
