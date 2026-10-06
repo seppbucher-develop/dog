@@ -165,7 +165,7 @@ export function pegsAfterPlay(pegs: Peg[], layout: Layout, play: Play): Peg[] {
 const SEVEN_MAX_STATES = 60_000;
 const SEVEN_MAX_PLAYS = 30_000;
 
-function sevenPlays(pegs: Peg[], layout: Layout, mine: number[]): Move[][] {
+function sevenPlays(pegs: Peg[], layout: Layout, player: number): Move[][] {
   const results: Move[][] = [];
   const leafSeen = new Set<string>();
   // Bei fremden Kugeln wäre der Aufwand ohne Zusammenfassen gleicher Stellungen enorm; das Ergebnis ändert sich praktisch nie.
@@ -175,7 +175,8 @@ function sevenPlays(pegs: Peg[], layout: Layout, mine: number[]): Move[][] {
     const vk = `${remaining}|${repeat ? '' : used.join('.')}|${pegsKey(cur)}`;
     if (visited.has(vk) || visited.size >= SEVEN_MAX_STATES || results.length >= SEVEN_MAX_PLAYS) return;
     visited.add(vk);
-    for (const id of mine) {
+    // Sind die eigenen Kugeln im Haus, darf mit dem Rest der 7 der Partner ziehen: Berechtigung je Zwischenstand
+    for (const id of sevenPegIds(cur, layout, player)) {
       if (!repeat && used.includes(id)) continue;
       for (let k = remaining; k >= 1; k--) {
         for (const pass of [false, true]) {
@@ -219,22 +220,19 @@ export function sevenNext(
   prefix: Move[],
   joker = false,
 ): { remaining: number; next: Move[]; pegs: Peg[] | null } {
-  const ids = sevenPegIds(pegs, layout, player);
   const repeat = layout.rules.sevenRepeatPeg || layout.sevenAny;
-  const colors = controlledColors({ pegs } as GameState, layout, player);
-  const unfinished = colors.filter((c) => !pegs.filter((p) => p.color === c).every((p) => p.pos.t === 'fin'));
   let cur = pegs;
   let remaining = 7;
   const used: number[] = [];
   for (const m of prefix) {
-    if (m.t !== 'move' || m.steps < 1 || m.steps > remaining || !ids.includes(m.peg) || (!repeat && used.includes(m.peg))) return { remaining, next: [], pegs: null };
+    if (m.t !== 'move' || m.steps < 1 || m.steps > remaining || !sevenPegIds(cur, layout, player).includes(m.peg) || (!repeat && used.includes(m.peg))) return { remaining, next: [], pegs: null };
     const np = tryMove(cur, layout, m.peg, m.steps, true, m.pass === true);
     if (!np) return { remaining, next: [], pegs: null };
     cur = np;
     remaining -= m.steps;
     used.push(m.peg);
   }
-  const leafOk = (ps: Peg[]) => !joker || !unfinished.some((c) => ps.filter((p) => p.color === c).every((p) => p.pos.t === 'fin'));
+  const leafOk = (ps: Peg[]) => sevenLeafOk(pegs, ps, layout, player, joker);
   const memo = new Map<string, boolean>();
   let budget = 200_000;
   const canFinish = (ps: Peg[], rem: number, usedIds: number[]): boolean => {
@@ -244,7 +242,7 @@ export function sevenNext(
     if (hit !== undefined) return hit;
     let ok = false;
     if (budget-- > 0) {
-      outer: for (const id of ids) {
+      outer: for (const id of sevenPegIds(ps, layout, player)) {
         if (!repeat && usedIds.includes(id)) continue;
         for (let k = rem; k >= 1; k--) {
           for (const pass of [false, true]) {
@@ -262,7 +260,7 @@ export function sevenNext(
   };
   const next: Move[] = [];
   if (remaining > 0) {
-    for (const id of ids) {
+    for (const id of sevenPegIds(cur, layout, player)) {
       if (!repeat && used.includes(id)) continue;
       for (let k = 1; k <= remaining; k++) {
         for (const pass of [false, true]) {
@@ -280,17 +278,20 @@ export function sevenValid(pegs: Peg[], layout: Layout, player: number, moves: M
   if (moves.length === 0) return false;
   const r = sevenNext(pegs, layout, player, moves, joker);
   if (r.pegs === null || r.remaining !== 0) return false;
+  return sevenLeafOk(pegs, r.pegs, layout, player, joker);
+}
+
+/** Joker-7: keine Farbe darf damit fertig werden (auch nicht die des Partners, dessen Kugeln nach den eigenen ziehen dürfen). */
+function sevenLeafOk(before: Peg[], after: Peg[], layout: Layout, player: number, joker: boolean): boolean {
   if (!joker) return true;
-  // Joker: keine Farbe darf damit fertig werden
-  const colors = controlledColors({ pegs } as GameState, layout, player);
-  return !colors.some((c) => !pegs.filter((p) => p.color === c).every((p) => p.pos.t === 'fin') && r.pegs!.filter((p) => p.color === c).every((p) => p.pos.t === 'fin'));
+  const colors = [...new Set([...controlledColors({ pegs: before } as GameState, layout, player), ...controlledColors({ pegs: after } as GameState, layout, player)])];
+  return !colors.some((c) => !before.filter((p) => p.color === c).every((p) => p.pos.t === 'fin') && after.filter((p) => p.color === c).every((p) => p.pos.t === 'fin'));
 }
 
 function movesForRank(state: GameState, layout: Layout, player: number, rank: Rank): Move[][] {
   const colors = controlledColors(state, layout, player);
   const mine = state.pegs.filter((p) => colors.includes(p.color));
   // 7: wahlweise auf alle Kugeln auf dem Brett aufteilbar
-  const sevenPegs = layout.sevenAny ? state.pegs.filter((p) => p.pos.t !== 'home') : mine;
   const out: Move[][] = [];
   const forward = (n: number) => {
     for (const p of mine) {
@@ -322,7 +323,7 @@ function movesForRank(state: GameState, layout: Layout, player: number, rank: Ra
       for (const p of mine) if (tryMove(state.pegs, layout, p.id, -4, false)) out.push([{ t: 'move', peg: p.id, steps: -4 }]);
       break;
     case '7':
-      for (const m of sevenPlays(state.pegs, layout, sevenPegs.map((p) => p.id))) out.push(m);
+      for (const m of sevenPlays(state.pegs, layout, player)) out.push(m);
       break;
     case 'J':
       // Der Bube dient immer nur zum Tauschen zweier Kugeln

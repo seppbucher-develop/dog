@@ -318,6 +318,21 @@ describe('4, Joker und 7 (neue Regeln)', () => {
   });
 });
 
+describe('7: Partner nach den eigenen Kugeln', () => {
+  it('letzte Kugel ins Haus, Rest der 7 mit dem Partner', () => {
+    const cfg = { players: 4 };
+    const layout = layoutFor(cfg);
+    const R = layout.ringSize;
+    const pegs = { [peg(0, 0)]: ring((start(0) - 4 + R) % R), [peg(0, 1)]: fin(1), [peg(0, 2)]: fin(2), [peg(0, 3)]: fin(3), [peg(2, 0)]: ring(40) };
+    const s = scenario(cfg, { pegs, hands: [['7'], [], [], []] });
+    const moves = [{ t: 'move' as const, peg: peg(0, 0), steps: 5 }, { t: 'move' as const, peg: peg(2, 0), steps: 2 }];
+    expect(sevenValid(s.pegs, layout, 0, moves)).toBe(true);
+    expect(legalPlays(s, 0).some((p) => JSON.stringify(p.moves) === JSON.stringify(moves))).toBe(true);
+    const first = sevenNext(s.pegs, layout, 0, []);
+    expect(first.next).toContainEqual({ t: 'move', peg: peg(0, 0), steps: 5 });
+  });
+});
+
 describe('7 in beliebigen Teilzügen', () => {
   const four = { players: 4 };
   const mv = (peg_: number, steps: number) => ({ t: 'move' as const, peg: peg_, steps });
