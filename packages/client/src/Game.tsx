@@ -359,6 +359,7 @@ function GameInner({ lobby, view }: { lobby: LobbyView; view: GameView }) {
               )}
             </div>
           )}
+          <p className="muted">Am Startfeld: 🔒 frisch herausgekommen (sperrt, muss erst eine Runde laufen) · 🏠 Runde gelaufen (darf ins Zielhaus)</p>
           <p className={myTurn || (view.phase === 'exchange' && !view.exchangeDone[view.seat]) ? 'prompt on' : 'prompt'}>{prompt}</p>
           {(view.passes ?? []).slice(-3).map((e) => (
             <p key={e.id} className="muted warn">

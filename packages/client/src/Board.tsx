@@ -158,6 +158,20 @@ export function Board({ layout, geo, pegs, segColors, segNames, activeSegs, sele
         {centerLines.map((t, i) => <tspan key={i} x={geo.centre.x} y={geo.centre.y + 54 + i * 21}>{t}</tspan>)}
       </text>
 
+      {/* Startfeld-Anzeige: frisch herausgekommen (sperrt, muss erst eine Runde laufen) oder Runde gelaufen (darf ins Haus) */}
+      {pegs.map((p) => {
+        if (p.pos.t !== 'ring' || p.pos.f !== p.color * 16) return null;
+        const a = geo.ring(p.pos.f);
+        const r = Math.min(geo.fieldR * 1.5, geo.spacing * 0.56);
+        const lap = p.pos.lap === true;
+        return (
+          <text key={`st${p.id}`} x={a.x + r * 0.9} y={a.y - r * 0.5} fontSize={geo.fieldR * 1.5} textAnchor="middle" dominantBaseline="central" style={{ pointerEvents: 'none' }}>
+            <title>{lap ? 'Runde gelaufen: darf ins Zielhaus' : 'Frisch herausgekommen: sperrt und muss erst eine Runde laufen'}</title>
+            {lap ? '🏠' : '🔒'}
+          </text>
+        );
+      })}
+
       {/* Kugeln */}
       {pegs.map((p) => {
         const pt = geo.peg(p);
