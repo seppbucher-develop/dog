@@ -221,6 +221,26 @@ describe('Spiel', () => {
     expect(host.lastError()).toBeDefined();
     expect(JSON.stringify(host.game())).toBe(before);
   });
+  it('Tauschkarten-Wissen der Computerspieler (given) wird nie an Clients gesendet', () => {
+    const env = setup();
+    const host = hostRoom(env.send);
+    env.send(host, { t: 'start' });
+    let serverKnew = false;
+    for (let i = 0; i < 20000; i++) {
+      env.flush();
+      serverKnew ||= JSON.stringify(env.hub.snapshot()).includes('"given":[{');
+      const v = host.game()!;
+      if (v.phase === 'finished') break;
+      if (v.phase === 'exchange') {
+        if (!v.exchangeDone[v.seat]) env.send(host, { t: 'exchange', card: v.myHand[0]! });
+      } else if (v.legal && v.legal.length > 0) {
+        const p = v.legal[i % v.legal.length]!;
+        env.send(host, { t: 'play', card: p.card, moves: p.moves, ...(p.as ? { as: p.as } : {}) });
+      }
+    }
+    expect(serverKnew).toBe(true); // serverseitig ist der Tausch gemerkt ...
+    for (const m of host.msgs) expect(JSON.stringify(m)).not.toMatch(/"given"/); // ... aber nie an Clients gesendet
+  });
 });
 
 describe('Verbindung, Ersetzen, Wiederholung, Speichern', () => {

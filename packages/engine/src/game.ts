@@ -49,7 +49,15 @@ function startRound(state: GameState, layout: Layout): void {
   for (let p = 0; p < n; p++) state.hands[p] = state.deck.splice(state.deck.length - size, size);
   state.current = (state.dealer + 1) % n;
   state.exchange = Array(n).fill(null);
+  delete state.given;
   state.phase = layout.exchangeOn ? 'exchange' : 'playing';
+}
+
+/** Der Empfänger hat eine Tauschkarte gespielt (bzw. abgeworfen): sie ist nicht mehr "bekannt". Bei zwei gleichen Karten zählt die erste. */
+function dropGiven(state: GameState, player: number, card: Card): void {
+  if (!state.given) return;
+  const i = state.given.findIndex((g) => g.to === player && g.card === card);
+  if (i >= 0) state.given.splice(i, 1);
 }
 
 /** Überspringt Spieler ohne Karten, wirft bei Zugunfähigkeit automatisch ab und teilt neu aus. */
@@ -67,6 +75,7 @@ function settle(state: GameState, layout: Layout): void {
     }
     if (legalPlays(state, cur).length === 0) {
       (state.passed ??= []).push({ player: cur, cards: state.hands[cur]!.length });
+      if (state.given) state.given = state.given.filter((g) => g.to !== cur);
       state.discard.push(...state.hands[cur]!);
       state.hands[cur] = [];
       state.current = (cur + 1) % n;
@@ -119,6 +128,7 @@ export function applyAction(prev: GameState, action: Action): GameState {
         h.splice(h.indexOf(given[p]!), 1);
       }
       for (let p = 0; p < n; p++) state.hands[layout.giveTo[p]!]!.push(given[p]!);
+      if (layout.teams) state.given = given.map((card, p) => ({ from: p, to: layout.giveTo[p]!, card }));
       state.exchange = Array(n).fill(null);
       state.phase = 'playing';
       settle(state, layout);
@@ -143,6 +153,7 @@ export function applyAction(prev: GameState, action: Action): GameState {
   const hand = state.hands[action.player]!;
   hand.splice(hand.indexOf(action.card), 1);
   state.discard.push(action.card);
+  dropGiven(state, action.player, action.card);
 
   const rank = action.card === 'JOKER' ? action.as : action.card;
   for (const m of action.moves) {
