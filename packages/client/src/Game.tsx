@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { applyMoveToPegs, layoutFor, sevenNext, type Card, type Move, type Peg, type Play, type Pos } from '@dog/engine';
+import { applyMoveToPegs, layoutFor, sevenNext, tryMove, type Card, type Move, type Peg, type Play, type Pos } from '@dog/engine';
 import type { GameView, LobbyView } from '@dog/protocol';
 import { Board, type BoardMarker, type Flight, type PileView } from './Board';
 import { SUITS, reconcileSuits, suitFromNumber, type Suit } from './cards';
@@ -146,6 +146,7 @@ function GameInner({ lobby, view }: { lobby: LobbyView; view: GameView }) {
   };
 
   const choose = (m: Move) => {
+    setNote(null);
     const next: Selection = { ...sel, prefix: [...sel.prefix, m] };
     if (isSeven && sel.card) {
       const r = sevenNext(view.pegs, layout, view.seat, next.prefix, sel.card === 'JOKER');
@@ -188,7 +189,15 @@ function GameInner({ lobby, view }: { lobby: LobbyView; view: GameView }) {
     const mine = optionsForPeg(opts, id);
     if (mine.length === 0) return setFocus(null);
     if (mine.every((m) => m.t === 'swap')) return setFocus(id);
-    if (mine.length === 1) return choose(mine[0]!);
+    if (mine.length === 1) {
+      const only = mine[0]!;
+      // Joker: das Haus ist für die letzte Kugel gesperrt, es bleibt nur "vorbei" – nicht sofort ziehen, sondern erklären und bestätigen lassen
+      if (sel.card === 'JOKER' && only.t === 'move' && only.pass && tryMove(view.pegs, layout, id, only.steps, false)) {
+        setNote('Mit dem Joker darf die letzte Kugel nicht ins Haus – nur am Haus vorbei.');
+        return setFocus(id);
+      }
+      return choose(only);
+    }
     setFocus(id);
   };
 
@@ -247,7 +256,7 @@ function GameInner({ lobby, view }: { lobby: LobbyView; view: GameView }) {
     if (sel.card === 'JOKER' && !sel.as) return 'Joker: wähle, als welche Karte er gespielt wird.';
     if (stealOpts.length > 0) return selectable.size > 0 ? 'Wähle eine Kugel (2 Felder) oder ziehe blind eine Karte eines Gegners.' : 'Ziehe blind eine Karte eines Gegners.';
     if (seven) return `${note ? `${note} ` : ''}7: noch ${seven.remaining} Schritte – ${focus !== null ? 'wähle das Zielfeld.' : 'wähle eine Kugel.'}`;
-    if (focus !== null && markers.length > 0) return 'Wähle das Ziel.';
+    if (focus !== null && markers.length > 0) return `${note ? `${note} ` : ''}Wähle das Ziel.`;
     if (focus !== null) return 'Wähle die Kugel, mit der getauscht wird.';
     return selectable.size > 0 ? 'Wähle eine Kugel.' : 'Kein Zug mit dieser Karte.';
   })();

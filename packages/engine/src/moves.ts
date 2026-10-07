@@ -1,7 +1,6 @@
 import {
   FINISH_SLOTS,
   type Layout,
-  allInFinish,
   controlledColors,
   isBlocker,
   layoutFor,
@@ -282,10 +281,20 @@ export function sevenValid(pegs: Peg[], layout: Layout, player: number, moves: M
 }
 
 /** Joker-7: keine Farbe darf damit fertig werden (auch nicht die des Partners, dessen Kugeln nach den eigenen ziehen dürfen). */
+/**
+ * Würde der Zug eine Gruppe fertig machen? Im Teamspiel zählt nur das ganze Team (alle Kugeln aller Teamfarben im Haus),
+ * sonst jede eigene Farbe.
+ */
+function finishesGroup(before: Peg[], after: Peg[], layout: Layout, colors: number[]): boolean {
+  const groups = layout.teams ? [[...new Set(colors.flatMap((c) => layout.friendlyColors[c] ?? [c]))]] : colors.map((c) => [c]);
+  const allFin = (ps: Peg[], g: number[]) => ps.filter((p) => g.includes(p.color)).every((p) => p.pos.t === 'fin');
+  return groups.some((g) => !allFin(before, g) && allFin(after, g));
+}
+
 function sevenLeafOk(before: Peg[], after: Peg[], layout: Layout, player: number, joker: boolean): boolean {
   if (!joker) return true;
   const colors = [...new Set([...controlledColors({ pegs: before } as GameState, layout, player), ...controlledColors({ pegs: after } as GameState, layout, player)])];
-  return !colors.some((c) => !before.filter((p) => p.color === c).every((p) => p.pos.t === 'fin') && after.filter((p) => p.color === c).every((p) => p.pos.t === 'fin'));
+  return !finishesGroup(before, after, layout, colors);
 }
 
 function movesForRank(state: GameState, layout: Layout, player: number, rank: Rank): Move[][] {
@@ -358,17 +367,12 @@ export function legalPlays(state: GameState, player: number): Play[] {
   const layout = layoutFor(state.config);
   const plays: Play[] = [];
   const colors = controlledColors(state, layout, player);
-  const unfinished = colors.filter((c) => !allInFinish(state, c));
   for (const card of new Set(state.hands[player])) {
     if (card === 'JOKER') {
       for (const rank of RANKS) {
         for (const moves of movesForRank(state, layout, player, rank)) {
-          // Die letzte Kugel darf nicht mit einem Joker ins Haus gebracht werden
-          if (unfinished.length > 0 && moves.length > 0) {
-            const after = pegsAfterPlay(state.pegs, layout, { card, as: rank, moves });
-            const done = (c: number) => after.filter((p) => p.color === c).every((p) => p.pos.t === 'fin');
-            if (unfinished.some(done)) continue;
-          }
+          // Die letzte Kugel (im Teamspiel: des ganzen Teams) darf nicht mit einem Joker ins Haus gebracht werden
+          if (moves.length > 0 && finishesGroup(state.pegs, pegsAfterPlay(state.pegs, layout, { card, as: rank, moves }), layout, colors)) continue;
           plays.push({ card, as: rank, moves });
         }
       }
