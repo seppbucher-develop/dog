@@ -22,6 +22,7 @@ export function resolveRules(config: GameConfig): RuleSettings {
   if (!Array.isArray(r.handSizes) || r.handSizes.length === 0 || !r.handSizes.every((n) => Number.isInteger(n) && n >= 1)) {
     throw new Error('Ungültige Regel handSizes');
   }
+  if (!Number.isInteger(r.turnSpeed) || r.turnSpeed < 1 || r.turnSpeed > 5) throw new Error('Ungültige Regel turnSpeed');
   if (config.players * Math.max(...r.handSizes) > DECK_SIZE) throw new Error('handSizes: zu viele Karten für diese Spielerzahl');
   return r;
 }

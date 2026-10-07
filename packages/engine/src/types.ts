@@ -33,6 +33,8 @@ export interface RuleSettings {
   firstPegOnStart: 'auto' | 'on' | 'off';
   /** Kartenanzahl pro Runde, wird zyklisch wiederholt. */
   handSizes: number[];
+  /** Zuggeschwindigkeit 1 (schnell) bis 5 (langsam): Takt der Computerzüge und Dauer der Kartenanimation. */
+  turnSpeed: number;
 }
 
 export const DEFAULT_RULES: RuleSettings = {
@@ -47,6 +49,7 @@ export const DEFAULT_RULES: RuleSettings = {
   captureOwn: true,
   firstPegOnStart: 'auto',
   handSizes: [6, 5, 4, 3, 2],
+  turnSpeed: 1,
 };
 
 export interface GameConfig {

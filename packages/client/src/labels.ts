@@ -66,6 +66,10 @@ export const RULE_FIELDS: RuleField[] = [
     key: 'sixPlayerTeams', label: 'Teams bei 6 Spielern', kind: 'select',
     options: [['threeOfTwo', '3 Teams zu 2 (Partner gegenüber)'], ['twoOfThree', '2 Teams zu 3']],
   },
+  {
+    key: 'turnSpeed', label: 'Zuggeschwindigkeit', hint: '1 = schnell, 5 = langsam', kind: 'select',
+    options: [['1', '1 – schnell'], ['2', '2'], ['3', '3'], ['4', '4'], ['5', '5 – langsam']],
+  },
   { key: 'handSizes', label: 'Karten pro Runde', hint: 'kommagetrennt, wird wiederholt', kind: 'sizes' },
 ];
 

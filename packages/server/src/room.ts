@@ -71,6 +71,9 @@ export interface RoomSnapshot {
   lastActivity: number;
 }
 
+/** Takt der Computerzüge: Stufe 1 = Grundwert, Stufe 5 = ca. 2,8-fach (900 ms -> 2,5 s). */
+export const turnDelay = (base: number, speed: number) => Math.round(base * (1 + ((speed - 1) * (25 / 9 - 1)) / 4));
+
 const DEFAULT_LEVEL: BotLevel = 'expert';
 const MAX_PENDING = 10;
 
@@ -92,6 +95,7 @@ export class Room {
   lastActivity: number;
   closed = false;
   private botPending = false;
+  private playSeq = 0;
   private rand = makeRand(newSeed());
 
   constructor(
@@ -381,7 +385,7 @@ export class Room {
       const action = { t: 'play' as const, player: me.seat, card: msg.card, moves: msg.moves, ...(msg.as ? { as: msg.as } : {}) };
       this.game = applyAction(this.game, action);
       this.recordPasses();
-      this.lastPlay = { player: me.seat, card: msg.card, moves: msg.moves, ...(msg.as ? { as: msg.as } : {}) };
+      this.lastPlay = { n: ++this.playSeq, player: me.seat, card: msg.card, moves: msg.moves, ...(msg.as ? { as: msg.as } : {}) };
     }
     this.changed();
   }
@@ -417,9 +421,9 @@ export class Room {
       const action = chooseAction(cur, cur.current, s.spec.level, this.rand);
       this.game = applyAction(cur, action);
       this.recordPasses();
-      this.lastPlay = { player: action.player, card: action.card, moves: action.moves, ...(action.as ? { as: action.as } : {}) };
+      this.lastPlay = { n: ++this.playSeq, player: action.player, card: action.card, moves: action.moves, ...(action.as ? { as: action.as } : {}) };
       this.changed();
-    }, this.deps.botDelayMs);
+    }, turnDelay(this.deps.botDelayMs, resolveRules({ players: this.seats.length, eightPegs: this.eightPegs, rules: this.rules }).turnSpeed));
   }
 
   // ---------- Sichten ----------
@@ -485,6 +489,8 @@ export class Room {
       handSizes: g.hands.map((h) => h.length),
       myHand: g.hands[seat] ?? [],
       deckCount: g.deck.length,
+      discardCount: g.discard.length,
+      discardTop: g.discard[g.discard.length - 1] ?? null,
       current: g.current,
       dealer: g.dealer,
       round: g.round,
@@ -540,6 +546,7 @@ export class Room {
     room.rules = s.rules;
     room.game = s.game;
     room.lastPlay = s.lastPlay;
+    room.playSeq = s.lastPlay?.n ?? 0;
     room.lastActivity = s.lastActivity;
     for (const p of s.participants) room.participants.set(p.token, { ...p, conn: null });
     return room;

@@ -92,7 +92,7 @@ input.code { text-transform: uppercase; letter-spacing: 0.2em; font-weight: 700;
 .style-switch button { padding: 3px 10px; min-height: 30px; }
 .board-edge { fill: var(--line); stroke: var(--line); stroke-width: 76; stroke-linejoin: round; }
 .board-disc { fill: var(--board); stroke: var(--board); stroke-width: 70; stroke-linejoin: round; }
-.center-text { fill: var(--muted); font-size: 22px; }
+.center-text { fill: var(--muted); font-size: 17px; }
 .pname { fill: var(--ink); font-size: 19px; font-weight: 500; }
 .pname.active { font-weight: 800; fill: var(--accent); }
 .nest.active { animation: pulse 1.4s infinite; }
@@ -103,7 +103,16 @@ input.code { text-transform: uppercase; letter-spacing: 0.2em; font-weight: 700;
 .marker circle { fill: #ffd54a66; stroke: #b8860b; stroke-width: 3; stroke-dasharray: 5 3; }
 .marker text { fill: var(--ink); font-size: 15px; pointer-events: none; font-weight: 700; paint-order: stroke; stroke: var(--panel); stroke-width: 4px; }
 @keyframes pulse { 50% { opacity: 0.45; } }
-@media (prefers-reduced-motion: reduce) { .peg-move { transition: none; } .ring-can, .nest.active { animation: none; } }
+.peg-move { transition-duration: var(--peg-ms, 0.45s); }
+.turn-mark { animation: nudge 1s ease-in-out infinite; }
+@keyframes nudge { 50% { transform: translate(4px, 0); } }
+.flight { animation: fly var(--ms, 400ms) cubic-bezier(0.3, 0.7, 0.3, 1) both; pointer-events: none; }
+@keyframes fly {
+  from { transform: translate(var(--fx), var(--fy)) rotate(-18deg) scale(0.55); opacity: 0.4; }
+  15% { opacity: 1; }
+  to { transform: translate(var(--tx), var(--ty)) rotate(0deg) scale(1); opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) { .peg-move { transition: none; } .ring-can, .nest.active, .turn-mark { animation: none; } .flight { animation-duration: 1ms; } }
 
 .players { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 6px; }
 .player { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 6px 8px; border-radius: 8px; border: 1px solid transparent; }
@@ -121,6 +130,8 @@ input.code { text-transform: uppercase; letter-spacing: 0.2em; font-weight: 700;
 .hand > p { grid-column: 1 / -1; }
 .pcard { width: 100%; aspect-ratio: 7 / 10; padding: 6px 2px; display: flex; flex-direction: column; justify-content: space-between; align-items: center; background: #fffefa; color: #222; border: 2px solid #cfc7b3; border-radius: 10px; box-shadow: 0 2px 5px #0003; transition: transform 0.12s; }
 .pcard .rank { font-size: clamp(1.3rem, 6vw, 2rem); font-weight: 800; line-height: 1; }
+.pcard .suit { font-size: clamp(1.2rem, 5vw, 1.8rem); line-height: 1; color: #222; }
+.pcard .suit.red { color: #c0392b; }
 .pcard .hint { font-size: clamp(0.5rem, 2.2vw, 0.68rem); line-height: 1.1; text-align: center; color: #555; }
 .pcard.face .rank { color: #a3341f; }
 .pcard.joker { background: linear-gradient(135deg, #fff, #ffe9a8); }
