@@ -91,6 +91,13 @@ export interface Play {
   moves: Move[];
 }
 
+/** Beim Kartentausch weitergegebene Karte: Geber und Empfänger wissen, dass der Empfänger sie hält, bis er sie spielt. */
+export interface GivenCard {
+  from: number;
+  to: number;
+  card: Card;
+}
+
 export type Phase = 'exchange' | 'playing' | 'finished';
 
 export interface GameState {
@@ -108,6 +115,11 @@ export interface GameState {
   /** Gewinner (Spieler-Indizes des Teams bzw. der einzelne Spieler) */
   winners: number[] | null;
   rng: number;
+  /**
+   * Teamspiel: Tauschkarten dieser Runde, die der Empfänger noch nicht gespielt hat. Wird nur von Computerspielern
+   * ausgewertet (jeder nur für die eigene abgegebene und erhaltene Karte) und nie an Clients gesendet.
+   */
+  given?: GivenCard[];
   /** Spieler, deren Hand in der letzten Aktion wegen fehlendem Zug automatisch abgeworfen wurde */
   passed?: { player: number; cards: number }[];
 }
