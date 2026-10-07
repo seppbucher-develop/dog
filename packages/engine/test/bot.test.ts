@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyAction, BOT_LEVELS, chooseAction, chooseExchange, createGame, legalPlays, makeRand, type BotLevel, type GameConfig } from '../src';
+import { applyAction, BOT_LEVELS, chooseAction, chooseExchange, createGame, legalPlays, makeRand, type BotLevel, type GameConfig, type GivenCard } from '../src';
 import { peg, ring, scenario } from './helpers';
 
 /** Spielt ein komplettes Spiel; `levels[p]` ist die Stufe von Spieler p. Liefert die Gewinner. */
@@ -109,6 +109,24 @@ describe('Bots', () => {
     expect(a.card).toBe('J');
     const after = applyAction(s, a);
     expect(after.pegs.find((p) => p.id === peg(2, 0))!.pos).toEqual(ring(24));
+  });
+
+  it('Experte nutzt Tauschkarten fremder Teams nicht (nur eigene abgegebene und erhaltene)', () => {
+    // Spieler 1 (Team 1/3) spielt; die Einträge 0 -> 2 gehören zum anderen Team
+    const foreign: GivenCard[] = [{ from: 0, to: 2, card: '9' }];
+    const own: GivenCard[] = [{ from: 3, to: 1, card: '9' }];
+    const late = scenario({ players: 4 }, { pegs: { [peg(1, 0)]: ring(16) }, hands: [['A'], ['9', '8'], ['A'], ['A']], current: 1 });
+    expect(chooseAction(late, 1, 'expert', makeRand(1)).card).toBe('9');
+    expect(chooseAction({ ...late, given: foreign }, 1, 'expert', makeRand(1)).card).toBe('9'); // fremde 9 verzögert nichts
+    expect(chooseAction({ ...late, given: own }, 1, 'expert', makeRand(1)).card).toBe('8'); // eigene erhaltene 9 schon
+
+    // Vorbereiten für den Partner (Spieler 3): nur mit der eigenen abgegebenen Karte
+    const prep = scenario(
+      { players: 4 },
+      { pegs: { [peg(1, 0)]: ring(40), [peg(3, 0)]: ring(26) }, hands: [['A'], ['J', '5'], ['A'], ['9', '3']], current: 1 },
+    );
+    expect(chooseAction({ ...prep, given: foreign }, 1, 'expert', makeRand(1)).card).toBe('5');
+    expect(chooseAction({ ...prep, given: [{ from: 1, to: 3, card: '9' }] }, 1, 'expert', makeRand(1)).card).toBe('J');
   });
 
   it('Experte-Team schlägt Anfänger-Team deutlich', () => {
