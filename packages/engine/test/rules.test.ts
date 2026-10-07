@@ -370,7 +370,9 @@ describe('7 in beliebigen Teilzügen', () => {
   });
 
   it('Mit dem Joker als 7 darf die letzte Kugel nicht ins Haus', () => {
-    const pegs = { [peg(0, 0)]: fin(3), [peg(0, 1)]: fin(2), [peg(0, 2)]: fin(1), [peg(0, 3)]: ring(start(0) + 62) };
+    // Teamspiel: nur wenn auch der Partner (Farbe 2) fertig ist, wäre es die allerletzte Kugel des Teams
+    const partner = { [peg(2, 0)]: fin(0), [peg(2, 1)]: fin(1), [peg(2, 2)]: fin(2), [peg(2, 3)]: fin(3) };
+    const pegs = { [peg(0, 0)]: fin(3), [peg(0, 1)]: fin(2), [peg(0, 2)]: fin(1), [peg(0, 3)]: ring(start(0) + 62), ...partner };
     const s = scenario(four, { pegs, hands: [['JOKER', '7'], [], [], []] });
     const layout = layoutFor(four);
     expect(sevenValid(s.pegs, layout, 0, [mv(peg(0, 3), 3)])).toBe(false); // nur 3 von 7 verteilt
@@ -379,6 +381,26 @@ describe('7 in beliebigen Teilzügen', () => {
   });
 });
 
+
+describe('Joker im Teamspiel', () => {
+  const four = { players: 4 } as const;
+  const rank5 = (s: ReturnType<typeof scenario>) => legalPlays(s, 0).filter((p) => p.card === 'JOKER' && p.as === '5');
+  const intoHouse = (p: { moves: { t: string; pass?: boolean }[] }) => p.moves.some((m) => m.t === 'move' && !m.pass);
+
+  it('Letzte Kugel einer Farbe darf mit dem Joker ins Haus, solange das Team noch eine Kugel im Spiel hat', () => {
+    const pegs = { [peg(0, 0)]: fin(3), [peg(0, 1)]: fin(2), [peg(0, 2)]: fin(1), [peg(0, 3)]: ring(start(0) + 60), [peg(2, 0)]: ring(5) };
+    const s = scenario(four, { pegs, hands: [['JOKER'], [], [], []] });
+    expect(rank5(s).some(intoHouse)).toBe(true);
+    expect(rank5(s).some((p) => p.moves.some((m) => m.t === 'move' && m.pass))).toBe(true);
+  });
+
+  it('Allerletzte Kugel des Teams darf mit dem Joker nicht ins Haus', () => {
+    const partner = { [peg(2, 0)]: fin(0), [peg(2, 1)]: fin(1), [peg(2, 2)]: fin(2), [peg(2, 3)]: fin(3) };
+    const pegs = { [peg(0, 0)]: fin(3), [peg(0, 1)]: fin(2), [peg(0, 2)]: fin(1), [peg(0, 3)]: ring(start(0) + 60), ...partner };
+    const s = scenario(four, { pegs, hands: [['JOKER'], [], [], []] });
+    expect(rank5(s).some(intoHouse)).toBe(false);
+  });
+});
 
 describe('Am Zielhaus vorbeilaufen', () => {
   const two = { players: 3 } as const;
