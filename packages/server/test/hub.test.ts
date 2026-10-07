@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { ClientMessage, GameView, LobbyView, ServerMessage } from '@dog/protocol';
 import { Hub } from '../src/hub';
-import type { Connection } from '../src/room';
+import { turnDelay, type Connection } from '../src/room';
 
 let counter = 0;
 class FakeConn implements Connection {
@@ -455,5 +455,12 @@ describe('Platz und Kugelfarbe der Menschen', () => {
     const back = new FakeConn();
     env2.send(back, { t: 'resume', token: host.token() });
     expect(back.lobby().seats.map((s) => s.color)).toEqual([0, 1, 2, 3]);
+  });
+});
+
+describe('Zuggeschwindigkeit', () => {
+  it('skaliert den Takt der Computerzüge von 900 ms (Stufe 1) auf 2,5 s (Stufe 5)', () => {
+    expect([1, 2, 3, 4, 5].map((s) => turnDelay(900, s))).toEqual([900, 1300, 1700, 2100, 2500]);
+    expect(turnDelay(0, 5)).toBe(0);
   });
 });

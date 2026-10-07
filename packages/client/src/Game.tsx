@@ -1,7 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { applyMoveToPegs, layoutFor, sevenNext, type Card, type Move, type Peg, type Play, type Pos } from '@dog/engine';
 import type { GameView, LobbyView } from '@dog/protocol';
-import { Board, type BoardMarker } from './Board';
+import { Board, type BoardMarker, type Flight, type PileView } from './Board';
+import { SUITS, reconcileSuits, suitFromNumber, type Suit } from './cards';
+import { timing } from './speed';
 import { NEUTRAL, colorHex, colorName } from './colors';
 import { hasOriginalShape, makeGeo, type BoardStyle } from './geometry';
 import { CARD_TEXT, LEVEL_LABEL, cardHint, moveText } from './labels';
@@ -54,6 +56,51 @@ function GameInner({ lobby, view }: { lobby: LobbyView; view: GameView }) {
   // Nach dem Abschicken bleiben die Kugeln am Ziel stehen, bis der Server den neuen Stand schickt
   const [sentPegs, setSentPegs] = useState<Peg[] | null>(null);
 
+  const speed = layout.rules.turnSpeed;
+  const tm = timing(speed);
+
+  // Farben der Handkarten (rein optisch), nachgeführt solange die Karte auf der Hand liegt
+  const suitsRef = useRef(new Map<Card, Suit[]>());
+  const playedRef = useRef<{ card: Card; suit: Suit } | null>(null);
+  const handLen = useRef(view.myHand.length);
+  suitsRef.current = reconcileSuits(suitsRef.current, view.myHand, playedRef.current, view.round * 977 + view.deckCount);
+  if (view.myHand.length !== handLen.current) {
+    handLen.current = view.myHand.length;
+    playedRef.current = null;
+  }
+  const suitMap = suitsRef.current;
+
+  // Ablegen: Karte fliegt zum Stapel, Kugeln folgen (ab Stufe 2 erst danach)
+  const lp = view.lastPlay;
+  const suitOfPlay = useRef(new Map<number, Suit>());
+  const pileSuit = (n: number | undefined, fallback: number): Suit => (n !== undefined && suitOfPlay.current.get(n)) || suitFromNumber(n ?? fallback);
+  const [flight, setFlight] = useState<Flight | null>(null);
+  const [heldPile, setHeldPile] = useState<PileView | null>(null);
+  const [heldPegs, setHeldPegs] = useState<Peg[] | null>(null);
+  const seenPlay = useRef(lp?.n ?? 0);
+  const prevPegs = useRef(view.pegs);
+  const prevPile = useRef<PileView>({ top: view.discardTop, count: view.discardCount, suit: pileSuit(lp?.n, view.discardCount) });
+  useLayoutEffect(() => {
+    if (lp?.n === undefined || lp.n === seenPlay.current) return;
+    seenPlay.current = lp.n;
+    const own = lp.player === view.seat ? playedRef.current : null;
+    const suit = own && own.card === lp.card ? own.suit : suitFromNumber(lp.n);
+    suitOfPlay.current.set(lp.n, suit);
+    const nst = geo.nest(layout.colorsOf[lp.player]?.[0] ?? 0);
+    setFlight({ key: lp.n, from: { x: nst.cx, y: nst.cy }, card: lp.card, suit, ms: tm.flight });
+    setHeldPile(prevPile.current);
+    const timers = [setTimeout(() => setHeldPile(null), tm.flight)];
+    if (tm.sequential && lp.player !== view.seat) {
+      setHeldPegs(prevPegs.current);
+      timers.push(setTimeout(() => setHeldPegs(null), tm.flight));
+    }
+    return () => timers.forEach(clearTimeout);
+  }, [lp?.n]);
+  useEffect(() => {
+    prevPegs.current = view.pegs;
+    prevPile.current = { top: view.discardTop, count: view.discardCount, suit: pileSuit(lp?.n, view.discardCount) };
+  });
+
   // Neuer Spielstand vom Server: angefangene Auswahl verwerfen
   const stateKey = JSON.stringify([view.phase, view.current, view.myHand, view.pegs.map((p) => p.pos)]);
   useEffect(() => {
@@ -75,6 +122,7 @@ function GameInner({ lobby, view }: { lobby: LobbyView; view: GameView }) {
   const legal = view.legal ?? [];
   const teams = layout.teams;
   const hand = sortHand(view.myHand);
+  const suitOf = (c: Card, i: number): Suit => suitMap.get(c)?.[hand.slice(0, i).filter((x) => x === c).length] ?? SUITS[0];
 
   // 7: Teilzüge in beliebiger Reihenfolge, aus der Stellung berechnet (nicht aus der zusammengefassten Zugliste)
   const isSeven = sel.card === '7' || (sel.card === 'JOKER' && sel.as === '7');
@@ -88,6 +136,8 @@ function GameInner({ lobby, view }: { lobby: LobbyView; view: GameView }) {
   const submit = (p: Play) => {
     const after = p.card === '7' || p.as === '7' ? sevenNext(view.pegs, layout, view.seat, p.moves, p.card === 'JOKER').pegs : p.moves.reduce<Peg[] | null>((ps, m) => (ps ? applyMoveToPegs(ps, layout, m, false) : null), view.pegs);
     if (after) setSentPegs(after);
+    const suit = p.card === 'JOKER' ? undefined : suitMap.get(p.card)?.[0];
+    if (suit) playedRef.current = { card: p.card, suit };
     net.send({ t: 'play', card: p.card, ...(p.as ? { as: p.as } : {}), moves: p.moves });
     setSel(emptySel);
     setFocus(null);
@@ -218,11 +268,11 @@ function GameInner({ lobby, view }: { lobby: LobbyView; view: GameView }) {
 
   return (
     <div className="game">
-      <div className="board-wrap">
+      <div className="board-wrap" style={{ '--peg-ms': `${tm.peg}ms` } as React.CSSProperties}>
         <Board
           layout={layout}
           geo={geo}
-          pegs={sentPegs ?? seven?.pegs ?? view.pegs}
+          pegs={heldPegs ?? sentPegs ?? seven?.pegs ?? view.pegs}
           segColors={segColors}
           segNames={segNames}
           activeSegs={activeSegs}
@@ -233,6 +283,8 @@ function GameInner({ lobby, view }: { lobby: LobbyView; view: GameView }) {
           onPeg={onPeg}
           onMarker={onMarker}
           centerLines={[`Runde ${view.round + 1}`, `Stapel: ${view.deckCount}`, `Geber: ${names[view.dealer]}`]}
+          pile={heldPile ?? prevPile.current}
+          flight={flight}
         />
       </div>
 
@@ -251,6 +303,7 @@ function GameInner({ lobby, view }: { lobby: LobbyView; view: GameView }) {
                 aria-pressed={selected}
               >
                 <span className="rank">{CARD_TEXT[c]}</span>
+                {c !== 'JOKER' && <span className={`suit${suitOf(c, i) === '♥' || suitOf(c, i) === '♦' ? ' red' : ''}`} aria-label="Farbe">{suitOf(c, i)}</span>}
                 <span className="hint">{cardHint(c, teams, layout.rules.fourDirection === 'both')}</span>
               </button>
             );

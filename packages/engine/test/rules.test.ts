@@ -8,6 +8,9 @@ describe('Einstellungen: Validierung', () => {
     expect(() => layoutFor({ players: 4, rules: { handSizes: [] } })).toThrow();
     expect(() => layoutFor({ players: 4, rules: { handSizes: [0] } })).toThrow();
     expect(() => layoutFor({ players: 6, rules: { handSizes: [19] } })).toThrow();
+    for (const turnSpeed of [0, 6, 2.5]) expect(() => layoutFor({ players: 4, rules: { turnSpeed } })).toThrow();
+    expect(layoutFor({ players: 4, rules: { turnSpeed: 5 } }).rules.turnSpeed).toBe(5);
+    expect(layoutFor({ players: 4 }).rules.turnSpeed).toBe(1);
     expect(() => layoutFor({ players: 4, rules: { cardExchange: 'x' as never } })).toThrow();
     expect(() => layoutFor({ players: 4, rules: { captureOwn: 1 as never } })).toThrow();
   });

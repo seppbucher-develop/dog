@@ -74,6 +74,8 @@ export interface LobbyView {
 }
 
 export interface LastPlay {
+  /** Laufende Nummer des Zugs (zum Erkennen neuer Züge in der Anzeige) */
+  n?: number;
   player: number;
   card: Card;
   as?: Rank;
@@ -88,6 +90,9 @@ export interface GameView {
   handSizes: number[];
   myHand: Card[];
   deckCount: number;
+  /** Ablagestapel: Anzahl und oberste Karte */
+  discardCount: number;
+  discardTop: Card | null;
   current: number;
   dealer: number;
   round: number;

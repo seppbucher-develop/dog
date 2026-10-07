@@ -7,7 +7,7 @@ Computerspielern in vier Stärken.
   Initiator **bewilligt**. Bis zu 5 der Plätze können Computerspieler sein.
 - **Plätze und Farben:** Der Initiator legt fest, wer wo sitzt und mit welcher Kugelfarbe spielt.
 - **Original-Bretter** bei 3, 4 und 6 Spielern in Kreuzform (jeder Spieler hat einen Arm: Löcher hinaus, über das Ende und zurück, Startfeld in der rechten Ecke des Armendes, Zielhaus von dort nach innen; je Arm vier Abschnitte zu 4 Löchern, abgeschrägte Ecken) oder als Kreis; wechselbar im Spiel.
-- **Regeln einstellbar** (siehe unten), damit jede Runde nach ihren Hausregeln spielen kann.
+- **Einstellungen und Regeln wählbar** (siehe unten), damit jede Runde nach ihren Hausregeln spielen kann.
 - **Notizen** auf der Startseite (Textzeilen, wahlweise Todos mit Checkbox), nur im eigenen Browser gespeichert.
 - Läuft auf dem eigenen NAS: [Anleitung für Synology](docs/NAS-Anleitung.md).
 
@@ -46,7 +46,7 @@ gerade erst herausgekommen ist, muss zuerst eine ganze Runde laufen. Gespielt we
 Auf dem eigenen Startfeld blockiert eine Kugel das Überspringen. Im Zielhaus kann man nicht überspringen. Ist ein
 Spieler fertig, zieht er im Teamspiel für den Partner weiter; das Team gewinnt, wenn alle Kugeln im Ziel sind.
 
-### Einstellbare Regeln (in der Lobby)
+### Einstellungen und Regeln (in der Lobby)
 
 | Einstellung | Standard |
 |---|---|
@@ -61,6 +61,7 @@ Spieler fertig, zieht er im Teamspiel für den Partner weiter; das Team gewinnt,
 | Brett bei 2 Spielern (4 Kugeln) | klein (2 Abschnitte) |
 | Teams bei 6 Spielern | 3 Teams zu 2 |
 | Karten pro Runde | 6, 5, 4, 3, 2 |
+| Zuggeschwindigkeit (1 schnell – 5 langsam, ca. 2,5 s je Computerzug) | 1 |
 
 ## Computerspieler
 

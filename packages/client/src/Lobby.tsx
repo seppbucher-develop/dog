@@ -205,7 +205,7 @@ function RulesPanel({ lobby, isHost, onChange }: { lobby: LobbyView; isHost: boo
   };
   return (
     <details className="card rules">
-      <summary><h2>Regeln</h2></summary>
+      <summary><h2>Einstellungen</h2></summary>
       <div className="rule-grid">
         {RULE_FIELDS.map((f) => (
           <label key={f.key} className="rule">
@@ -214,7 +214,7 @@ function RulesPanel({ lobby, isHost, onChange }: { lobby: LobbyView; isHost: boo
               <input type="checkbox" checked={r[f.key] as boolean} disabled={!isHost} onChange={(e) => onChange({ ...r, [f.key]: e.target.checked })} />
             )}
             {f.kind === 'select' && (
-              <select value={r[f.key] as string} disabled={!isHost} onChange={(e) => onChange({ ...r, [f.key]: e.target.value })}>
+              <select value={r[f.key] as string} disabled={!isHost} onChange={(e) => onChange({ ...r, [f.key]: f.key === 'turnSpeed' ? Number(e.target.value) : e.target.value })}>
                 {f.options!.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
               </select>
             )}

@@ -1,4 +1,6 @@
-import type { Layout, Peg } from '@dog/engine';
+import type { Card, Layout, Peg } from '@dog/engine';
+import { isRedSuit, type Suit } from './cards';
+import { CARD_TEXT } from './labels';
 import { NEUTRAL } from './colors';
 import type { Geo } from './geometry';
 
@@ -7,6 +9,22 @@ export interface BoardMarker {
   x: number;
   y: number;
   label: string;
+}
+
+export interface PileView {
+  /** Anzahl Karten im Stapel (ohne die gerade fliegende) */
+  count: number;
+  top: Card | null;
+  suit: Suit;
+}
+
+export interface Flight {
+  /** wechselt mit jedem Zug und startet die Animation neu */
+  key: number;
+  from: { x: number; y: number };
+  card: Card;
+  suit: Suit;
+  ms: number;
 }
 
 interface Props {
@@ -27,11 +45,30 @@ interface Props {
   onPeg(id: number): void;
   onMarker(id: string): void;
   centerLines: string[];
+  pile: PileView;
+  flight: Flight | null;
+}
+
+const CARD_W = 46;
+const CARD_H = 64;
+
+function CardFace({ card, suit }: { card: Card; suit: Suit }) {
+  const joker = card === 'JOKER';
+  const red = !joker && isRedSuit(suit);
+  const ink = joker ? '#7a3fb3' : red ? '#c0392b' : '#222';
+  return (
+    <g>
+      <rect x={-CARD_W / 2} y={-CARD_H / 2} width={CARD_W} height={CARD_H} rx={6} fill={joker ? '#fff3c4' : '#fffefa'} stroke="#8a8474" strokeWidth={1.5} />
+      <text x={-CARD_W / 2 + 5} y={-CARD_H / 2 + 17} fill={ink} fontSize={card === '10' ? 14 : 16} fontWeight={800}>{CARD_TEXT[card]}</text>
+      <text x={0} y={joker ? 12 : 14} textAnchor="middle" fill={ink} fontSize={joker ? 34 : 30}>{joker ? '★' : suit}</text>
+      {!joker && <text x={CARD_W / 2 - 5} y={CARD_H / 2 - 6} textAnchor="end" fill={ink} fontSize={13}>{suit}</text>}
+    </g>
+  );
 }
 
 const stroke = (fill: string) => (fill === '#f6f3ea' ? '#8a8474' : '#15151a');
 
-export function Board({ layout, geo, pegs, segColors, segNames, activeSegs, selectable, clickable, focus, markers, onPeg, onMarker, centerLines }: Props) {
+export function Board({ layout, geo, pegs, segColors, segNames, activeSegs, selectable, clickable, focus, markers, onPeg, onMarker, centerLines, pile, flight }: Props) {
   const R = layout.ringSize;
   const fields = Array.from({ length: R }, (_, f) => f);
   return (
@@ -108,8 +145,15 @@ export function Board({ layout, geo, pegs, segColors, segNames, activeSegs, sele
         );
       })}
 
+      {/* Ablagestapel */}
+      <g className="pile" transform={`translate(${geo.centre.x} ${geo.centre.y - 26})`} aria-label={`Ablagestapel: ${pile.count} Karten`}>
+        {pile.count === 0 && <rect x={-CARD_W / 2} y={-CARD_H / 2} width={CARD_W} height={CARD_H} rx={6} fill="none" stroke="var(--muted)" strokeWidth={2} strokeDasharray="5 4" />}
+        {pile.count > 2 && <rect x={-CARD_W / 2} y={-CARD_H / 2} width={CARD_W} height={CARD_H} rx={6} fill="#e8e1cf" stroke="#8a8474" strokeWidth={1.5} transform="rotate(-7) translate(-2 2)" />}
+        {pile.count > 1 && <rect x={-CARD_W / 2} y={-CARD_H / 2} width={CARD_W} height={CARD_H} rx={6} fill="#f2ecdc" stroke="#8a8474" strokeWidth={1.5} transform="rotate(5) translate(2 1)" />}
+        {pile.count > 0 && pile.top && <CardFace card={pile.top} suit={pile.suit} />}
+      </g>
       <text textAnchor="middle" className="center-text">
-        {centerLines.map((t, i) => <tspan key={i} x={geo.centre.x} y={geo.centre.y - 10 + i * 30}>{t}</tspan>)}
+        {centerLines.map((t, i) => <tspan key={i} x={geo.centre.x} y={geo.centre.y + 38 + i * 21}>{t}</tspan>)}
       </text>
 
       {/* Kugeln */}
@@ -139,6 +183,32 @@ export function Board({ layout, geo, pegs, segColors, segNames, activeSegs, sele
         );
       })}
 
+      {/* Wer ist am Zug: Pfeil direkt neben dem Haus */}
+      {layout.usedColors.filter((c) => activeSegs.has(c)).map((c) => {
+        const m = turnMark(geo, c);
+        return (
+          <g key={`turn${c}`} transform={`translate(${m.x} ${m.y})`} role="img" aria-label="Am Zug">
+            <g transform={`rotate(${m.angle})`}>
+              <g className="turn-mark">
+                <circle r={15} fill="var(--accent)" stroke="#fff" strokeWidth={2.5} />
+                <path d="M-5 -8 L8 0 L-5 8 Z" fill="#fff" />
+              </g>
+            </g>
+          </g>
+        );
+      })}
+
+      {/* Karte fliegt zum Ablagestapel */}
+      {flight && (
+        <g
+          key={flight.key}
+          className="flight"
+          style={{ '--fx': `${flight.from.x}px`, '--fy': `${flight.from.y}px`, '--tx': `${geo.centre.x}px`, '--ty': `${geo.centre.y - 26}px`, '--ms': `${flight.ms}ms` } as React.CSSProperties}
+        >
+          <CardFace card={flight.card} suit={flight.suit} />
+        </g>
+      )}
+
       {/* Zielmarken der gewählten Kugel */}
       {markers.map((m) => (
         <g key={m.id} className="marker" onClick={() => onMarker(m.id)} role="button" aria-label={`Ziel: ${m.label}`}>
@@ -148,4 +218,19 @@ export function Board({ layout, geo, pegs, segColors, segNames, activeSegs, sele
       ))}
     </svg>
   );
+}
+
+/** Pfeil neben dem Nest: seitlich daneben (auf der Seite zur Brettmitte), zeigt auf das Nest. */
+function turnMark(geo: Geo, c: number): { x: number; y: number; angle: number } {
+  const n = geo.nest(c);
+  const len = Math.hypot(n.x2 - n.x1, n.y2 - n.y1);
+  const rl = Math.hypot(n.cx, n.cy) || 1;
+  const t = len > 1 ? { x: (n.x2 - n.x1) / len, y: (n.y2 - n.y1) / len } : { x: -n.cy / rl, y: n.cx / rl };
+  const half = len / 2 + n.w / 2 + 20;
+  const a = { x: n.cx + t.x * half, y: n.cy + t.y * half };
+  const b = { x: n.cx - t.x * half, y: n.cy - t.y * half };
+  // Original: auf die Seite, die vom Namen abgewandt ist; Kreis: auf die Seite zur Brettmitte
+  const l = geo.label(c);
+  const p = geo.style === 'original' ? (Math.hypot(a.x - l.x, a.y - l.y) >= Math.hypot(b.x - l.x, b.y - l.y) ? a : b) : Math.hypot(a.x, a.y) <= Math.hypot(b.x, b.y) ? a : b;
+  return { x: p.x, y: p.y, angle: (Math.atan2(n.cy - p.y, n.cx - p.x) * 180) / Math.PI };
 }
