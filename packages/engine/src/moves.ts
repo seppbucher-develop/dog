@@ -107,8 +107,9 @@ export function tryStart(pegs: Peg[], layout: Layout, pegId: number): Peg[] | nu
   if (!peg || peg.pos.t !== 'home') return null;
   const f = startField(peg.color);
   const occ = ringPegAt(pegs, f);
-  if (occ && occ.color === peg.color) return null;
-  if (occ && !layout.rules.captureOwn && layout.friendlyColors[peg.color]!.includes(occ.color)) return null;
+  // Eigene frisch herausgekommene Kugel blockiert; eine eigene gelaufene Kugel wird von der neuen heimgeschickt
+  if (occ && occ.color === peg.color && !(occ.pos.t === 'ring' && occ.pos.lap)) return null;
+  if (occ && occ.color !== peg.color && !layout.rules.captureOwn && layout.friendlyColors[peg.color]!.includes(occ.color)) return null;
   const next = clonePegs(pegs);
   if (occ) next.find((p) => p.id === occ.id)!.pos = { t: 'home' };
   next.find((p) => p.id === pegId)!.pos = { t: 'ring', f };

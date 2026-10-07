@@ -43,7 +43,7 @@ gerade erst herausgekommen ist, muss zuerst eine ganze Runde laufen. Gespielt we
 | 2 | 2 Felder vor; bei 2, 3 und 5 Spielern alternativ blind eine Karte eines Gegners ziehen (zählt als Zug) |
 | 3, 5, 6, 8, 9, 10 | so viele Felder vor |
 
-Auf dem eigenen Startfeld blockiert eine frisch herausgekommene Kugel das Überspringen; hat sie die Runde schon vollendet, sperrt sie nicht mehr und kann geschlagen werden. Im Zielhaus kann man nicht überspringen. Ist ein
+Auf dem eigenen Startfeld blockiert eine frisch herausgekommene Kugel das Überspringen; hat sie die Runde schon vollendet, sperrt sie nicht mehr und kann geschlagen werden (auch von der eigenen neuen Kugel, die herauskommt). Im Zielhaus kann man nicht überspringen. Ist ein
 Spieler fertig, zieht er im Teamspiel für den Partner weiter; das Team gewinnt, wenn alle Kugeln im Ziel sind.
 
 ### Einstellungen und Regeln (in der Lobby)
