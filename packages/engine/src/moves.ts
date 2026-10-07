@@ -21,7 +21,7 @@ function ringPegAt(pegs: Peg[], f: number): Peg | undefined {
 
 /**
  * Bewegt eine Kugel um `steps` (negativ = rückwärts). Liefert die neue Kugelliste oder null, wenn illegal.
- * Blockierende Kugeln (auf eigenem Startfeld) dürfen weder übersprungen noch geschlagen werden.
+ * Blockierende Kugeln (frisch auf eigenem Startfeld, noch ohne Runde) dürfen weder übersprungen noch geschlagen werden.
  * Am Ziel stehende Kugeln werden heimgeschickt; bei `capturePassed` (7er) auch alle übersprungenen.
  */
 export function tryMove(

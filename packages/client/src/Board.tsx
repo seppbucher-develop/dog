@@ -166,7 +166,7 @@ export function Board({ layout, geo, pegs, segColors, segNames, activeSegs, sele
         const lap = p.pos.lap === true;
         return (
           <text key={`st${p.id}`} x={a.x + r * 0.9} y={a.y - r * 0.5} fontSize={geo.fieldR * 1.5} textAnchor="middle" dominantBaseline="central" style={{ pointerEvents: 'none' }}>
-            <title>{lap ? 'Runde gelaufen: darf ins Zielhaus' : 'Frisch herausgekommen: sperrt und muss erst eine Runde laufen'}</title>
+            <title>{lap ? 'Runde gelaufen: sperrt nicht, kann geschlagen werden, darf ins Zielhaus' : 'Frisch herausgekommen: sperrt und muss erst eine Runde laufen'}</title>
             {lap ? '🏠' : '🔒'}
           </text>
         );
