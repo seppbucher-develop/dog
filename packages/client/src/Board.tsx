@@ -51,6 +51,8 @@ interface Props {
 
 const CARD_W = 46;
 const CARD_H = 64;
+/** Darstellungsgröße der Karten im Ablagestapel (Faktor auf CARD_W x CARD_H) */
+const PILE_SCALE = 2;
 
 function CardFace({ card, suit }: { card: Card; suit: Suit }) {
   const joker = card === 'JOKER';
@@ -146,14 +148,14 @@ export function Board({ layout, geo, pegs, segColors, segNames, activeSegs, sele
       })}
 
       {/* Ablagestapel */}
-      <g className="pile" transform={`translate(${geo.centre.x} ${geo.centre.y - 26})`} aria-label={`Ablagestapel: ${pile.count} Karten`}>
+      <g className="pile" transform={`translate(${geo.centre.x} ${geo.centre.y - 44}) scale(${PILE_SCALE})`} aria-label={`Ablagestapel: ${pile.count} Karten`}>
         {pile.count === 0 && <rect x={-CARD_W / 2} y={-CARD_H / 2} width={CARD_W} height={CARD_H} rx={6} fill="none" stroke="var(--muted)" strokeWidth={2} strokeDasharray="5 4" />}
         {pile.count > 2 && <rect x={-CARD_W / 2} y={-CARD_H / 2} width={CARD_W} height={CARD_H} rx={6} fill="#e8e1cf" stroke="#8a8474" strokeWidth={1.5} transform="rotate(-7) translate(-2 2)" />}
         {pile.count > 1 && <rect x={-CARD_W / 2} y={-CARD_H / 2} width={CARD_W} height={CARD_H} rx={6} fill="#f2ecdc" stroke="#8a8474" strokeWidth={1.5} transform="rotate(5) translate(2 1)" />}
         {pile.count > 0 && pile.top && <CardFace card={pile.top} suit={pile.suit} />}
       </g>
       <text textAnchor="middle" className="center-text">
-        {centerLines.map((t, i) => <tspan key={i} x={geo.centre.x} y={geo.centre.y + 38 + i * 21}>{t}</tspan>)}
+        {centerLines.map((t, i) => <tspan key={i} x={geo.centre.x} y={geo.centre.y + 54 + i * 21}>{t}</tspan>)}
       </text>
 
       {/* Kugeln */}
@@ -203,9 +205,9 @@ export function Board({ layout, geo, pegs, segColors, segNames, activeSegs, sele
         <g
           key={flight.key}
           className="flight"
-          style={{ '--fx': `${flight.from.x}px`, '--fy': `${flight.from.y}px`, '--tx': `${geo.centre.x}px`, '--ty': `${geo.centre.y - 26}px`, '--ms': `${flight.ms}ms` } as React.CSSProperties}
+          style={{ '--fx': `${flight.from.x}px`, '--fy': `${flight.from.y}px`, '--tx': `${geo.centre.x}px`, '--ty': `${geo.centre.y - 44}px`, '--ms': `${flight.ms}ms` } as React.CSSProperties}
         >
-          <CardFace card={flight.card} suit={flight.suit} />
+          <g transform={`scale(${PILE_SCALE})`}><CardFace card={flight.card} suit={flight.suit} /></g>
         </g>
       )}
 

@@ -31,7 +31,9 @@ function GameInner({ lobby, view }: { lobby: LobbyView; view: GameView }) {
   layout.colorsOf.forEach((cs, p) => cs.forEach((c) => (seatOfColor[c] = p)));
   const segColors = Array.from({ length: layout.colors }, (_, c) => (seatOfColor[c] !== undefined ? colorHex(lobby.seats[seatOfColor[c]!]?.color ?? 0) : NEUTRAL));
   const segNames = Array.from({ length: layout.colors }, (_, c) => (seatOfColor[c] !== undefined ? boardLines[seatOfColor[c]!]! : []));
-  const activeSegs = new Set<number>(view.phase === 'playing' ? (layout.colorsOf[view.current] ?? []) : []);
+  // Beim Kartentausch ist noch niemand am Zug: dann zeigt der Pfeil, wer die Runde beginnt
+  const activeSeat = view.phase === 'playing' ? view.current : view.phase === 'exchange' ? (view.dealer + 1) % view.handSizes.length : -1;
+  const activeSegs = new Set<number>(layout.colorsOf[activeSeat] ?? []);
   const [style, setStyleState] = useState<BoardStyle>(() => {
     try {
       return localStorage.getItem('dog.boardStyle') === 'circle' ? 'circle' : 'original';
