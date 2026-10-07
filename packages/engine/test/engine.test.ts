@@ -86,6 +86,26 @@ describe('Bewegung', () => {
     expect(legalPlays(s, 0)).toHaveLength(0);
   });
 
+  it('Gelaufene Kugel auf dem Startfeld sperrt nicht: Überspringen und Schlagen erlaubt', () => {
+    const lapped = { t: 'ring' as const, f: start(1), lap: true as const };
+    const s = scenario(four, { pegs: { [peg(0, 0)]: ring(start(1) - 2), [peg(1, 0)]: lapped }, hands: [['5', '2'], [], [], []] });
+    expect(legalPlays(s, 0).some((p) => p.card === '5')).toBe(true); // überspringen
+    const hit = legalPlays(s, 0).find((p) => p.card === '2')!;
+    expect(applyAction(s, { t: 'play', player: 0, card: '2', moves: hit.moves }).pegs[peg(1, 0)]!.pos).toEqual({ t: 'home' });
+  });
+
+  it('Neue Kugel kommt heraus und schlägt die eigene gelaufene Kugel auf dem Startfeld', () => {
+    const lapped = { t: 'ring' as const, f: start(0), lap: true as const };
+    const s = scenario(four, { pegs: { [peg(0, 0)]: lapped }, hands: [['A'], [], [], []] });
+    const out = legalPlays(s, 0).find((p) => p.moves[0]?.t === 'start')!;
+    const after = applyAction(s, { t: 'play', player: 0, card: 'A', moves: out.moves });
+    expect(after.pegs[peg(0, 0)]!.pos).toEqual({ t: 'home' });
+    expect(after.pegs[(out.moves[0] as { peg: number }).peg]!.pos).toEqual({ t: 'ring', f: start(0) });
+    // frisch herausgekommene eigene Kugel blockiert dagegen
+    const fresh = scenario(four, { pegs: { [peg(0, 0)]: ring(start(0)) }, hands: [['A'], [], [], []] });
+    expect(legalPlays(fresh, 0).some((p) => p.moves[0]?.t === 'start')).toBe(false);
+  });
+
   it('4 geht rückwärts, auch über das eigene Startfeld hinaus', () => {
     let s = scenario(four, { pegs: { [peg(0, 0)]: ring(start(0)) }, hands: [['4'], ['A'], [], []] });
     s = applyAction(s, { t: 'play', player: 0, card: '4', moves: [{ t: 'move', peg: peg(0, 0), steps: -4 }] });

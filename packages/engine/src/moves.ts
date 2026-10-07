@@ -21,7 +21,7 @@ function ringPegAt(pegs: Peg[], f: number): Peg | undefined {
 
 /**
  * Bewegt eine Kugel um `steps` (negativ = rückwärts). Liefert die neue Kugelliste oder null, wenn illegal.
- * Blockierende Kugeln (auf eigenem Startfeld) dürfen weder übersprungen noch geschlagen werden.
+ * Blockierende Kugeln (frisch auf eigenem Startfeld, noch ohne Runde) dürfen weder übersprungen noch geschlagen werden.
  * Am Ziel stehende Kugeln werden heimgeschickt; bei `capturePassed` (7er) auch alle übersprungenen.
  */
 export function tryMove(
@@ -107,8 +107,9 @@ export function tryStart(pegs: Peg[], layout: Layout, pegId: number): Peg[] | nu
   if (!peg || peg.pos.t !== 'home') return null;
   const f = startField(peg.color);
   const occ = ringPegAt(pegs, f);
-  if (occ && occ.color === peg.color) return null;
-  if (occ && !layout.rules.captureOwn && layout.friendlyColors[peg.color]!.includes(occ.color)) return null;
+  // Eigene frisch herausgekommene Kugel blockiert; eine eigene gelaufene Kugel wird von der neuen heimgeschickt
+  if (occ && occ.color === peg.color && !(occ.pos.t === 'ring' && occ.pos.lap)) return null;
+  if (occ && occ.color !== peg.color && !layout.rules.captureOwn && layout.friendlyColors[peg.color]!.includes(occ.color)) return null;
   const next = clonePegs(pegs);
   if (occ) next.find((p) => p.id === occ.id)!.pos = { t: 'home' };
   next.find((p) => p.id === pegId)!.pos = { t: 'ring', f };

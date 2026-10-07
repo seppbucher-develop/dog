@@ -128,9 +128,9 @@ export function progress(layout: Layout, peg: Peg): number {
   return mod(peg.pos.f - startField(peg.color), layout.ringSize);
 }
 
-/** Kugel steht auf dem eigenen Startfeld und blockiert damit das Überspringen. */
+/** Frisch herausgekommene Kugel auf dem eigenen Startfeld blockiert das Überspringen. Nach vollendeter Runde (`lap`) sperrt sie nicht mehr und kann geschlagen werden. */
 export function isBlocker(peg: Peg): boolean {
-  return peg.pos.t === 'ring' && peg.pos.f === startField(peg.color);
+  return peg.pos.t === 'ring' && peg.pos.f === startField(peg.color) && !peg.pos.lap;
 }
 
 export function pegAt(state: GameState, f: number): Peg | undefined {
