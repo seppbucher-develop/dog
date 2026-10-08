@@ -98,6 +98,23 @@ function GameInner({ lobby, view }: { lobby: LobbyView; view: GameView }) {
     }
     return () => timers.forEach(clearTimeout);
   }, [lp?.n]);
+  // Kartenübergabe (Tausch, 2 ziehen): Karte fliegt von einem Spieler zum anderen; nur Beteiligte sehen sie offen
+  const [xflights, setXflights] = useState<Flight[]>([]);
+  const seenTransfer = useRef(Math.max(0, ...view.transfers.map((t) => t.id)));
+  useLayoutEffect(() => {
+    const fresh = view.transfers.filter((t) => t.id > seenTransfer.current);
+    if (fresh.length === 0) return;
+    seenTransfer.current = Math.max(...fresh.map((t) => t.id));
+    const ms = tm.flight * 3;
+    const pos = (seat: number) => {
+      const n = geo.nest(layout.colorsOf[seat]?.[0] ?? 0);
+      return { x: n.cx, y: n.cy };
+    };
+    setXflights((cur) => [...cur, ...fresh.map((t) => ({ key: 1_000_000 + t.id, from: pos(t.from), to: pos(t.to), card: t.card, suit: suitFromNumber(t.id), ms }))]);
+    const ids = new Set(fresh.map((t) => 1_000_000 + t.id));
+    const timer = setTimeout(() => setXflights((cur) => cur.filter((f) => !ids.has(f.key))), ms + 50);
+    return () => clearTimeout(timer);
+  }, [view.transfers]);
   useEffect(() => {
     prevPegs.current = view.pegs;
     prevPile.current = { top: view.discardTop, count: view.discardCount, suit: pileSuit(lp?.n, view.discardCount) };
@@ -295,7 +312,7 @@ function GameInner({ lobby, view }: { lobby: LobbyView; view: GameView }) {
           onMarker={onMarker}
           centerLines={[`Runde ${view.round + 1}`, `Stapel: ${view.deckCount}`, `Geber: ${names[view.dealer]}`]}
           pile={heldPile ?? prevPile.current}
-          flight={flight}
+          flights={flight ? [flight, ...xflights] : xflights}
         />
       </div>
 
