@@ -82,6 +82,14 @@ export interface LastPlay {
   moves: Move[];
 }
 
+/** Eine Karte wechselt den Besitzer (Kartentausch, 2 im Einzelspiel); `card` nur für Beteiligte sichtbar. */
+export interface Transfer {
+  id: number;
+  from: number;
+  to: number;
+  card: Card | null;
+}
+
 export interface GameView {
   config: GameConfig;
   phase: Phase;
@@ -104,6 +112,8 @@ export interface GameView {
   lastPlay: LastPlay | null;
   /** Letzte Fälle, in denen jemand keinen Zug hatte und die Hand abgeworfen wurde (neueste zuletzt) */
   passes: PassEvent[];
+  /** Letzte Kartenübergaben (neueste zuletzt), zum Animieren */
+  transfers: Transfer[];
 }
 
 export interface PassEvent {

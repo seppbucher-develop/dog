@@ -112,6 +112,15 @@ input.code { text-transform: uppercase; letter-spacing: 0.2em; font-weight: 700;
   15% { opacity: 1; }
   to { transform: translate(var(--tx), var(--ty)) rotate(0deg) scale(1); opacity: 1; }
 }
+/* Kartenübergabe: Karte bleibt kurz gut sichtbar stehen, bevor sie beim Empfänger ankommt */
+.flight.xfer { animation-name: fly-xfer; animation-timing-function: ease-in-out; }
+@keyframes fly-xfer {
+  from { transform: translate(var(--fx), var(--fy)) rotate(-10deg) scale(0.5); opacity: 0; }
+  20% { transform: translate(var(--fx), var(--fy)) rotate(0deg) scale(1); opacity: 1; }
+  40% { transform: translate(var(--fx), var(--fy)) rotate(0deg) scale(1); opacity: 1; }
+  90% { transform: translate(var(--tx), var(--ty)) rotate(0deg) scale(1); opacity: 1; }
+  to { transform: translate(var(--tx), var(--ty)) rotate(0deg) scale(0.6); opacity: 0; }
+}
 @media (prefers-reduced-motion: reduce) { .peg-move { transition: none; } .ring-can, .nest.active, .turn-mark { animation: none; } .flight { animation-duration: 1ms; } }
 
 .players { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 6px; }

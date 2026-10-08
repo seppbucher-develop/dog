@@ -8,7 +8,9 @@ import {
   legalPlays,
   makeRand,
   resolveRules,
+  type Action,
   type BotLevel,
+  type Card,
   type GameConfig,
   type GameState,
 } from '@dog/engine';
@@ -17,6 +19,7 @@ import type {
   GameView,
   LastPlay,
   PassEvent,
+  Transfer,
   LobbyPhase,
   LobbyView,
   SeatSpec,
@@ -91,6 +94,8 @@ export class Room {
   lastPlay: LastPlay | null = null;
   private passLog: PassEvent[] = [];
   private passSeq = 0;
+  private transferLog: (Transfer & { card: Card })[] = [];
+  private transferSeq = 0;
   private lastPassed: unknown = null;
   lastActivity: number;
   closed = false;
@@ -340,6 +345,7 @@ export class Room {
     this.rand = makeRand(newSeed());
     this.lastPlay = null;
     this.passLog = [];
+    this.transferLog = [];
     this.phase = 'playing';
     // Wartende Anfragen verfallen mit dem Spielstart
     for (const p of [...this.participants.values()]) if (p.status === 'pending' || p.status === 'rejected') this.removeParticipant(p, 'Das Spiel hat begonnen');
@@ -375,15 +381,35 @@ export class Room {
     this.passLog = this.passLog.slice(-5);
   }
 
+  /** applyAction, merkt sich dabei die Kartenübergaben für die Animation. */
+  private apply(g: GameState, action: Action): GameState {
+    const out: { from: number; to: number; card: Card }[] = [];
+    if (action.t === 'exchange') {
+      if (g.phase === 'exchange' && g.exchange.every((c, p) => c !== null || p === action.player)) {
+        const layout = layoutFor(g.config);
+        g.exchange.forEach((c, p) => out.push({ from: p, to: layout.giveTo[p]!, card: p === action.player ? action.card : c! }));
+      }
+    } else {
+      for (const m of action.moves) {
+        const card = m.t === 'steal' ? g.hands[m.from]?.[m.idx] : undefined;
+        if (m.t === 'steal' && card) out.push({ from: m.from, to: action.player, card });
+      }
+    }
+    const next = applyAction(g, action);
+    for (const t of out) this.transferLog.push({ id: ++this.transferSeq, ...t });
+    this.transferLog = this.transferLog.slice(-12);
+    return next;
+  }
+
   private playerAction(me: Participant, msg: Extract<ClientMessage, { t: 'exchange' | 'play' }>): void {
     if (this.phase !== 'playing' || !this.game) throw new Error('Kein laufendes Spiel');
     if (me.seat === null) throw new Error('Du sitzt nicht am Tisch');
     if (msg.t === 'exchange') {
-      this.game = applyAction(this.game, { t: 'exchange', player: me.seat, card: msg.card });
+      this.game = this.apply(this.game, { t: 'exchange', player: me.seat, card: msg.card });
       this.recordPasses();
     } else {
       const action = { t: 'play' as const, player: me.seat, card: msg.card, moves: msg.moves, ...(msg.as ? { as: msg.as } : {}) };
-      this.game = applyAction(this.game, action);
+      this.game = this.apply(this.game, action);
       this.recordPasses();
       this.lastPlay = { n: ++this.playSeq, player: me.seat, card: msg.card, moves: msg.moves, ...(msg.as ? { as: msg.as } : {}) };
     }
@@ -402,7 +428,7 @@ export class Room {
       for (let p = 0; p < this.seats.length; p++) {
         const s = this.seats[p]!;
         if (s.spec.kind === 'bot' && g.phase === 'exchange' && g.exchange[p] === null) {
-          g = applyAction(g, chooseExchange(g, p, s.spec.level, this.rand));
+          g = this.apply(g, chooseExchange(g, p, s.spec.level, this.rand));
         }
       }
       this.game = g;
@@ -419,7 +445,7 @@ export class Room {
       const s = this.seats[cur.current];
       if (s?.spec.kind !== 'bot') return;
       const action = chooseAction(cur, cur.current, s.spec.level, this.rand);
-      this.game = applyAction(cur, action);
+      this.game = this.apply(cur, action);
       this.recordPasses();
       this.lastPlay = { n: ++this.playSeq, player: action.player, card: action.card, moves: action.moves, ...(action.as ? { as: action.as } : {}) };
       this.changed();
@@ -499,6 +525,7 @@ export class Room {
       legal: g.phase === 'playing' && g.current === seat ? legalPlays(g, seat) : null,
       lastPlay: this.lastPlay,
       passes: this.passLog,
+      transfers: this.transferLog.map((t) => ({ id: t.id, from: t.from, to: t.to, card: t.from === seat || t.to === seat ? t.card : null })),
     };
   }
 

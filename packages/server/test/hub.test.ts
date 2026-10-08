@@ -168,6 +168,11 @@ describe('Spiel', () => {
       const s = JSON.stringify(m);
       expect(s).not.toMatch(/"hands"|"deck"|"discard"/);
     }
+    // Kartentausch: Host sieht nur die eigene abgegebene/erhaltene Karte offen
+    env.send(host, { t: 'exchange', card: v.myHand[0]! });
+    const tr = host.game()!.transfers;
+    expect(tr).toHaveLength(4);
+    expect(tr.filter((t) => t.card !== null).map((t) => t.from === 0 || t.to === 0)).toEqual([true, true]);
     v = playAsHost(env, host)!;
     expect(v.phase).toBe('finished');
     expect(v.winners).not.toBeNull();

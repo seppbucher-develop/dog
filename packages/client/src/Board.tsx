@@ -22,7 +22,10 @@ export interface Flight {
   /** wechselt mit jedem Zug und startet die Animation neu */
   key: number;
   from: { x: number; y: number };
-  card: Card;
+  /** Ziel statt Ablagestapel (Kartenübergabe) */
+  to?: { x: number; y: number };
+  /** null = verdeckt (Rückseite) */
+  card: Card | null;
   suit: Suit;
   ms: number;
 }
@@ -46,13 +49,22 @@ interface Props {
   onMarker(id: string): void;
   centerLines: string[];
   pile: PileView;
-  flight: Flight | null;
+  flights: Flight[];
 }
 
 const CARD_W = 46;
 const CARD_H = 64;
 /** Darstellungsgröße der Karten im Ablagestapel (Faktor auf CARD_W x CARD_H) */
 const PILE_SCALE = 2;
+
+function CardBack() {
+  return (
+    <g>
+      <rect x={-CARD_W / 2} y={-CARD_H / 2} width={CARD_W} height={CARD_H} rx={6} fill="var(--accent)" stroke="#fffefa" strokeWidth={3} />
+      <rect x={-CARD_W / 2 + 5} y={-CARD_H / 2 + 5} width={CARD_W - 10} height={CARD_H - 10} rx={3} fill="none" stroke="#fff" strokeOpacity={0.6} strokeWidth={1.5} />
+    </g>
+  );
+}
 
 function CardFace({ card, suit }: { card: Card; suit: Suit }) {
   const joker = card === 'JOKER';
@@ -70,7 +82,7 @@ function CardFace({ card, suit }: { card: Card; suit: Suit }) {
 
 const stroke = (fill: string) => (fill === '#f6f3ea' ? '#8a8474' : '#15151a');
 
-export function Board({ layout, geo, pegs, segColors, segNames, activeSegs, selectable, clickable, focus, markers, onPeg, onMarker, centerLines, pile, flight }: Props) {
+export function Board({ layout, geo, pegs, segColors, segNames, activeSegs, selectable, clickable, focus, markers, onPeg, onMarker, centerLines, pile, flights }: Props) {
   const R = layout.ringSize;
   const fields = Array.from({ length: R }, (_, f) => f);
   return (
@@ -215,15 +227,15 @@ export function Board({ layout, geo, pegs, segColors, segNames, activeSegs, sele
       })}
 
       {/* Karte fliegt zum Ablagestapel */}
-      {flight && (
+      {flights.map((flight) => (
         <g
           key={flight.key}
-          className="flight"
-          style={{ '--fx': `${flight.from.x}px`, '--fy': `${flight.from.y}px`, '--tx': `${geo.centre.x}px`, '--ty': `${geo.centre.y - 44}px`, '--ms': `${flight.ms}ms` } as React.CSSProperties}
+          className={flight.to ? 'flight xfer' : 'flight'}
+          style={{ '--fx': `${flight.from.x}px`, '--fy': `${flight.from.y}px`, '--tx': `${flight.to?.x ?? geo.centre.x}px`, '--ty': `${flight.to?.y ?? geo.centre.y - 44}px`, '--ms': `${flight.ms}ms` } as React.CSSProperties}
         >
-          <g transform={`scale(${PILE_SCALE})`}><CardFace card={flight.card} suit={flight.suit} /></g>
+          <g transform={`scale(${PILE_SCALE})`}>{flight.card ? <CardFace card={flight.card} suit={flight.suit} /> : <CardBack />}</g>
         </g>
-      )}
+      ))}
 
       {/* Zielmarken der gewählten Kugel */}
       {markers.map((m) => (
