@@ -138,6 +138,9 @@ export interface PassEvent {
   id: number;
   player: number;
   cards: number;
+  /** Oberste (zuletzt abgelegte) Karte und ihre Farbe */
+  top: Card;
+  suit: number;
 }
 
 export type ServerMessage =

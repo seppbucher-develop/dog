@@ -269,10 +269,15 @@ describe('Automatischer Abwurf', () => {
     // Spieler 1 hat nur eine 5, aber keine Kugel auf dem Brett -> kein Zug, Hand wird abgeworfen
     const s = scenario(four, { pegs: { [peg(0, 0)]: ring(5) }, hands: [['2', '3'], ['5'], ['9'], ['9']] });
     const s2 = applyAction(s, { t: 'play', player: 0, card: '2', moves: [{ t: 'move', peg: peg(0, 0), steps: 2 }] });
-    expect(s2.passed).toEqual([{ player: 1, cards: 1 }, { player: 2, cards: 1 }, { player: 3, cards: 1 }]);
+    expect(s2.passed!.map(({ player, cards, top }) => ({ player, cards, top }))).toEqual([
+      { player: 1, cards: 1, top: '5' },
+      { player: 2, cards: 1, top: '9' },
+      { player: 3, cards: 1, top: '9' },
+    ]);
+    expect(s2.passed!.every((e) => typeof e.suit === 'number')).toBe(true);
     expect(s2.current).toBe(0);
     const s3 = applyAction(s2, { t: 'play', player: 0, card: '3', moves: [{ t: 'move', peg: peg(0, 0), steps: 3 }] });
-    expect(s3.passed ?? []).not.toContainEqual({ player: 1, cards: 1 });
+    expect((s3.passed ?? []).some((e) => e.player === 1)).toBe(false);
   });
 });
 
