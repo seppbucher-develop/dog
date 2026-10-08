@@ -97,7 +97,7 @@ export function layoutFor(config: GameConfig): Layout {
     teamList,
     teamOf,
     giveTo,
-    exchangeOn: rules.cardExchange === 'on' || (rules.cardExchange === 'auto' && teams),
+    exchangeOn: rules.cardExchange !== 'off',
     startPegOut: rules.firstPegOnStart === 'on' || (rules.firstPegOnStart === 'auto' && !teams),
     sevenAny: rules.sevenAnyPeg === 'on' || (rules.sevenAnyPeg === 'auto' && !teams),
     friendlyColors,

@@ -66,6 +66,10 @@ describe('Zugauswahl', () => {
   it('Echte Engine-Züge: jede Auswahlfolge führt zu einem gültigen Zug', () => {
     let s = createGame({ players: 3 }, 4);
     for (let i = 0; i < 300 && s.phase !== 'finished'; i++) {
+      if (s.phase === 'exchange') {
+        for (let p = 0; p < 3; p++) s = applyAction(s, { t: 'draw', player: p, idx: 0 }); // Kartentausch im Einzelspiel
+        continue;
+      }
       const legal = legalPlays(s, s.current);
       const pick = legal[i % legal.length]!;
       const card = pick.card;

@@ -53,7 +53,7 @@ function playAsHost(env: ReturnType<typeof setup>, host: FakeConn, maxSteps = 20
     const v = host.game();
     if (!v || v.phase === 'finished') return v;
     if (v.phase === 'exchange') {
-      if (!v.exchangeDone[v.seat]) env.send(host, { t: 'exchange', card: v.myHand[0]! });
+      if (!v.exchangeDone[v.seat]) env.send(host, v.config.players === 4 || v.config.players === 6 ? { t: 'exchange', card: v.myHand[0]! } : { t: 'draw', idx: 0 });
     } else if (v.legal && v.legal.length > 0) {
       const p = v.legal[i % v.legal.length]!;
       env.send(host, { t: 'play', card: p.card, moves: p.moves, ...(p.as ? { as: p.as } : {}) });
@@ -186,7 +186,15 @@ describe('Spiel', () => {
     env.send(host, { t: 'configure', seats: [{ kind: 'human' }, { kind: 'bot', level: 'advanced' }, { kind: 'bot', level: 'expert' }], eightPegs: false, rules: {} });
     env.send(host, { t: 'start' });
     const v = host.game()!;
-    expect(v.phase).toBe('playing');
+    expect(v.phase).toBe('exchange'); // Einzelspiel: Karte vom rechten Nachbarn ziehen
+    expect(v.exchangeDone).toEqual([false, true, true]);
+    env.send(host, { t: 'draw', idx: 0 });
+    const t = host.game()!.transfers;
+    expect(t).toHaveLength(3);
+    expect(t.find((x) => x.to === 0)).toMatchObject({ from: 1, card: expect.any(String) }); // gezogene Karte ist für mich sichtbar
+    expect(t.find((x) => x.from === 0)?.card).not.toBeNull(); // meine abgegebene Karte auch
+    expect(t.find((x) => x.from === 2 && x.to === 1)?.card).toBeNull(); // fremde Übergabe verdeckt
+    expect(host.game()!.gave).toHaveLength(1);
     expect(v.pegs.filter((p) => p.pos.t === 'ring')).toHaveLength(3);
     playAsHost(env, host);
     expect(host.game()!.phase).toBe('finished');
@@ -207,11 +215,19 @@ describe('Spiel', () => {
     expect(gv.seat).toBe(1);
     expect(hv.handSizes).toEqual(gv.handSizes);
     expect(hv.myHand).not.toEqual(gv.myHand);
+    // Erst nach dem Kartentausch (Ziehen vom rechten Nachbarn) wird gespielt
+    expect(hv.phase).toBe('exchange');
+    env.send(host, { t: 'draw', idx: 0 });
+    env.send(guest, { t: 'draw', idx: 0 });
+    env.flush();
+    const h2 = host.game()!;
+    const g2 = guest.game()!;
+    expect(h2.phase).toBe('playing');
     // Nur der Spieler am Zug bekommt legale Züge
-    expect(hv.current === 0 ? hv.legal !== null : hv.legal === null).toBe(true);
-    expect(gv.current === 1 ? gv.legal !== null : gv.legal === null).toBe(true);
+    expect(h2.current === 0 ? h2.legal !== null : h2.legal === null).toBe(true);
+    expect(g2.current === 1 ? g2.legal !== null : g2.legal === null).toBe(true);
     // Zug vom falschen Spieler
-    const other = hv.current === 0 ? guest : host;
+    const other = h2.current === 0 ? guest : host;
     env.send(other, { t: 'play', card: '2', moves: [{ t: 'move', peg: 0, steps: 2 }] });
     expect(other.lastError()).toMatch(/Nicht am Zug|Unzulässig/);
   });
@@ -238,7 +254,7 @@ describe('Spiel', () => {
       const v = host.game()!;
       if (v.phase === 'finished') break;
       if (v.phase === 'exchange') {
-        if (!v.exchangeDone[v.seat]) env.send(host, { t: 'exchange', card: v.myHand[0]! });
+        if (!v.exchangeDone[v.seat]) env.send(host, v.config.players === 4 || v.config.players === 6 ? { t: 'exchange', card: v.myHand[0]! } : { t: 'draw', idx: 0 });
       } else if (v.legal && v.legal.length > 0) {
         const p = v.legal[i % v.legal.length]!;
         env.send(host, { t: 'play', card: p.card, moves: p.moves, ...(p.as ? { as: p.as } : {}) });
@@ -309,7 +325,7 @@ describe('Verbindung, Ersetzen, Wiederholung, Speichern', () => {
     expect(host.lobby().phase).toBe('lobby');
     expect(host.game()).toBeNull();
     env.send(host, { t: 'start' });
-    expect(host.game()!.phase).toBe('playing');
+    expect(host.game()!.phase).toBe('exchange');
   });
 
   it('Host verlässt: Raum wird geschlossen; Gast verlässt in der Lobby: Platz wird frei', () => {

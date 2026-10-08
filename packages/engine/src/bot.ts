@@ -195,6 +195,12 @@ function cardForPartner(state: GameState, layout: Layout, player: number, hand: 
   return best;
 }
 
+/** Einzelspiel: Bot zieht blind eine Karte des rechten Nachbarn. */
+export function chooseDraw(state: GameState, player: number, rand: () => number): Extract<Action, { t: 'draw' }> {
+  const theirs = state.hands[(player + 1) % state.config.players]!;
+  return { t: 'draw', player, idx: Math.floor(rand() * theirs.length) };
+}
+
 /** Wählt die Karte, die der Bot beim Kartentausch abgibt. */
 export function chooseExchange(state: GameState, player: number, level: BotLevel, rand: () => number): Extract<Action, { t: 'exchange' }> {
   const hand = state.hands[player]!;

@@ -15,10 +15,10 @@ Computerspielern in vier Stärken.
 
 | Spieler | Spiel | Kartentausch | 2 |
 |---|---|---|---|
-| 4 | 2 Teams, Partner gegenüber | ja | nur Felder |
-| 6 | 3 Teams zu 2 (oder 2 Teams zu 3) | ja | nur Felder |
-| 3, 5 | jeder für sich | nein | 2 Felder oder blind eine Karte eines Gegners ziehen |
-| 2 | 4 Kugeln, oder 8 Kugeln (eigene + gegenüberliegende Farbe) | nein | 2 Felder oder blind eine Karte des Gegners ziehen |
+| 4 | 2 Teams, Partner gegenüber | mit dem Partner | nur Felder |
+| 6 | 3 Teams zu 2 (oder 2 Teams zu 3) | mit dem Partner | nur Felder |
+| 3, 5 | jeder für sich | blind eine Karte vom rechten Nachbarn ziehen | 2 Felder oder blind eine Karte eines Gegners ziehen |
+| 2 | 4 Kugeln, oder 8 Kugeln (eigene + gegenüberliegende Farbe) | blind eine Karte vom Gegner ziehen | 2 Felder oder blind eine Karte des Gegners ziehen |
 
 Bei 2, 3 und 5 Spielern steht die erste Kugel jeder Farbe schon auf dem Startfeld. Das Brett passt sich an die
 Spielerzahl an (16 Felder pro Abschnitt, kein „leerer“ Spieler).
@@ -51,17 +51,17 @@ Spieler fertig, zieht er im Teamspiel für den Partner weiter; das Team gewinnt,
 | Einstellung | Standard |
 |---|---|
 | Erste Kugel schon auf dem Startfeld | automatisch (bei 2, 3, 5 Spielern) |
-| Kartentausch | automatisch (nur Teamspiel) |
+| Kartentausch zu Rundenbeginn | ja (Team: mit dem Partner, sonst blind vom rechten Nachbarn ziehen) |
 | Eigene und Team-Kugeln dürfen geschlagen werden | ja |
 | Bube: Tausch mit Kugeln des Partners | ja |
 | Bube: Tausch zweier eigener Kugeln (verhindert den Abwurf der Hand) | ja |
 | 7: auf alle Kugeln aufteilbar | nein (nur eigene, bzw. Partner wenn fertig) |
 | 4 spielen | vorwärts oder rückwärts |
-| 7: dieselbe Kugel mehrfach aufteilen | nein (ändert die Stellungen praktisch nie) |
+| 7: dieselbe Kugel mehrfach aufteilen | ja (ändert die Stellungen praktisch nie) |
 | Brett bei 2 Spielern (4 Kugeln) | klein (2 Abschnitte) |
 | Teams bei 6 Spielern | 3 Teams zu 2 |
 | Karten pro Runde | 6, 5, 4, 3, 2 |
-| Zuggeschwindigkeit (1 schnell – 5 langsam, ca. 2,5 s je Computerzug) | 1 |
+| Zuggeschwindigkeit (1 schnell – 5 langsam, ca. 2,5 s je Computerzug) | 4 |
 
 ## Computerspieler
 

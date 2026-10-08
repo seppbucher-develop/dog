@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyAction, BOT_LEVELS, chooseAction, chooseExchange, createGame, legalPlays, makeRand, type BotLevel, type GameConfig, type GivenCard } from '../src';
+import { applyAction, BOT_LEVELS, chooseAction, chooseDraw, chooseExchange, createGame, layoutFor, legalPlays, makeRand, type BotLevel, type GameConfig, type GivenCard } from '../src';
 import { peg, ring, scenario } from './helpers';
 
 /** Spielt ein komplettes Spiel; `levels[p]` ist die Stufe von Spieler p. Liefert die Gewinner. */
@@ -8,7 +8,7 @@ function playGame(cfg: GameConfig, levels: BotLevel[], seed: number): number[] {
   const rand = makeRand(seed + 1000);
   for (let i = 0; i < 50000 && s.phase !== 'finished'; i++) {
     if (s.phase === 'exchange') {
-      for (let p = 0; p < cfg.players; p++) s = applyAction(s, chooseExchange(s, p, levels[p]!, rand));
+      for (let p = 0; p < cfg.players; p++) s = applyAction(s, layoutFor(s.config).teams ? chooseExchange(s, p, levels[p]!, rand) : chooseDraw(s, p, rand));
     } else {
       s = applyAction(s, chooseAction(s, s.current, levels[s.current]!, rand));
     }

@@ -25,7 +25,7 @@ export interface RuleSettings {
   twoPlayerBoard: 'compact' | 'full';
   /** 6 Spieler: 3 Teams zu 2 (Partner gegenüber) oder 2 Teams zu 3 (abwechselnd sitzend). */
   sixPlayerTeams: 'threeOfTwo' | 'twoOfThree';
-  /** Kartentausch: 'auto' = nur im Teamspiel; 'on' = immer (Einzelspiel: an den nächsten Spieler); 'off' = nie. */
+  /** Kartentausch zu Rundenbeginn: 'auto'/'on' = Teamspiel: mit dem Partner tauschen, Einzelspiel: vom rechten Nachbarn eine Karte ziehen; 'off' = nie. */
   cardExchange: 'auto' | 'on' | 'off';
   /** Darf man eigene Kugeln und Kugeln des Teams schlagen (heimschicken)? */
   captureOwn: boolean;
@@ -83,6 +83,8 @@ export type Move =
 export type Action =
   /** `suit` = Farbe der gewählten Karte (0..3, siehe GameState.suits); fehlt sie, zählt die erste Karte dieses Rangs */
   | { t: 'exchange'; player: number; card: Card; suit?: number }
+  /** Einzelspiel: blind die Karte an Position `idx` aus der Hand des rechten Nachbarn (nächster Spieler) ziehen; alle gleichzeitig */
+  | { t: 'draw'; player: number; idx: number }
   /** `as` = Rang, als der der Joker gespielt wird (sonst weglassen) */
   | { t: 'play'; player: number; card: Card; as?: Rank; moves: Move[]; suit?: number };
 
@@ -121,6 +123,8 @@ export interface GameState {
   current: number;
   /** Teamspiel: pro Spieler die zum Tausch gewählte Karte */
   exchange: (Card | null)[];
+  /** Einzelspiel: gewählte Kartenposition beim rechten Nachbarn (exchange[p] merkt nur, dass p gewählt hat) */
+  drawPick?: (number | undefined)[];
   /** Farbe der gewählten Tauschkarte */
   exchangeSuit?: (number | undefined)[];
   /** Farben zu hands/deck/discard (gleiche Reihenfolge). Fehlt bei alten Spielständen, siehe ensureSuits. */

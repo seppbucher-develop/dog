@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { applyAction, createGame, fullDeck, legalPlays, layoutFor, type Card } from '../src';
-import { fin, peg, ring, scenario, start } from './helpers';
+import { exchangeAll, fin, peg, ring, scenario, start } from './helpers';
 
 const four = { players: 4 };
 
@@ -26,9 +26,9 @@ describe('Setup', () => {
     expect(s.hands.map((h) => h.length)).toEqual([6, 6, 6, 6]);
   });
 
-  it('Einzelspiel startet ohne Tausch', () => {
+  it('Einzelspiel startet mit Kartentausch (vom rechten Nachbarn ziehen)', () => {
     const s = createGame({ players: 3 }, 42);
-    expect(s.phase).toBe('playing');
+    expect(s.phase).toBe('exchange');
   });
 });
 
@@ -251,7 +251,7 @@ describe('Ablauf', () => {
       let steps = 0;
       while (s.phase !== 'finished' && steps++ < 20000) {
         if (s.phase === 'exchange') {
-          for (let p = 0; p < cfg.players; p++) s = applyAction(s, { t: 'exchange', player: p, card: s.hands[p]![0]! });
+          s = exchangeAll(s);
           continue;
         }
         const plays = legalPlays(s, s.current);
@@ -321,5 +321,30 @@ describe('Kartenfarben', () => {
       expect(s.given!.find((g) => g.from === p)).toMatchObject({ to, card: sent[p]!.card, suit: sent[p]!.suit });
     }
     expect(consistent(s)).toBe(true);
+  });
+});
+
+describe('Kartentausch im Einzelspiel', () => {
+  it('jeder zieht blind die gewählte Karte seines rechten Nachbarn (Farbe wandert mit)', () => {
+    let s = createGame({ players: 3 }, 7);
+    const before = s.hands.map((h, p) => h.map((c, i) => ({ c, suit: s.suits!.hands[p]![i]! })));
+    // Spieler p zieht Position p aus der Hand von p+1
+    for (let p = 0; p < 3; p++) s = applyAction(s, { t: 'draw', player: p, idx: p });
+    expect(s.hands.map((h) => h.length)).toEqual([6, 6, 6]);
+    for (let p = 0; p < 3; p++) {
+      const got = before[(p + 1) % 3]![p]!;
+      const i = s.hands[p]!.length - 1; // gezogene Karte liegt zuletzt in der Hand
+      expect(s.hands[p]![i]).toBe(got.c);
+      expect(s.suits!.hands[p]![i]).toBe(got.suit);
+    }
+    expect(s.hands.flat().length + s.deck.length + s.discard.length).toBe(110);
+    expect(s.suits!.hands.every((h, p) => h.length === s.hands[p]!.length)).toBe(true);
+  });
+
+  it('lehnt falsche Positionen und die Teamspiel-Variante ab', () => {
+    const s = createGame({ players: 3 }, 7);
+    expect(() => applyAction(s, { t: 'draw', player: 0, idx: 9 })).toThrow();
+    expect(() => applyAction(s, { t: 'exchange', player: 0, card: s.hands[0]![0]! })).toThrow();
+    expect(() => applyAction(createGame({ players: 4 }, 7), { t: 'draw', player: 0, idx: 0 })).toThrow();
   });
 });

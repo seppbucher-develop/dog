@@ -99,6 +99,7 @@ function startRound(state: GameState, layout: Layout): void {
   state.current = (state.dealer + 1) % n;
   state.exchange = Array(n).fill(null);
   state.exchangeSuit = Array(n).fill(undefined);
+  state.drawPick = Array(n).fill(undefined);
   delete state.given;
   state.phase = layout.exchangeOn ? 'exchange' : 'playing';
 }
@@ -169,11 +170,42 @@ export function applyAction(prev: GameState, action: Action): GameState {
   if (state.phase === 'finished') throw new Error('Spiel ist beendet');
   state.passed = [];
 
+  if (action.t === 'draw') {
+    if (state.phase !== 'exchange') throw new Error('Kein Kartentausch aktiv');
+    if (layout.teams) throw new Error('Im Teamspiel wird mit dem Partner getauscht');
+    const neighbour = (action.player + 1) % n;
+    const theirs = state.hands[neighbour]!;
+    if (!Number.isInteger(action.idx) || action.idx < 0 || action.idx >= theirs.length) throw new Error('Karte nicht vorhanden');
+    if (state.exchange[action.player] !== null) throw new Error('Karte bereits gewählt');
+    state.exchange[action.player] = theirs[action.idx]!; // nur als Merker, dass der Spieler gewählt hat
+    (state.drawPick ??= Array(n).fill(undefined))[action.player] = action.idx;
+    if (state.exchange.every((c) => c !== null)) {
+      // Alle ziehen gleichzeitig aus den Händen, wie sie ausgeteilt wurden
+      const picks = state.drawPick!;
+      const taken = Array.from({ length: n }, (_, p) => {
+        const q = (p + 1) % n;
+        return { card: state.hands[q]![picks[p]!]!, suit: state.suits?.hands[q]?.[picks[p]!] ?? 0 };
+      });
+      for (let q = 0; q < n; q++) takeFromHand(state, q, picks[(q - 1 + n) % n]!);
+      for (let p = 0; p < n; p++) {
+        state.hands[p]!.push(taken[p]!.card);
+        state.suits?.hands[p]?.push(taken[p]!.suit);
+      }
+      state.exchange = Array(n).fill(null);
+      state.exchangeSuit = Array(n).fill(undefined);
+      state.drawPick = Array(n).fill(undefined);
+      state.phase = 'playing';
+      settle(state, layout);
+    }
+    return state;
+  }
+
   if (action.t === 'exchange') {
     if (state.phase !== 'exchange') throw new Error('Kein Kartentausch aktiv');
     const hand = state.hands[action.player];
     if (!hand || cardIndex(state, action.player, action.card, action.suit) < 0) throw new Error('Karte nicht auf der Hand');
     if (state.exchange[action.player] !== null) throw new Error('Tauschkarte bereits gewählt');
+    if (!layout.teams) throw new Error('Im Einzelspiel wird eine Karte gezogen');
     state.exchange[action.player] = action.card;
     (state.exchangeSuit ??= Array(n).fill(undefined))[action.player] = action.suit;
     if (state.exchange.every((c) => c !== null)) {
