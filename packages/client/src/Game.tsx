@@ -104,7 +104,7 @@ function GameInner({ lobby, view }: { lobby: LobbyView; view: GameView }) {
     for (const e of fresh) {
       const nst = geo.nest(layout.colorsOf[e.player]?.[0] ?? 0);
       const from = { x: nst.cx, y: nst.cy };
-      const backs = Math.min(e.cards, 4) - 1;
+      const backs = e.cards - 1;
       const start = delay;
       const flights: Flight[] = [];
       for (let j = 0; j <= backs; j++) {
