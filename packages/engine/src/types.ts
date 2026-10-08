@@ -49,7 +49,7 @@ export const DEFAULT_RULES: RuleSettings = {
   captureOwn: true,
   firstPegOnStart: 'auto',
   handSizes: [6, 5, 4, 3, 2],
-  turnSpeed: 1,
+  turnSpeed: 4,
 };
 
 export interface GameConfig {
@@ -81,9 +81,10 @@ export type Move =
   | { t: 'steal'; from: number; idx: number };
 
 export type Action =
-  | { t: 'exchange'; player: number; card: Card }
+  /** `suit` = Farbe der gewählten Karte (0..3, siehe GameState.suits); fehlt sie, zählt die erste Karte dieses Rangs */
+  | { t: 'exchange'; player: number; card: Card; suit?: number }
   /** `as` = Rang, als der der Joker gespielt wird (sonst weglassen) */
-  | { t: 'play'; player: number; card: Card; as?: Rank; moves: Move[] };
+  | { t: 'play'; player: number; card: Card; as?: Rank; moves: Move[]; suit?: number };
 
 export interface Play {
   card: Card;
@@ -96,6 +97,14 @@ export interface GivenCard {
   from: number;
   to: number;
   card: Card;
+  suit?: number;
+}
+
+/** Kartenfarben als Zahl: 0 Herz, 1 Kreuz, 2 Ecke (Karo), 3 Schaufel (Pik). Rein optisch – die Regeln kennen keine Farben. */
+export interface SuitTracker {
+  hands: number[][];
+  deck: number[];
+  discard: number[];
 }
 
 export type Phase = 'exchange' | 'playing' | 'finished';
@@ -112,6 +121,10 @@ export interface GameState {
   current: number;
   /** Teamspiel: pro Spieler die zum Tausch gewählte Karte */
   exchange: (Card | null)[];
+  /** Farbe der gewählten Tauschkarte */
+  exchangeSuit?: (number | undefined)[];
+  /** Farben zu hands/deck/discard (gleiche Reihenfolge). Fehlt bei alten Spielständen, siehe ensureSuits. */
+  suits?: SuitTracker;
   /** Gewinner (Spieler-Indizes des Teams bzw. der einzelne Spieler) */
   winners: number[] | null;
   rng: number;

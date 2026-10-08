@@ -1,6 +1,8 @@
 import { randomBytes } from 'node:crypto';
 import {
   applyAction,
+  cardIndex,
+  ensureSuits,
   chooseAction,
   chooseExchange,
   createGame,
@@ -19,7 +21,7 @@ import type {
   GameView,
   LastPlay,
   PassEvent,
-  Transfer,
+  GaveCard,
   LobbyPhase,
   LobbyView,
   SeatSpec,
@@ -94,8 +96,10 @@ export class Room {
   lastPlay: LastPlay | null = null;
   private passLog: PassEvent[] = [];
   private passSeq = 0;
-  private transferLog: (Transfer & { card: Card })[] = [];
+  private transferLog: { id: number; from: number; to: number; card: Card; suit: number; round: number }[] = [];
   private transferSeq = 0;
+  /** Farbe der zuletzt gespielten Karte */
+  private lastSuit = 0;
   private lastPassed: unknown = null;
   lastActivity: number;
   closed = false;
@@ -381,23 +385,31 @@ export class Room {
     this.passLog = this.passLog.slice(-5);
   }
 
-  /** applyAction, merkt sich dabei die Kartenübergaben für die Animation. */
+  /** applyAction, merkt sich dabei die Kartenübergaben für Animation und Anzeige. */
   private apply(g: GameState, action: Action): GameState {
-    const out: { from: number; to: number; card: Card }[] = [];
+    const out: { from: number; to: number; card: Card; suit: number }[] = [];
+    const suitOf = (p: number, card: Card, suit?: number) => {
+      const i = cardIndex(g, p, card, suit);
+      return g.suits?.hands[p]?.[i] ?? 0;
+    };
     if (action.t === 'exchange') {
       if (g.phase === 'exchange' && g.exchange.every((c, p) => c !== null || p === action.player)) {
         const layout = layoutFor(g.config);
-        g.exchange.forEach((c, p) => out.push({ from: p, to: layout.giveTo[p]!, card: p === action.player ? action.card : c! }));
+        g.exchange.forEach((c, p) => {
+          const card = p === action.player ? action.card : c!;
+          out.push({ from: p, to: layout.giveTo[p]!, card, suit: suitOf(p, card, p === action.player ? action.suit : g.exchangeSuit?.[p]) });
+        });
       }
     } else {
       for (const m of action.moves) {
         const card = m.t === 'steal' ? g.hands[m.from]?.[m.idx] : undefined;
-        if (m.t === 'steal' && card) out.push({ from: m.from, to: action.player, card });
+        if (m.t === 'steal' && card) out.push({ from: m.from, to: action.player, card, suit: g.suits?.hands[m.from]?.[m.idx] ?? 0 });
       }
     }
+    if (action.t === 'play') this.lastSuit = suitOf(action.player, action.card, action.suit);
     const next = applyAction(g, action);
-    for (const t of out) this.transferLog.push({ id: ++this.transferSeq, ...t });
-    this.transferLog = this.transferLog.slice(-12);
+    for (const t of out) this.transferLog.push({ id: ++this.transferSeq, round: next.round, ...t });
+    this.transferLog = this.transferLog.slice(-24);
     return next;
   }
 
@@ -405,13 +417,13 @@ export class Room {
     if (this.phase !== 'playing' || !this.game) throw new Error('Kein laufendes Spiel');
     if (me.seat === null) throw new Error('Du sitzt nicht am Tisch');
     if (msg.t === 'exchange') {
-      this.game = this.apply(this.game, { t: 'exchange', player: me.seat, card: msg.card });
+      this.game = this.apply(this.game, { t: 'exchange', player: me.seat, card: msg.card, ...(msg.suit !== undefined ? { suit: msg.suit } : {}) });
       this.recordPasses();
     } else {
-      const action = { t: 'play' as const, player: me.seat, card: msg.card, moves: msg.moves, ...(msg.as ? { as: msg.as } : {}) };
+      const action = { t: 'play' as const, player: me.seat, card: msg.card, moves: msg.moves, ...(msg.as ? { as: msg.as } : {}), ...(msg.suit !== undefined ? { suit: msg.suit } : {}) };
       this.game = this.apply(this.game, action);
       this.recordPasses();
-      this.lastPlay = { n: ++this.playSeq, player: me.seat, card: msg.card, moves: msg.moves, ...(msg.as ? { as: msg.as } : {}) };
+      this.lastPlay = { n: ++this.playSeq, player: me.seat, card: msg.card, suit: this.lastSuit, moves: msg.moves, ...(msg.as ? { as: msg.as } : {}) };
     }
     this.changed();
   }
@@ -447,7 +459,7 @@ export class Room {
       const action = chooseAction(cur, cur.current, s.spec.level, this.rand);
       this.game = this.apply(cur, action);
       this.recordPasses();
-      this.lastPlay = { n: ++this.playSeq, player: action.player, card: action.card, moves: action.moves, ...(action.as ? { as: action.as } : {}) };
+      this.lastPlay = { n: ++this.playSeq, player: action.player, card: action.card, suit: this.lastSuit, moves: action.moves, ...(action.as ? { as: action.as } : {}) };
       this.changed();
     }, turnDelay(this.deps.botDelayMs, resolveRules({ players: this.seats.length, eightPegs: this.eightPegs, rules: this.rules }).turnSpeed));
   }
@@ -514,9 +526,11 @@ export class Room {
       pegs: g.pegs,
       handSizes: g.hands.map((h) => h.length),
       myHand: g.hands[seat] ?? [],
+      mySuits: g.suits?.hands[seat] ?? (g.hands[seat] ?? []).map(() => 0),
       deckCount: g.deck.length,
       discardCount: g.discard.length,
       discardTop: g.discard[g.discard.length - 1] ?? null,
+      discardSuit: g.suits?.discard[g.suits.discard.length - 1] ?? 0,
       current: g.current,
       dealer: g.dealer,
       round: g.round,
@@ -525,7 +539,13 @@ export class Room {
       legal: g.phase === 'playing' && g.current === seat ? legalPlays(g, seat) : null,
       lastPlay: this.lastPlay,
       passes: this.passLog,
-      transfers: this.transferLog.map((t) => ({ id: t.id, from: t.from, to: t.to, card: t.from === seat || t.to === seat ? t.card : null })),
+      transfers: this.transferLog.map((t) => {
+        const seen = t.from === seat || t.to === seat;
+        return { id: t.id, from: t.from, to: t.to, card: seen ? t.card : null, suit: seen ? t.suit : null };
+      }),
+      gave: this.transferLog
+        .filter((t) => t.from === seat && t.round === g.round)
+        .map((t): GaveCard => ({ id: t.id, to: t.to, card: t.card, suit: t.suit, held: cardIndex(g, t.to, t.card, t.suit) >= 0 })),
     };
   }
 
@@ -572,6 +592,7 @@ export class Room {
     room.eightPegs = s.eightPegs;
     room.rules = s.rules;
     room.game = s.game;
+    if (room.game) ensureSuits(room.game);
     room.lastPlay = s.lastPlay;
     room.playSeq = s.lastPlay?.n ?? 0;
     room.lastActivity = s.lastActivity;

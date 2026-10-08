@@ -75,7 +75,7 @@ describe('Bots', () => {
     s.hands = [['K', '2'], ['5', '3'], ['9', '4'], ['6', '7']];
     for (let c = 0; c < 4; c++) s.pegs.find((p) => p.id === peg(c, 0))!.pos = ring(c * 16); // alle können ziehen
     for (let p = 0; p < 4; p++) s = applyAction(s, { t: 'exchange', player: p, card: s.hands[p]![1]! });
-    expect(s.given).toEqual([
+    expect(s.given!.map(({ from, to, card }) => ({ from, to, card }))).toEqual([
       { from: 0, to: 2, card: '2' },
       { from: 1, to: 3, card: '3' },
       { from: 2, to: 0, card: '4' },

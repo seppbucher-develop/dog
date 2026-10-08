@@ -1,25 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import type { Card } from '@dog/engine';
-import { SUITS, reconcileSuits, suitFromNumber, type Suit } from '../src/cards';
+import { SUITS, isRedSuit, suitOf } from '../src/cards';
 import { timing } from '../src/speed';
 
 describe('Kartenfarben', () => {
-  it('vergibt je Rang verschiedene Farben und lässt den Joker aus', () => {
-    const m = reconcileSuits(new Map(), ['5', '5', '5', 'JOKER'], null, 7);
-    expect(new Set(m.get('5')).size).toBe(3);
-    expect(m.has('JOKER')).toBe(false);
-  });
-
-  it('behält die Farben der übrigen Karten, wenn eine gespielt wird', () => {
-    const start = reconcileSuits(new Map(), ['5', '5', 'K'], null, 1);
-    const [a, b] = start.get('5')!;
-    const after = reconcileSuits(start, ['5', 'K'], { card: '5' as Card, suit: a! }, 2);
-    expect(after.get('5')).toEqual([b]);
-    expect(after.get('K')).toEqual(start.get('K'));
-  });
-
-  it('liefert stets eine gültige Farbe', () => {
-    for (let n = 0; n < 50; n++) expect(SUITS).toContain(suitFromNumber(n) as Suit);
+  it('ordnet Nummern den vier Farben zu', () => {
+    expect([0, 1, 2, 3].map(suitOf)).toEqual([...SUITS]);
+    expect(isRedSuit(suitOf(0))).toBe(true);
+    expect(isRedSuit(suitOf(1))).toBe(false);
+    expect(suitOf(null)).toBe(SUITS[0]);
   });
 });
 

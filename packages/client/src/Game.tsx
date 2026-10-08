@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { applyMoveToPegs, layoutFor, sevenNext, tryMove, type Card, type Move, type Peg, type Play, type Pos } from '@dog/engine';
 import type { GameView, LobbyView } from '@dog/protocol';
 import { Board, type BoardMarker, type Flight, type PileView } from './Board';
-import { SUITS, reconcileSuits, suitFromNumber, type Suit } from './cards';
+import { isRedSuit, suitOf } from './cards';
 import { timing } from './speed';
 import { NEUTRAL, colorHex, colorName } from './colors';
 import { hasOriginalShape, makeGeo, type BoardStyle } from './geometry';
@@ -11,7 +11,6 @@ import { net } from './net';
 import { candidates, completed, emptySel, jokerRanks, movablePegs, nextMoves, optionsForPeg, playableCards, sevenClick, sevenTargets, sevenUndo, type Selection, type SevenStep } from './play';
 
 const ORDER: Card[] = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'JOKER'];
-const sortHand = (h: Card[]) => [...h].sort((a, b) => ORDER.indexOf(a) - ORDER.indexOf(b));
 
 export function Game({ lobby, view }: { lobby: LobbyView; view: GameView | null }) {
   if (!view) return <div className="card center">Spiel wird geladen …</div>;
@@ -54,6 +53,8 @@ function GameInner({ lobby, view }: { lobby: LobbyView; view: GameView }) {
   const [sel, setSel] = useState<Selection>(emptySel);
   const [focus, setFocus] = useState<number | null>(null);
   const [xCard, setXCard] = useState<Card | null>(null);
+  /** Farbe der angeklickten Handkarte (bei mehreren Karten gleichen Werts) */
+  const [pick, setPick] = useState<number | null>(null);
   const [note, setNote] = useState<string | null>(null);
   // Nach dem Abschicken bleiben die Kugeln am Ziel stehen, bis der Server den neuen Stand schickt
   const [sentPegs, setSentPegs] = useState<Peg[] | null>(null);
@@ -61,33 +62,18 @@ function GameInner({ lobby, view }: { lobby: LobbyView; view: GameView }) {
   const speed = layout.rules.turnSpeed;
   const tm = timing(speed);
 
-  // Farben der Handkarten (rein optisch), nachgeführt solange die Karte auf der Hand liegt
-  const suitsRef = useRef(new Map<Card, Suit[]>());
-  const playedRef = useRef<{ card: Card; suit: Suit } | null>(null);
-  const handLen = useRef(view.myHand.length);
-  suitsRef.current = reconcileSuits(suitsRef.current, view.myHand, playedRef.current, view.round * 977 + view.deckCount);
-  if (view.myHand.length !== handLen.current) {
-    handLen.current = view.myHand.length;
-    playedRef.current = null;
-  }
-  const suitMap = suitsRef.current;
-
   // Ablegen: Karte fliegt zum Stapel, Kugeln folgen (ab Stufe 2 erst danach)
   const lp = view.lastPlay;
-  const suitOfPlay = useRef(new Map<number, Suit>());
-  const pileSuit = (n: number | undefined, fallback: number): Suit => (n !== undefined && suitOfPlay.current.get(n)) || suitFromNumber(n ?? fallback);
   const [flight, setFlight] = useState<Flight | null>(null);
   const [heldPile, setHeldPile] = useState<PileView | null>(null);
   const [heldPegs, setHeldPegs] = useState<Peg[] | null>(null);
   const seenPlay = useRef(lp?.n ?? 0);
   const prevPegs = useRef(view.pegs);
-  const prevPile = useRef<PileView>({ top: view.discardTop, count: view.discardCount, suit: pileSuit(lp?.n, view.discardCount) });
+  const prevPile = useRef<PileView>({ top: view.discardTop, count: view.discardCount, suit: suitOf(view.discardSuit) });
   useLayoutEffect(() => {
     if (lp?.n === undefined || lp.n === seenPlay.current) return;
     seenPlay.current = lp.n;
-    const own = lp.player === view.seat ? playedRef.current : null;
-    const suit = own && own.card === lp.card ? own.suit : suitFromNumber(lp.n);
-    suitOfPlay.current.set(lp.n, suit);
+    const suit = suitOf(lp.suit);
     const nst = geo.nest(layout.colorsOf[lp.player]?.[0] ?? 0);
     setFlight({ key: lp.n, from: { x: nst.cx, y: nst.cy }, card: lp.card, suit, ms: tm.flight });
     setHeldPile(prevPile.current);
@@ -98,26 +84,34 @@ function GameInner({ lobby, view }: { lobby: LobbyView; view: GameView }) {
     }
     return () => timers.forEach(clearTimeout);
   }, [lp?.n]);
-  // Kartenübergabe (Tausch, 2 ziehen): Karte fliegt von einem Spieler zum anderen; nur Beteiligte sehen sie offen
+  // Kartenübergabe (Tausch, 2 ziehen): nur die Karte, die ich bekomme, fliegt zu mir; erst bei der Ankunft liegt sie in der Hand
   const [xflights, setXflights] = useState<Flight[]>([]);
+  const [arrived, setArrived] = useState<Set<number>>(() => new Set(view.transfers.map((t) => t.id)));
   const seenTransfer = useRef(Math.max(0, ...view.transfers.map((t) => t.id)));
   useLayoutEffect(() => {
     const fresh = view.transfers.filter((t) => t.id > seenTransfer.current);
     if (fresh.length === 0) return;
     seenTransfer.current = Math.max(...fresh.map((t) => t.id));
-    const ms = tm.flight * 3;
+    const mine = fresh.filter((t) => t.to === view.seat && t.card !== null);
+    setArrived((cur) => new Set([...cur, ...fresh.filter((t) => !mine.includes(t)).map((t) => t.id)]));
+    if (mine.length === 0) return;
+    const ms = tm.flight * 2;
+    const nest = geo.nest(layout.colorsOf[view.seat]?.[0] ?? 0);
+    const to = { x: nest.cx, y: nest.cy };
     const pos = (seat: number) => {
       const n = geo.nest(layout.colorsOf[seat]?.[0] ?? 0);
       return { x: n.cx, y: n.cy };
     };
-    setXflights((cur) => [...cur, ...fresh.map((t) => ({ key: 1_000_000 + t.id, from: pos(t.from), to: pos(t.to), card: t.card, suit: suitFromNumber(t.id), ms }))]);
-    const ids = new Set(fresh.map((t) => 1_000_000 + t.id));
-    const timer = setTimeout(() => setXflights((cur) => cur.filter((f) => !ids.has(f.key))), ms + 50);
-    return () => clearTimeout(timer);
+    setXflights((cur) => [...cur, ...mine.map((t) => ({ key: 1_000_000 + t.id, from: pos(t.from), to, card: t.card, suit: suitOf(t.suit), ms }))]);
+    // ohne Aufräumen beim nächsten Spielstand, sonst bliebe die Karte hängen
+    setTimeout(() => {
+      setXflights((cur) => cur.filter((f) => !mine.some((t) => 1_000_000 + t.id === f.key)));
+      setArrived((cur) => new Set([...cur, ...mine.map((t) => t.id)]));
+    }, ms);
   }, [view.transfers]);
   useEffect(() => {
     prevPegs.current = view.pegs;
-    prevPile.current = { top: view.discardTop, count: view.discardCount, suit: pileSuit(lp?.n, view.discardCount) };
+    prevPile.current = { top: view.discardTop, count: view.discardCount, suit: suitOf(view.discardSuit) };
   });
 
   // Neuer Spielstand vom Server: angefangene Auswahl verwerfen
@@ -126,6 +120,7 @@ function GameInner({ lobby, view }: { lobby: LobbyView; view: GameView }) {
     setSel(emptySel);
     setFocus(null);
     setXCard(null);
+    setPick(null);
     setNote(null);
     setSentPegs(null);
   }, [stateKey]);
@@ -140,8 +135,22 @@ function GameInner({ lobby, view }: { lobby: LobbyView; view: GameView }) {
   const myTurn = view.phase === 'playing' && view.current === view.seat && view.legal !== null;
   const legal = view.legal ?? [];
   const teams = layout.teams;
-  const hand = sortHand(view.myHand);
-  const suitOf = (c: Card, i: number): Suit => suitMap.get(c)?.[hand.slice(0, i).filter((x) => x === c).length] ?? SUITS[0];
+  // Handkarten mit Farbe; die gerade fliegende Karte erscheint erst bei der Ankunft
+  const incoming = view.transfers.filter((t) => t.to === view.seat && t.card !== null && !arrived.has(t.id));
+  const hand = useMemo(() => {
+    const cards = view.myHand.map((card, i) => ({ card, suit: view.mySuits[i] ?? 0 }));
+    for (const t of incoming) {
+      const i = cards.findIndex((h) => h.card === t.card && h.suit === t.suit);
+      if (i >= 0) cards.splice(i, 1);
+    }
+    return cards.sort((a, b) => ORDER.indexOf(a.card) - ORDER.indexOf(b.card) || a.suit - b.suit);
+  }, [view.myHand, view.mySuits, incoming.map((t) => t.id).join()]);
+  /** Farbe der gewählten Karte dieses Rangs: die angeklickte, sonst die erste auf der Hand */
+  const suitFor = (c: Card): number | undefined => {
+    if (c === 'JOKER') return undefined;
+    const ofRank = hand.filter((h) => h.card === c);
+    return ofRank.some((h) => h.suit === pick) ? pick! : ofRank[0]?.suit;
+  };
 
   // 7: Teilzüge in beliebiger Reihenfolge, aus der Stellung berechnet (nicht aus der zusammengefassten Zugliste)
   const isSeven = sel.card === '7' || (sel.card === 'JOKER' && sel.as === '7');
@@ -155,9 +164,8 @@ function GameInner({ lobby, view }: { lobby: LobbyView; view: GameView }) {
   const submit = (p: Play) => {
     const after = p.card === '7' || p.as === '7' ? sevenNext(view.pegs, layout, view.seat, p.moves, p.card === 'JOKER').pegs : p.moves.reduce<Peg[] | null>((ps, m) => (ps ? applyMoveToPegs(ps, layout, m, false) : null), view.pegs);
     if (after) setSentPegs(after);
-    const suit = p.card === 'JOKER' ? undefined : suitMap.get(p.card)?.[0];
-    if (suit) playedRef.current = { card: p.card, suit };
-    net.send({ t: 'play', card: p.card, ...(p.as ? { as: p.as } : {}), moves: p.moves });
+    const suit = suitFor(p.card);
+    net.send({ t: 'play', card: p.card, ...(suit !== undefined ? { suit } : {}), ...(p.as ? { as: p.as } : {}), moves: p.moves });
     setSel(emptySel);
     setFocus(null);
   };
@@ -256,10 +264,17 @@ function GameInner({ lobby, view }: { lobby: LobbyView; view: GameView }) {
   const stealOpts = opts.filter((m): m is Extract<Move, { t: 'steal' }> => m.t === 'steal');
 
   const playable = playableCards(legal);
-  const clickCard = (c: Card) => {
-    if (view.phase === 'exchange') return !view.exchangeDone[view.seat] && setXCard(c);
+  const clickCard = (c: Card, suit: number) => {
+    if (view.phase === 'exchange') {
+      if (view.exchangeDone[view.seat]) return;
+      setXCard(c);
+      return setPick(suit);
+    }
     if (!myTurn) return;
-    setSel(sel.card === c ? emptySel : { card: c, prefix: [] });
+    const same = sel.card === c && (c === 'JOKER' || suitFor(c) === suit);
+    if (same) setSel(emptySel);
+    else if (sel.card !== c) setSel({ card: c, prefix: [] });
+    setPick(suit);
     setFocus(null);
     setNote(null);
   };
@@ -318,26 +333,47 @@ function GameInner({ lobby, view }: { lobby: LobbyView; view: GameView }) {
 
       <aside className="side">
         <div className="hand" role="list" aria-label="Deine Karten">
-          {hand.map((c, i) => {
-            const selected = view.phase === 'exchange' ? xCard === c && hand.indexOf(c) === i : sel.card === c && hand.indexOf(c) === i;
+          {hand.map(({ card: c, suit }, i) => {
+            const mark = view.phase === 'exchange' ? xCard : sel.card;
+            const selected = mark === c && (c === 'JOKER' || suitFor(c) === suit) && hand.findIndex((h) => h.card === c && h.suit === suit) === i;
             const usable = view.phase === 'exchange' ? !view.exchangeDone[view.seat] : myTurn && playable.has(c);
+            const sym = suitOf(suit);
             return (
               <button
-                key={`${c}${i}`}
+                key={`${c}${suit}${i}`}
                 role="listitem"
                 className={`pcard${selected ? ' selected' : ''}${usable ? '' : ' dim'}${c === 'J' || c === 'Q' || c === 'K' ? ' face' : ''}${c === 'JOKER' ? ' joker' : ''}`}
                 disabled={!usable}
-                onClick={() => clickCard(c)}
+                onClick={() => clickCard(c, suit)}
                 aria-pressed={selected}
               >
                 <span className="rank">{CARD_TEXT[c]}</span>
-                {c !== 'JOKER' && <span className={`suit${suitOf(c, i) === '♥' || suitOf(c, i) === '♦' ? ' red' : ''}`} aria-label="Farbe">{suitOf(c, i)}</span>}
+                {c !== 'JOKER' && <span className={`suit${isRedSuit(sym) ? ' red' : ''}`} aria-label="Farbe">{sym}</span>}
                 <span className="hint">{cardHint(c, teams, layout.rules.fourDirection === 'both')}</span>
               </button>
             );
           })}
           {hand.length === 0 && <p className="muted">Keine Karten auf der Hand.</p>}
         </div>
+
+        {view.gave.length > 0 && (
+          <div className="card gave" aria-label="Abgegebene Karten">
+            <strong>Von dir abgegeben</strong>
+            <ul>
+              {view.gave.map((g) => {
+                const sym = suitOf(g.suit);
+                return (
+                  <li key={g.id} className={g.held ? 'held' : 'gone'}>
+                    <span className="gcard">
+                      <span className={g.card !== 'JOKER' && isRedSuit(sym) ? 'red' : ''}>{CARD_TEXT[g.card]}{g.card !== 'JOKER' && sym}</span>
+                    </span>
+                    <span>an {names[g.to]}: {g.held ? 'noch auf der Hand' : 'schon gespielt'}</span>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        )}
 
         <div className="card status" aria-live="polite">
           <div className="controls">
@@ -352,7 +388,7 @@ function GameInner({ lobby, view }: { lobby: LobbyView; view: GameView }) {
           )}
           <div className="row">
             {view.phase === 'exchange' && !view.exchangeDone[view.seat] && (
-              <button className="primary" disabled={!xCard} onClick={() => xCard && net.send({ t: 'exchange', card: xCard })}>Karte abgeben</button>
+              <button className="primary" disabled={!xCard} onClick={() => xCard && net.send({ t: 'exchange', card: xCard, ...(suitFor(xCard) !== undefined ? { suit: suitFor(xCard)! } : {}) })}>Karte abgeben</button>
             )}
             {onlyPlay && <button className="primary" onClick={() => submit(onlyPlay)}>Zug ausführen</button>}
             {voidPlay && voidPlay.moves.length === 0 && <button onClick={() => submit(voidPlay)}>Ohne Wirkung ablegen</button>}

@@ -164,6 +164,7 @@ describe('Spiel', () => {
     expect(v.exchangeDone).toEqual([false, true, true, true]); // Bots haben schon gewählt
     expect(v.myHand).toHaveLength(6);
     expect(Array.isArray(v.passes)).toBe(true);
+    expect(v.mySuits).toHaveLength(v.myHand.length);
     for (const m of host.msgs) {
       const s = JSON.stringify(m);
       expect(s).not.toMatch(/"hands"|"deck"|"discard"/);
