@@ -28,6 +28,8 @@ export interface Flight {
   card: Card | null;
   suit: Suit;
   ms: number;
+  /** Verzögerung bis zum Start (ms) */
+  delay?: number;
 }
 
 interface Props {
@@ -231,7 +233,7 @@ export function Board({ layout, geo, pegs, segColors, segNames, activeSegs, sele
         <g
           key={flight.key}
           className={flight.to ? 'flight xfer' : 'flight'}
-          style={{ '--fx': `${flight.from.x}px`, '--fy': `${flight.from.y}px`, '--tx': `${flight.to?.x ?? geo.centre.x}px`, '--ty': `${flight.to?.y ?? geo.centre.y - 44}px`, '--ms': `${flight.ms}ms` } as React.CSSProperties}
+          style={{ '--fx': `${flight.from.x}px`, '--fy': `${flight.from.y}px`, '--tx': `${flight.to?.x ?? geo.centre.x}px`, '--ty': `${flight.to?.y ?? geo.centre.y - 44}px`, '--ms': `${flight.ms}ms`, animationDelay: `${flight.delay ?? 0}ms` } as React.CSSProperties}
         >
           <g transform={`scale(${PILE_SCALE})`}>{flight.card ? <CardFace card={flight.card} suit={flight.suit} /> : <CardBack />}</g>
         </g>

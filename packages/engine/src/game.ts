@@ -125,7 +125,8 @@ function settle(state: GameState, layout: Layout): void {
       continue;
     }
     if (legalPlays(state, cur).length === 0) {
-      (state.passed ??= []).push({ player: cur, cards: state.hands[cur]!.length });
+      const dumped = state.hands[cur]!;
+      (state.passed ??= []).push({ player: cur, cards: dumped.length, top: dumped[dumped.length - 1]!, suit: state.suits?.hands[cur]?.[dumped.length - 1] ?? 0 });
       if (state.given) state.given = state.given.filter((g) => g.to !== cur);
       state.discard.push(...state.hands[cur]!);
       if (state.suits) state.suits.discard.push(...(state.suits.hands[cur] ?? []));

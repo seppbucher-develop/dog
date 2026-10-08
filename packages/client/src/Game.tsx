@@ -70,20 +70,57 @@ function GameInner({ lobby, view }: { lobby: LobbyView; view: GameView }) {
   const seenPlay = useRef(lp?.n ?? 0);
   const prevPegs = useRef(view.pegs);
   const prevPile = useRef<PileView>({ top: view.discardTop, count: view.discardCount, suit: suitOf(view.discardSuit) });
+  // Muss ein Spieler seine Hand abwerfen, fliegen die Karten nacheinander (nach einer gerade gespielten Karte) auf den Stapel
+  const lastPass = view.passes.length > 0 ? view.passes[view.passes.length - 1]!.id : 0;
+  const seenPass = useRef(lastPass);
+  const [pflights, setPflights] = useState<Flight[]>([]);
   useLayoutEffect(() => {
-    if (lp?.n === undefined || lp.n === seenPlay.current) return;
-    seenPlay.current = lp.n;
-    const suit = suitOf(lp.suit);
-    const nst = geo.nest(layout.colorsOf[lp.player]?.[0] ?? 0);
-    setFlight({ key: lp.n, from: { x: nst.cx, y: nst.cy }, card: lp.card, suit, ms: tm.flight });
-    setHeldPile(prevPile.current);
-    const timers = [setTimeout(() => setHeldPile(null), tm.flight)];
-    if (tm.sequential && lp.player !== view.seat) {
-      setHeldPegs(prevPegs.current);
-      timers.push(setTimeout(() => setHeldPegs(null), tm.flight));
+    const playNew = lp?.n !== undefined && lp.n !== seenPlay.current;
+    const fresh = view.passes.filter((e) => e.id > seenPass.current);
+    seenPass.current = lastPass;
+    if (!playNew && fresh.length === 0) return;
+    setPflights([]);
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    let pile = prevPile.current;
+    let delay = 0;
+    if (playNew) {
+      seenPlay.current = lp!.n!;
+      const nst = geo.nest(layout.colorsOf[lp!.player]?.[0] ?? 0);
+      setFlight({ key: lp!.n!, from: { x: nst.cx, y: nst.cy }, card: lp!.card, suit: suitOf(lp!.suit), ms: tm.flight });
+      pile = { top: lp!.card, suit: suitOf(lp!.suit), count: pile.count + 1 };
+      delay = tm.flight;
+      if (tm.sequential && lp!.player !== view.seat) {
+        setHeldPegs(prevPegs.current);
+        timers.push(setTimeout(() => setHeldPegs(null), tm.flight));
+      }
     }
+    setHeldPile(prevPile.current);
+    if (fresh.length === 0) {
+      timers.push(setTimeout(() => setHeldPile(null), delay));
+      return () => timers.forEach(clearTimeout);
+    }
+    // Stapel zeigt zuerst die gespielte Karte, dann nach jedem Abwurf dessen oberste Karte
+    if (playNew) timers.push(setTimeout(() => setHeldPile(pile), delay));
+    for (const e of fresh) {
+      const nst = geo.nest(layout.colorsOf[e.player]?.[0] ?? 0);
+      const from = { x: nst.cx, y: nst.cy };
+      const backs = Math.min(e.cards, 4) - 1;
+      const start = delay;
+      const flights: Flight[] = [];
+      for (let j = 0; j <= backs; j++) {
+        const top = j === backs;
+        flights.push({ key: 2_000_000 + e.id * 10 + j, from, card: top ? e.top : null, suit: suitOf(e.suit), ms: tm.flight, delay: j * 90 });
+      }
+      const total = tm.flight + backs * 90;
+      pile = { top: e.top, suit: suitOf(e.suit), count: pile.count + e.cards };
+      const landed = pile;
+      timers.push(setTimeout(() => setPflights((cur) => [...cur, ...flights]), start));
+      timers.push(setTimeout(() => { setHeldPile(landed); setPflights((cur) => cur.filter((f) => !flights.includes(f))); }, start + total));
+      delay = start + total + 120;
+    }
+    timers.push(setTimeout(() => setHeldPile(null), delay));
     return () => timers.forEach(clearTimeout);
-  }, [lp?.n]);
+  }, [lp?.n, lastPass]);
   // Kartenübergabe (Tausch, 2 ziehen): nur die Karte, die ich bekomme, fliegt zu mir; erst bei der Ankunft liegt sie in der Hand
   const [xflights, setXflights] = useState<Flight[]>([]);
   const [arrived, setArrived] = useState<Set<number>>(() => new Set(view.transfers.map((t) => t.id)));
@@ -327,7 +364,7 @@ function GameInner({ lobby, view }: { lobby: LobbyView; view: GameView }) {
           onMarker={onMarker}
           centerLines={[`Runde ${view.round + 1}`, `Stapel: ${view.deckCount}`, `Geber: ${names[view.dealer]}`]}
           pile={heldPile ?? prevPile.current}
-          flights={flight ? [flight, ...xflights] : xflights}
+          flights={[...(flight ? [flight] : []), ...pflights, ...xflights]}
         />
       </div>
 

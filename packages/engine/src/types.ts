@@ -134,5 +134,5 @@ export interface GameState {
    */
   given?: GivenCard[];
   /** Spieler, deren Hand in der letzten Aktion wegen fehlendem Zug automatisch abgeworfen wurde */
-  passed?: { player: number; cards: number }[];
+  passed?: { player: number; cards: number; top: Card; suit: number }[];
 }
