@@ -170,3 +170,10 @@ input.code { text-transform: uppercase; letter-spacing: 0.2em; font-weight: 700;
 .notizen-row .notizen-text:focus { border-color: var(--line); background: var(--panel); }
 .notizen-check { width: 20px; height: 20px; flex: none; }
 .notizen-erledigt .notizen-text { text-decoration: line-through; color: var(--muted); }
+
+.gave ul { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 4px; }
+.gave li { display: flex; align-items: center; gap: 8px; }
+.gave .gcard { min-width: 3.2em; text-align: center; padding: 2px 6px; border: 1.5px solid #8a8474; border-radius: 6px; background: #fffefa; color: #222; font-weight: 800; }
+.gave .gcard .red { color: #c0392b; }
+.gave li.held { color: var(--accent); }
+.gave li.gone { color: var(--muted); }

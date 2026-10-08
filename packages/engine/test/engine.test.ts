@@ -276,3 +276,45 @@ describe('Automatischer Abwurf', () => {
   });
 });
 
+
+describe('Kartenfarben', () => {
+  const total = (s: ReturnType<typeof createGame>) => s.hands.flat().length + s.deck.length + s.discard.length;
+  const consistent = (s: ReturnType<typeof createGame>) =>
+    s.suits!.deck.length === s.deck.length && s.suits!.discard.length === s.discard.length && s.hands.every((h, p) => s.suits!.hands[p]!.length === h.length);
+
+  it('führt die Farbe jeder Karte mit und spielt genau die gewählte Karte aus', () => {
+    let s = createGame({ players: 3, rules: { cardExchange: 'off' } }, 5);
+    expect(total(s)).toBe(110);
+    expect(consistent(s)).toBe(true);
+    const me = s.current;
+    // zwei gleiche Karten mit verschiedener Farbe auf die Hand legen
+    s.hands[me] = ['A', 'A', 'K'];
+    s.suits!.hands[me] = [0, 2, 1];
+    const play = legalPlays(s, me).find((p) => p.card === 'A')!;
+    s = applyAction(s, { t: 'play', player: me, card: 'A', suit: 2, moves: play.moves });
+    expect(s.suits!.discard.at(-1)).toBe(2);
+    expect(s.hands[me]).toEqual(['A', 'K']);
+    expect(s.suits!.hands[me]).toEqual([0, 1]);
+    expect(consistent(s)).toBe(true);
+  });
+
+  it('lehnt eine Farbe ab, die nicht auf der Hand liegt', () => {
+    const s = createGame({ players: 3, rules: { cardExchange: 'off' } }, 5);
+    const me = s.current;
+    s.hands[me] = ['A', 'K'];
+    s.suits!.hands[me] = [0, 1];
+    expect(() => applyAction(s, { t: 'play', player: me, card: 'A', suit: 3, moves: [] })).toThrow();
+  });
+
+  it('Tauschkarte behält ihre Farbe beim Empfänger', () => {
+    let s = createGame({ players: 4 }, 9);
+    const sent = s.hands.map((h, p) => ({ card: h[1]!, suit: s.suits!.hands[p]![1]! }));
+    for (let p = 0; p < 4; p++) s = applyAction(s, { t: 'exchange', player: p, card: sent[p]!.card, suit: sent[p]!.suit });
+    const layoutGive = [2, 3, 0, 1];
+    for (let p = 0; p < 4; p++) {
+      const to = layoutGive[p]!;
+      expect(s.given!.find((g) => g.from === p)).toMatchObject({ to, card: sent[p]!.card, suit: sent[p]!.suit });
+    }
+    expect(consistent(s)).toBe(true);
+  });
+});

@@ -40,8 +40,9 @@ export type ClientMessage =
   /** Host: im Spiel einen Platz durch einen Bot ersetzen (z. B. bei Verbindungsabbruch). */
   | { t: 'setBot'; seat: number; level: BotLevel }
   | { t: 'start' }
-  | { t: 'exchange'; card: Card }
-  | { t: 'play'; card: Card; as?: Rank; moves: Move[] }
+  /** `suit` = Farbe der Karte (0 Herz, 1 Kreuz, 2 Ecke, 3 Schaufel) */
+  | { t: 'exchange'; card: Card; suit?: number }
+  | { t: 'play'; card: Card; as?: Rank; moves: Move[]; suit?: number }
   | { t: 'rematch' }
   | { t: 'leave' };
 
@@ -78,6 +79,8 @@ export interface LastPlay {
   n?: number;
   player: number;
   card: Card;
+  /** Farbe der gespielten Karte */
+  suit?: number;
   as?: Rank;
   moves: Move[];
 }
@@ -88,6 +91,16 @@ export interface Transfer {
   from: number;
   to: number;
   card: Card | null;
+  suit: number | null;
+}
+
+/** Vom Betrachter abgegebene Karte (Tausch oder gezogene 2) und ob der Empfänger sie noch auf der Hand hat. */
+export interface GaveCard {
+  id: number;
+  to: number;
+  card: Card;
+  suit: number;
+  held: boolean;
 }
 
 export interface GameView {
@@ -97,10 +110,13 @@ export interface GameView {
   pegs: Peg[];
   handSizes: number[];
   myHand: Card[];
+  /** Farben zu myHand (gleiche Reihenfolge): 0 Herz, 1 Kreuz, 2 Ecke, 3 Schaufel */
+  mySuits: number[];
   deckCount: number;
   /** Ablagestapel: Anzahl und oberste Karte */
   discardCount: number;
   discardTop: Card | null;
+  discardSuit: number;
   current: number;
   dealer: number;
   round: number;
@@ -114,6 +130,8 @@ export interface GameView {
   passes: PassEvent[];
   /** Letzte Kartenübergaben (neueste zuletzt), zum Animieren */
   transfers: Transfer[];
+  /** Von dir abgegebene Karten dieser Runde */
+  gave: GaveCard[];
 }
 
 export interface PassEvent {
@@ -254,11 +272,12 @@ export function parseClientMessage(raw: unknown): ClientMessage {
     case 'leave':
       return { t: raw.t };
     case 'exchange':
-      return { t: 'exchange', card: card(raw.card) };
+      return { t: 'exchange', card: card(raw.card), ...(raw.suit !== undefined ? { suit: int(raw.suit, 'Farbe', 0, 3) } : {}) };
     case 'play': {
       if (!Array.isArray(raw.moves) || raw.moves.length > 8) throw new ProtocolError('Züge ungültig');
       const m: ClientMessage = { t: 'play', card: card(raw.card), moves: raw.moves.map(move) };
       if (raw.as !== undefined) m.as = rank(raw.as, 'Rang');
+      if (raw.suit !== undefined) m.suit = int(raw.suit, 'Farbe', 0, 3);
       return m;
     }
     default:
