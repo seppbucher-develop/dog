@@ -44,7 +44,7 @@ export const RULE_FIELDS: RuleField[] = [
   },
   {
     key: 'cardExchange', label: 'Kartentausch zu Rundenbeginn', kind: 'select',
-    options: [['auto', 'Automatisch (nur Teamspiel)'], ['on', 'Immer'], ['off', 'Nie']],
+    hint: 'Team: mit dem Partner tauschen; sonst blind vom rechten Nachbarn ziehen', options: [['auto', 'Ja'], ['off', 'Nein']],
   },
   { key: 'captureOwn', label: 'Eigene und Team-Kugeln dürfen geschlagen werden', kind: 'bool' },
   { key: 'jackSwapPartner', label: 'Bube: Tausch mit Kugeln des Partners', hint: 'nur Teamspiel', kind: 'bool' },

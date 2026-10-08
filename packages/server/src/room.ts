@@ -4,6 +4,7 @@ import {
   cardIndex,
   ensureSuits,
   chooseAction,
+  chooseDraw,
   chooseExchange,
   createGame,
   layoutFor,
@@ -213,6 +214,7 @@ export class Room {
       case 'leave':
         return this.leave(me);
       case 'exchange':
+      case 'draw':
       case 'play':
         return this.playerAction(me, msg);
       case 'create':
@@ -400,6 +402,16 @@ export class Room {
           out.push({ from: p, to: layout.giveTo[p]!, card, suit: suitOf(p, card, p === action.player ? action.suit : g.exchangeSuit?.[p]) });
         });
       }
+    } else if (action.t === 'draw') {
+      if (g.phase === 'exchange' && g.exchange.every((c, p) => c !== null || p === action.player)) {
+        const n = g.config.players;
+        const picks = (g.drawPick ?? []).map((v, p) => (p === action.player ? action.idx : v));
+        for (let p = 0; p < n; p++) {
+          const q = (p + 1) % n;
+          const card = g.hands[q]?.[picks[p] ?? -1];
+          if (card) out.push({ from: q, to: p, card, suit: g.suits?.hands[q]?.[picks[p]!] ?? 0 });
+        }
+      }
     } else {
       for (const m of action.moves) {
         const card = m.t === 'steal' ? g.hands[m.from]?.[m.idx] : undefined;
@@ -413,10 +425,13 @@ export class Room {
     return next;
   }
 
-  private playerAction(me: Participant, msg: Extract<ClientMessage, { t: 'exchange' | 'play' }>): void {
+  private playerAction(me: Participant, msg: Extract<ClientMessage, { t: 'exchange' | 'draw' | 'play' }>): void {
     if (this.phase !== 'playing' || !this.game) throw new Error('Kein laufendes Spiel');
     if (me.seat === null) throw new Error('Du sitzt nicht am Tisch');
-    if (msg.t === 'exchange') {
+    if (msg.t === 'draw') {
+      this.game = this.apply(this.game, { t: 'draw', player: me.seat, idx: msg.idx });
+      this.recordPasses();
+    } else if (msg.t === 'exchange') {
       this.game = this.apply(this.game, { t: 'exchange', player: me.seat, card: msg.card, ...(msg.suit !== undefined ? { suit: msg.suit } : {}) });
       this.recordPasses();
     } else {
@@ -440,7 +455,7 @@ export class Room {
       for (let p = 0; p < this.seats.length; p++) {
         const s = this.seats[p]!;
         if (s.spec.kind === 'bot' && g.phase === 'exchange' && g.exchange[p] === null) {
-          g = this.apply(g, chooseExchange(g, p, s.spec.level, this.rand));
+          g = this.apply(g, layoutFor(g.config).teams ? chooseExchange(g, p, s.spec.level, this.rand) : chooseDraw(g, p, this.rand));
         }
       }
       this.game = g;

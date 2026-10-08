@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { applyAction, createGame, layoutFor, legalPlays, controlledColors, sevenNext, sevenValid, type Card, type Pos } from '../src';
-import { fin, peg, ring, scenario, start } from './helpers';
+import { exchangeAll, fin, peg, ring, scenario, start } from './helpers';
 
 describe('Einstellungen: Validierung', () => {
   it('Standardwerte werden ergänzt, ungültige Werte abgelehnt', () => {
@@ -106,6 +106,10 @@ describe('Option 4: 2 Spieler mit 4 Kugeln', () => {
   it('Spiel auf dem vollen Brett läuft durch', () => {
     let s = createGame({ players: 2, rules: { twoPlayerBoard: 'full' } }, 3);
     for (let i = 0; i < 20000 && s.phase !== 'finished'; i++) {
+      if (s.phase === 'exchange') {
+        s = exchangeAll(s);
+        continue;
+      }
       const plays = legalPlays(s, s.current);
       s = applyAction(s, { t: 'play', player: s.current, ...plays[(i * 31) % plays.length]! });
     }
@@ -139,18 +143,18 @@ describe('Option 6: Kartentausch', () => {
   it('off: Teamspiel ohne Tausch', () => {
     expect(createGame({ players: 4, rules: { cardExchange: 'off' } }, 1).phase).toBe('playing');
   });
-  it('on: Einzelspiel mit Tausch an den nächsten Spieler', () => {
+  it('on: Einzelspiel mit Tausch (Karte vom rechten Nachbarn ziehen)', () => {
     let s = createGame({ players: 3, rules: { cardExchange: 'on' } }, 1);
     expect(s.phase).toBe('exchange');
-    const give = s.hands.map((h) => h[0]!);
-    for (let p = 0; p < 3; p++) s = applyAction(s, { t: 'exchange', player: p, card: give[p]! });
+    s = exchangeAll(s);
     expect(s.phase).toBe('playing');
     // 18 Karten ausgeteilt; ohne Kugeln auf dem Brett werden manche Hände sofort abgeworfen
     expect(s.hands.flat().length + s.discard.length).toBe(18);
   });
-  it('auto: nur im Teamspiel', () => {
-    expect(createGame({ players: 3 }, 1).phase).toBe('playing');
+  it('auto: Team und Einzelspiel mit Tausch, off: ohne', () => {
+    expect(createGame({ players: 3 }, 1).phase).toBe('exchange');
     expect(createGame({ players: 4 }, 1).phase).toBe('exchange');
+    expect(createGame({ players: 3, rules: { cardExchange: 'off' } }, 1).phase).toBe('playing');
   });
 });
 
@@ -188,7 +192,7 @@ describe('Option 8: Handgrößen', () => {
     expect(s.hands.map((h) => h.length)).toEqual([3, 3, 3]);
     for (let i = 0; i < 500 && s.round === 0 && s.phase !== 'finished'; i++) {
       if (s.phase === 'exchange') {
-        for (let p = 0; p < 3; p++) s = applyAction(s, { t: 'exchange', player: p, card: s.hands[p]![0]! });
+        s = exchangeAll(s);
       } else {
         s = applyAction(s, { t: 'play', player: s.current, ...legalPlays(s, s.current)[0]! });
       }
@@ -224,7 +228,7 @@ describe('Regelkombinationen', () => {
       let s = createGame(cfg, 11);
       for (let i = 0; i < 30000 && s.phase !== 'finished'; i++) {
         if (s.phase === 'exchange') {
-          for (let p = 0; p < cfg.players; p++) s = applyAction(s, { t: 'exchange', player: p, card: s.hands[p]![0]! });
+          s = exchangeAll(s);
           continue;
         }
         const plays = legalPlays(s, s.current);

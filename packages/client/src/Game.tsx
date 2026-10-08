@@ -298,12 +298,15 @@ function GameInner({ lobby, view }: { lobby: LobbyView; view: GameView }) {
     if (m) choose(m);
   };
 
+  // Einzelspiel, Kartentausch: blind eine Karte vom rechten Nachbarn (nächster Spieler) ziehen
+  const drawing = view.phase === 'exchange' && !layout.teams;
+  const rightSeat = (view.seat + 1) % view.handSizes.length;
   const stealOpts = opts.filter((m): m is Extract<Move, { t: 'steal' }> => m.t === 'steal');
 
   const playable = playableCards(legal);
   const clickCard = (c: Card, suit: number) => {
     if (view.phase === 'exchange') {
-      if (view.exchangeDone[view.seat]) return;
+      if (view.exchangeDone[view.seat] || drawing) return;
       setXCard(c);
       return setPick(suit);
     }
@@ -319,6 +322,7 @@ function GameInner({ lobby, view }: { lobby: LobbyView; view: GameView }) {
   const starter = (view.dealer + 1) % view.handSizes.length;
   const prompt = (() => {
     if (view.phase === 'finished') return 'Spiel beendet';
+    if (drawing) return view.exchangeDone[view.seat] ? `Warte auf die anderen Spieler … (${names[starter]} beginnt)` : `Ziehe blind eine Karte von ${names[rightSeat]} (rechter Nachbar). ${names[starter]} beginnt.`;
     if (view.phase === 'exchange') return view.exchangeDone[view.seat] ? `Warte auf die anderen Spieler … (${names[starter]} beginnt)` : `Wähle eine Karte, die du an ${names[layout.giveTo[view.seat]!]} (${colorName(lobby.seats[layout.giveTo[view.seat]!]?.color ?? 0)}, Platz ${layout.giveTo[view.seat]! + 1}) abgibst. ${names[starter]} beginnt.`;
     if (!myTurn) return `${names[view.current]} ist am Zug …`;
     if (!sel.card) return 'Du bist am Zug – wähle eine Karte.';
@@ -373,7 +377,7 @@ function GameInner({ lobby, view }: { lobby: LobbyView; view: GameView }) {
           {hand.map(({ card: c, suit }, i) => {
             const mark = view.phase === 'exchange' ? xCard : sel.card;
             const selected = mark === c && (c === 'JOKER' || suitFor(c) === suit) && hand.findIndex((h) => h.card === c && h.suit === suit) === i;
-            const usable = view.phase === 'exchange' ? !view.exchangeDone[view.seat] : myTurn && playable.has(c);
+            const usable = view.phase === 'exchange' ? !view.exchangeDone[view.seat] && !drawing : myTurn && playable.has(c);
             const sym = suitOf(suit);
             return (
               <button
@@ -433,6 +437,18 @@ function GameInner({ lobby, view }: { lobby: LobbyView; view: GameView }) {
             {sel.card && <button onClick={() => { setSel(emptySel); setFocus(null); }}>Abbrechen</button>}
           </div>
           </div>
+          {drawing && !view.exchangeDone[view.seat] && (
+            <div className="steal" role="group" aria-label="Karte vom rechten Nachbarn ziehen">
+              <div className="steal-from">
+                <span className="muted">{names[rightSeat]}:</span>
+                <span className="backs">
+                  {Array.from({ length: view.handSizes[rightSeat] ?? 0 }, (_, idx) => (
+                    <button key={idx} className="back" aria-label={`Karte von ${names[rightSeat]} ziehen`} onClick={() => net.send({ t: 'draw', idx })} />
+                  ))}
+                </span>
+              </div>
+            </div>
+          )}
           {myTurn && stealOpts.length > 0 && (
             <div className="steal" role="group" aria-label="Karte eines Gegners ziehen">
               {lobby.seats.map((_, p) =>

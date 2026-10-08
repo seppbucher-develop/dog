@@ -42,6 +42,8 @@ export type ClientMessage =
   | { t: 'start' }
   /** `suit` = Farbe der Karte (0 Herz, 1 Kreuz, 2 Ecke, 3 Schaufel) */
   | { t: 'exchange'; card: Card; suit?: number }
+  /** Einzelspiel, Kartentausch: blind die Karte an Position idx aus der Hand des rechten Nachbarn ziehen */
+  | { t: 'draw'; idx: number }
   | { t: 'play'; card: Card; as?: Rank; moves: Move[]; suit?: number }
   | { t: 'rematch' }
   | { t: 'leave' };
@@ -276,6 +278,8 @@ export function parseClientMessage(raw: unknown): ClientMessage {
       return { t: raw.t };
     case 'exchange':
       return { t: 'exchange', card: card(raw.card), ...(raw.suit !== undefined ? { suit: int(raw.suit, 'Farbe', 0, 3) } : {}) };
+    case 'draw':
+      return { t: 'draw', idx: int(raw.idx, 'Karte', 0, 20) };
     case 'play': {
       if (!Array.isArray(raw.moves) || raw.moves.length > 8) throw new ProtocolError('Züge ungültig');
       const m: ClientMessage = { t: 'play', card: card(raw.card), moves: raw.moves.map(move) };

@@ -115,7 +115,7 @@ describe('WebSocket', () => {
         const m = JSON.parse(d.toString()) as ServerMessage;
         if (m.t !== 'game' || !m.view) return;
         const v = m.view;
-        if (v.phase === 'exchange' && !v.exchangeDone[v.seat]) c.send({ t: 'exchange', card: v.myHand[0]! });
+        if (v.phase === 'exchange' && !v.exchangeDone[v.seat]) c.send(v.config.players === 4 || v.config.players === 6 ? { t: 'exchange', card: v.myHand[0]! } : { t: 'draw', idx: 0 });
         else if (v.legal?.length) {
           // Sinnvoller als "erster Zug": Herauskommen zuerst, sonst möglichst weit vorwärts
           const gain = (pl: (typeof v.legal & object)[number]) =>
