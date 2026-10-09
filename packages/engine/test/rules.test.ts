@@ -449,3 +449,13 @@ describe('Am Zielhaus vorbeilaufen', () => {
     ]);
   });
 });
+
+describe('Option: playForAllPartners', () => {
+  it('false: Fertiger Spieler zieht nur für den nächsten unfertigen Teamkollegen', () => {
+    const cfg = { players: 6, rules: { sixPlayerTeams: 'twoOfThree' as const, playForAllPartners: false } };
+    const l = layoutFor(cfg);
+    const done = { [peg(0, 0)]: fin(0), [peg(0, 1)]: fin(1), [peg(0, 2)]: fin(2), [peg(0, 3)]: fin(3) };
+    const s = scenario(cfg, { pegs: done, hands: [['5'], [], [], [], [], []] });
+    expect(controlledColors(s, l, 0)).toEqual([0, 2]);
+  });
+});

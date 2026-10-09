@@ -49,6 +49,7 @@ export const RULE_FIELDS: RuleField[] = [
   { key: 'captureOwn', label: 'Eigene und Team-Kugeln dürfen geschlagen werden', kind: 'bool' },
   { key: 'jackSwapPartner', label: 'Bube: Tausch mit Kugeln des Partners', hint: 'nur Teamspiel', kind: 'bool' },
   { key: 'jackSwapOwn', label: 'Bube: Tausch zweier eigener Kugeln', hint: 'verhindert Abwurf der Hand', kind: 'bool' },
+  { key: 'playForAllPartners', label: 'Fertig: für alle Partner ziehen', hint: 'sonst nur für den nächsten unfertigen Partner (Teams zu 3)', kind: 'bool' },
   { key: 'sevenRepeatPeg', label: '7: dieselbe Kugel mehrfach aufteilen', hint: 'kaum spürbar', kind: 'bool' },
   {
     key: 'sevenAnyPeg', label: '7: auf alle Kugeln aufteilbar', hint: 'sonst nur eigene (und die des Partners, wenn man fertig ist)', kind: 'select',

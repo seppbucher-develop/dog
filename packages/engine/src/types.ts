@@ -21,6 +21,8 @@ export interface RuleSettings {
    * Abwurf der ganzen Hand, wenn sonst kein Zug möglich wäre.
    */
   jackSwapOwn: boolean;
+  /** Teamspiel: Ist man fertig, zieht man für alle unfertigen Teamkollegen (true) oder nur für den nächsten in Spielrichtung (false). */
+  playForAllPartners: boolean;
   /** 2 Spieler mit 4 Kugeln: Brett mit 2 (compact) oder 4 (full) Abschnitten. */
   twoPlayerBoard: 'compact' | 'full';
   /** 6 Spieler: 3 Teams zu 2 (Partner gegenüber) oder 2 Teams zu 3 (abwechselnd sitzend). */
@@ -43,6 +45,7 @@ export const DEFAULT_RULES: RuleSettings = {
   fourDirection: 'both',
   jackSwapPartner: true,
   jackSwapOwn: true,
+  playForAllPartners: true,
   twoPlayerBoard: 'compact',
   sixPlayerTeams: 'threeOfTwo',
   cardExchange: 'auto',
