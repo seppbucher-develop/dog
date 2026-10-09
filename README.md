@@ -37,14 +37,14 @@ gerade erst herausgekommen ist, muss zuerst eine ganze Runde laufen. Gespielt we
 | König | herauskommen, 13 Felder |
 | Dame | 12 Felder |
 | 4 | 4 Felder vorwärts oder rückwärts (einstellbar; rückwärts nie ins Haus) |
-| 7 | beliebig auf mehrere Kugeln aufteilbar (eigene; im Teamspiel die des Partners, wenn man fertig ist; einstellbar: alle Kugeln); alle übersprungenen Kugeln fliegen heim |
+| 7 | beliebig auf mehrere Kugeln aufteilbar (eigene; im Teamspiel die der Partner, wenn man fertig ist; einstellbar: alle Kugeln); alle übersprungenen Kugeln fliegen heim |
 | Bube | immer: zwei Kugeln tauschen |
 | Joker | ersetzt jede Karte, aber nicht für die letzte Kugel ins Haus |
 | 2 | 2 Felder vor; bei 2, 3 und 5 Spielern alternativ blind eine Karte eines Gegners ziehen (zählt als Zug) |
 | 3, 5, 6, 8, 9, 10 | so viele Felder vor |
 
 Auf dem eigenen Startfeld blockiert eine frisch herausgekommene Kugel das Überspringen; hat sie die Runde schon vollendet, sperrt sie nicht mehr und kann geschlagen werden (auch von der eigenen neuen Kugel, die herauskommt). Im Zielhaus kann man nicht überspringen. Ist ein
-Spieler fertig, zieht er im Teamspiel für den Partner weiter; das Team gewinnt, wenn alle Kugeln im Ziel sind.
+Spieler fertig, zieht er im Teamspiel für die noch nicht fertigen Partner weiter; das Team gewinnt, wenn alle Kugeln im Ziel sind.
 
 ### Einstellungen und Regeln (in der Lobby)
 

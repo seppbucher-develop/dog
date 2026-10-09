@@ -143,16 +143,17 @@ export function allInFinish(state: GameState, color: number): boolean {
 
 /**
  * Farben, die der Spieler gerade bewegen darf. Ist er selbst fertig (nur Teamspiel), spielt er zusätzlich
- * für den nächsten Teamkollegen (in Spielrichtung, gegen den Uhrzeigersinn), der noch nicht fertig ist.
+ * für alle Teamkollegen (in Spielrichtung, gegen den Uhrzeigersinn), die noch nicht fertig sind.
  */
 export function controlledColors(state: GameState, layout: Layout, player: number): number[] {
   const own = layout.colorsOf[player]!;
   if (!layout.teams || !own.every((c) => allInFinish(state, c))) return own;
   const team = layout.teamList[layout.teamOf[player]!]!;
   const at = team.indexOf(player);
+  const result = [...own];
   for (let i = 1; i < team.length; i++) {
     const cs = layout.colorsOf[team[(at + i) % team.length]!]!;
-    if (!cs.every((c) => allInFinish(state, c))) return [...own, ...cs];
+    if (!cs.every((c) => allInFinish(state, c))) result.push(...cs);
   }
-  return own;
+  return result;
 }
