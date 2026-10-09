@@ -127,13 +127,13 @@ describe('Option 5: 6 Spieler', () => {
     expect(l.teamList).toEqual([[0, 2, 4], [1, 3, 5]]);
     expect(l.giveTo).toEqual([2, 3, 4, 5, 0, 1]);
   });
-  it('twoOfThree: Fertiger Spieler zieht für den nächsten unfertigen Teamkollegen; Team gewinnt erst komplett', () => {
+  it('twoOfThree: Fertiger Spieler zieht für alle unfertigen Teamkollegen; Team gewinnt erst komplett', () => {
     const cfg = { players: 6, rules: { sixPlayerTeams: 'twoOfThree' as const } };
     const l = layoutFor(cfg);
     const done = { [peg(0, 0)]: fin(0), [peg(0, 1)]: fin(1), [peg(0, 2)]: fin(2), [peg(0, 3)]: fin(3) };
     const s = scenario(cfg, { pegs: done, hands: [['5'], [], [], [], [], []] });
-    expect(controlledColors(s, l, 0)).toEqual([0, 2]);
-    // auch Spieler 2 fertig -> Spieler 0 zieht für Spieler 4
+    expect(controlledColors(s, l, 0)).toEqual([0, 2, 4]);
+    // auch Spieler 2 fertig -> Spieler 0 zieht nur noch für Spieler 4
     for (let i = 0; i < 4; i++) s.pegs.find((p) => p.id === peg(2, i))!.pos = fin(i);
     expect(controlledColors(s, l, 0)).toEqual([0, 4]);
   });
@@ -447,5 +447,15 @@ describe('Am Zielhaus vorbeilaufen', () => {
       { t: 'move', peg: peg(0, 0), steps: 2 },
       { t: 'move', peg: peg(0, 0), steps: 2, pass: true },
     ]);
+  });
+});
+
+describe('Option: playForAllPartners', () => {
+  it('false: Fertiger Spieler zieht nur für den nächsten unfertigen Teamkollegen', () => {
+    const cfg = { players: 6, rules: { sixPlayerTeams: 'twoOfThree' as const, playForAllPartners: false } };
+    const l = layoutFor(cfg);
+    const done = { [peg(0, 0)]: fin(0), [peg(0, 1)]: fin(1), [peg(0, 2)]: fin(2), [peg(0, 3)]: fin(3) };
+    const s = scenario(cfg, { pegs: done, hands: [['5'], [], [], [], [], []] });
+    expect(controlledColors(s, l, 0)).toEqual([0, 2]);
   });
 });
