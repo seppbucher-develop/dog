@@ -52,14 +52,26 @@ describe('Bots', () => {
     const s = createGame({ players: 4 }, 5);
     s.hands[0] = ['JOKER', 'A', '2', '3', '9', 'K'];
     s.pegs.find((p) => p.id === peg(2, 0))!.pos = ring(32); // Partner ist schon unterwegs
+    s.pegs.find((p) => p.id === peg(0, 0))!.pos = ring(0); // ich habe selbst eine Kugel im Spiel
     expect(chooseExchange(s, 0, 'expert', makeRand(1)).card).toBe('JOKER'); // die beste Karte; ich behalte A und K zum Rauskommen
     expect(chooseExchange(s, 0, 'advanced', makeRand(1)).card).toBe('2'); // ohne Partner-Logik
   });
 
   it('Experte gibt dem Partner einen Starter (König zuerst), wenn dessen Kugeln noch alle im Heim sind', () => {
     const s = createGame({ players: 4 }, 5);
-    s.hands[0] = ['JOKER', 'A', '2', '3', '9', 'K'];
+    s.hands[0] = ['A', 'K', '2', '3', '9', '5'];
+    s.pegs.find((p) => p.id === peg(0, 0))!.pos = ring(0);
     expect(chooseExchange(s, 0, 'expert', makeRand(1)).card).toBe('K');
+  });
+
+  it('Ohne Kugel im Spiel gibt der Bot mit König/Ass und Joker den Joker an den Partner', () => {
+    for (const level of ['intermediate', 'advanced', 'expert'] as const) {
+      for (const starter of ['K', 'A'] as const) {
+        const s = createGame({ players: 4 }, 5);
+        s.hands[0] = ['JOKER', starter, '2', '3', '9', '5'];
+        expect(chooseExchange(s, 0, level, makeRand(1)).card).toBe('JOKER');
+      }
+    }
   });
 
   it('Experte gibt seinen einzigen Starter nur ab, wenn er selbst schon eine Kugel auf dem Ring hat', () => {
