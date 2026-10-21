@@ -195,6 +195,16 @@ function cardForPartner(state: GameState, layout: Layout, player: number, hand: 
   return best;
 }
 
+/**
+ * Hat der Bot keine Kugel im Spiel (alle noch im Heim) und neben einem König oder Ass einen Joker, behält er die
+ * Starterkarte, um selbst herauszukommen, und gibt den Joker dem Partner.
+ */
+function keepsStarterAndGivesJoker(state: GameState, layout: Layout, player: number, hand: Card[]): boolean {
+  const mine = state.pegs.filter((p) => controlledColors(state, layout, player).includes(p.color));
+  const noneInPlay = mine.some((p) => p.pos.t === 'home') && !mine.some((p) => p.pos.t === 'ring');
+  return noneInPlay && hand.includes('JOKER') && (hand.includes('K') || hand.includes('A'));
+}
+
 /** Einzelspiel: Bot zieht blind eine Karte des rechten Nachbarn. */
 export function chooseDraw(state: GameState, player: number, rand: () => number): Extract<Action, { t: 'draw' }> {
   const theirs = state.hands[(player + 1) % state.config.players]!;
@@ -212,6 +222,7 @@ export function chooseExchange(state: GameState, player: number, level: BotLevel
     const target = layout.giveTo[player]!;
     const helps = layout.teamOf[target] === layout.teamOf[player];
     if (LEVEL_PARAMS[level].teamwork && helps) card = cardForPartner(state, layout, player, hand) ?? card;
+    if (helps && keepsStarterAndGivesJoker(state, layout, player, hand)) card = 'JOKER';
   }
   return { t: 'exchange', player, card };
 }
