@@ -27,8 +27,8 @@ export interface LevelParams {
   enemy?: number;
   /** Bonus für gewonnene Karte (Zug 2 stiehlt eine Karte) */
   steal?: number;
-  /** Zusatzwert jeder Kugel, die nicht mehr im Heim ist (Starterkarte wiederzubekommen ist selten) */
-  out?: number;
+  /** Zusätzlicher Abzug für jede eigene oder Partnerkugel, die der Zug heimschickt (über ihren Wertverlust hinaus) */
+  friendlyFire?: number;
   /** Gewicht des Schlagrisikos aus Kartenzählung (ersetzt `threat`, wenn > 0) */
   risk?: number;
 }
@@ -51,10 +51,10 @@ export function makeRand(seed: number): () => number {
 }
 
 /** Wert einer einzelnen Kugel: Heim 0, Ring 100..400 nach Fortschritt, Zielhaus 600+. */
-function pegValue(layout: Layout, peg: Peg, out = 0): number {
+function pegValue(layout: Layout, peg: Peg): number {
   if (peg.pos.t === 'home') return 0;
   if (peg.pos.t === 'fin') return 600 + 30 * peg.pos.s;
-  return 100 + out + (300 * progress(layout, peg)) / layout.ringSize;
+  return 100 + (300 * progress(layout, peg)) / layout.ringSize;
 }
 
 function teamColors(layout: Layout, player: number): number[] {
@@ -119,11 +119,11 @@ function captureProb(pegs: Peg[], layout: Layout, mine: Peg, friendly: number[],
 }
 
 /** Bewertung einer Stellung aus Sicht des Spielers (höher = besser). */
-export function evaluate(pegs: Peg[], layout: Layout, player: number, threatWeight: number, enemyWeight = 0.5, risk?: RiskModel, out = 0): number {
+export function evaluate(pegs: Peg[], layout: Layout, player: number, threatWeight: number, enemyWeight = 0.5, risk?: RiskModel): number {
   const friendly = teamColors(layout, player);
   let score = 0;
   for (const p of pegs) {
-    const v = pegValue(layout, p, out);
+    const v = pegValue(layout, p);
     if (friendly.includes(p.color)) {
       score += v;
       if (risk && p.pos.t === 'ring' && v > 0) score -= risk.weight * v * captureProb(pegs, layout, p, friendly, risk);
@@ -195,6 +195,17 @@ function partnerCardGain(state: GameState, layout: Layout, player: number, partn
   return best;
 }
 
+/** Anzahl eigener Teamkugeln, die der Zug vom Brett heimschickt. */
+function friendlySent(before: Peg[], after: Peg[], layout: Layout, player: number): number {
+  const friendly = teamColors(layout, player);
+  let n = 0;
+  for (const p of after) {
+    if (p.pos.t !== 'home' || !friendly.includes(p.color)) continue;
+    if (before.find((q) => q.id === p.id)!.pos.t !== 'home') n++;
+  }
+  return n;
+}
+
 /** Wählt den Zug des Bots (der Spieler muss am Zug sein und mindestens einen legalen Zug haben). */
 export function chooseAction(
   state: GameState,
@@ -214,9 +225,10 @@ export function chooseAction(
     let bestScore = -Infinity;
     for (const play of plays) {
       const after = pegsAfterPlay(state.pegs, layout, play);
-      let score = evaluate(after, layout, player, params.threat, params.enemy, risk, params.out);
+      let score = evaluate(after, layout, player, params.threat, params.enemy, risk);
       if (play.moves.some((m) => m.t === 'steal')) score += params.steal ?? 25; // eine (unbekannte) Karte gewonnen
       score -= params.cardCost * cardCost(state, layout, player, play);
+      if (params.friendlyFire) score -= params.friendlyFire * friendlySent(state.pegs, after, layout, player);
       if (known.received !== undefined && play.card === known.received) score -= RECEIVED_CARD_DELAY;
       if (known.heldBy) score += PARTNER_CARD_WEIGHT * partnerCardGain(state, layout, player, known.heldBy.partner, known.heldBy.card, after);
       score += rand() * params.noise;
