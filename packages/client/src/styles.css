@@ -14,7 +14,7 @@
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme='light']) {
     --bg: #17150f;
     --panel: #24211a;
     --ink: #efe9da;
@@ -24,6 +24,16 @@
     --board: #3a3427;
     color-scheme: dark;
   }
+}
+:root[data-theme='dark'] {
+  --bg: #17150f;
+  --panel: #24211a;
+  --ink: #efe9da;
+  --muted: #a49c88;
+  --line: #3d382c;
+  --accent: #d9694f;
+  --board: #3a3427;
+  color-scheme: dark;
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.45 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; }
@@ -177,3 +187,8 @@ input.code { text-transform: uppercase; letter-spacing: 0.2em; font-weight: 700;
 .gave .gcard .red { color: #c0392b; }
 .gave li.held { color: var(--accent); }
 .gave li.gone { color: var(--muted); }
+
+.topbar { display: flex; justify-content: flex-end; margin: 0 0 8px; }
+.theme-switch { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; background: var(--panel); }
+.theme-switch button { border: 0; border-radius: 0; background: transparent; color: var(--muted); padding: 2px 12px; min-height: 30px; font-size: 0.95rem; cursor: pointer; }
+.theme-switch button[aria-pressed='true'] { background: var(--accent); color: var(--accent-ink); }

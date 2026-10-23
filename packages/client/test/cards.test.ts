@@ -26,3 +26,14 @@ describe('Zuggeschwindigkeit', () => {
     }
   });
 });
+
+describe('Farbschema', () => {
+  it('kennt hell, dunkel und Geräteeinstellung; Unbekanntes wird zu auto', async () => {
+    const { parseTheme } = await import('../src/theme');
+    expect(parseTheme('light')).toBe('light');
+    expect(parseTheme('dark')).toBe('dark');
+    expect(parseTheme('auto')).toBe('auto');
+    expect(parseTheme(null)).toBe('auto');
+    expect(parseTheme('rot')).toBe('auto');
+  });
+});
