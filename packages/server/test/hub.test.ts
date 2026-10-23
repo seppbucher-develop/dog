@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ClientMessage, GameView, LobbyView, ServerMessage } from '@dog/protocol';
+import { animationMs } from '@dog/protocol';
 import { Hub } from '../src/hub';
 import { turnDelay, type Connection } from '../src/room';
 
@@ -178,6 +179,49 @@ describe('Spiel', () => {
     expect(v.phase).toBe('finished');
     expect(v.winners).not.toBeNull();
     expect(host.lobby().phase).toBe('finished');
+  });
+
+  it('Abgeworfene Hand sieht nur der Abwerfende selbst', () => {
+    const env = setup();
+    const host = hostRoom(env.send);
+    env.send(host, { t: 'start' });
+    env.send(host, { t: 'exchange', card: host.game()!.myHand[0]! });
+    playAsHost(env, host);
+    const seen = host.msgs.flatMap((m) => (m.t === 'game' && m.view ? m.view.passes : []));
+    expect(seen.length).toBeGreaterThan(0);
+    for (const e of seen) {
+      if (e.player === 0) expect(e.hand).toHaveLength(e.cards);
+      else expect(e.hand).toBeUndefined();
+    }
+  });
+
+  it('Computerzug wartet, bis die Animation der letzten Aktion zu Ende ist', () => {
+    const delays: number[] = [];
+    const queue: (() => void)[] = [];
+    const hub = new Hub({ schedule: (fn, ms) => void (delays.push(ms), queue.push(fn)), botDelayMs: 900 });
+    const host = new FakeConn();
+    hub.handle(host, { t: 'create', name: 'Sepp' });
+    // Stufe 1: Grundpause 900 ms, Karte + kugeln dauern 850 ms + 150 ms Reserve
+    hub.handle(host, { t: 'configure', seats: [{ kind: 'human' }, { kind: 'bot', level: 'advanced' }, { kind: 'bot', level: 'expert' }], eightPegs: false, rules: { turnSpeed: 1 } });
+    hub.handle(host, { t: 'start' });
+    let checked = 0;
+    for (let i = 0; i < 400 && checked < 3; i++) {
+      while (queue.length) queue.shift()!();
+      const v = host.game()!;
+      if (v.phase === 'finished') break;
+      if (v.phase === 'exchange') {
+        if (!v.exchangeDone[0]) hub.handle(host, { t: 'draw', idx: 0 });
+        continue;
+      }
+      if (v.current !== 0 || !v.legal || v.legal.length === 0) continue;
+      const p = v.legal.find((x) => x.moves.length > 0) ?? v.legal[0]!;
+      const before = delays.length;
+      hub.handle(host, { t: 'play', card: p.card, moves: p.moves, ...(p.as ? { as: p.as } : {}) });
+      if (delays.length === before) continue;
+      expect(delays[delays.length - 1]).toBeGreaterThanOrEqual(animationMs(1, { play: true, pegsMove: p.moves.length > 0 }) + 150);
+      checked++;
+    }
+    expect(checked).toBeGreaterThan(0);
   });
 
   it('Einzelspiel mit 3 Spielern: erste Kugel steht schon auf dem Startfeld', () => {

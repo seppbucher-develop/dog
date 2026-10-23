@@ -1,5 +1,5 @@
 import type { Card } from '@dog/engine';
-import type { GameView } from '@dog/protocol';
+import { ANIM, type GameView } from '@dog/protocol';
 import type { Flight } from './Board';
 import { suitOf } from './cards';
 import type { Timing } from './speed';
@@ -12,6 +12,8 @@ export interface Spots {
   nest(seat: number): Spot;
   pile: Spot;
   deck: Spot;
+  /** Ort einer Karte in der eigenen Hand (null: nicht sichtbar, dann fliegt sie vom Nest) */
+  hand?(card: Card, suit: number): Spot | null;
 }
 
 /** Anzeigestand ab dem Zeitpunkt `at` (ms nach Beginn); überlagert den alten Spielstand */
@@ -27,9 +29,9 @@ export interface Plan {
   total: number;
 }
 
-const STAGGER = 90;
-const DEAL_CARDS = 3;
-const PAUSE = 120;
+const STAGGER = ANIM.stagger;
+const DEAL_CARDS = ANIM.dealCards;
+const PAUSE = ANIM.pause;
 
 /**
  * Zerlegt den Übergang vom angezeigten zum neuen Spielstand in zeitlich geordnete Schritte – in der Reihenfolge,
@@ -82,7 +84,8 @@ export function planTransition(prev: GameView, next: GameView, tm: Timing, spots
   if (playNew && lp) {
     const suit = lp.suit ?? 0;
     const t0 = t;
-    fly({ from: spots.nest(lp.player), card: lp.card, suit: suitOf(suit), ms: tm.flight });
+    const from = (lp.player === seat ? spots.hand?.(lp.card, suit) : null) ?? spots.nest(lp.player);
+    fly({ from, card: lp.card, suit: suitOf(suit), ms: tm.flight });
     if (lp.player === seat) removeFromHand(lp.card, suit);
     d.handSizes[lp.player] = Math.max(0, (d.handSizes[lp.player] ?? 0) - 1);
     if (!tm.sequential) d.pegs = next.pegs;
@@ -101,7 +104,8 @@ export function planTransition(prev: GameView, next: GameView, tm: Timing, spots
   if (transfers.length > 0) {
     const ms = tm.flight * 2;
     for (const x of transfers) {
-      fly({ from: spots.nest(x.from), to: spots.nest(x.to), card: x.card, suit: suitOf(x.suit), ms });
+      const from = (x.from === seat && x.card ? spots.hand?.(x.card, x.suit ?? 0) : null) ?? spots.nest(x.from);
+      fly({ from, to: spots.nest(x.to), card: x.card, suit: suitOf(x.suit), ms });
       if (x.from === seat && x.card) removeFromHand(x.card, x.suit ?? 0);
       d.handSizes[x.from] = Math.max(0, (d.handSizes[x.from] ?? 0) - 1);
     }
@@ -121,7 +125,17 @@ export function planTransition(prev: GameView, next: GameView, tm: Timing, spots
   const dump = (list: typeof passes) => {
     for (const e of list) {
       const backs = e.cards - 1;
-      for (let j = 0; j <= backs; j++) fly({ from: spots.nest(e.player), card: j === backs ? e.top : null, suit: suitOf(e.suit), ms: tm.flight, delay: j * STAGGER });
+      // Die eigene Hand kennt der Client: sie fliegt mit echten Karten, die oberste liegt zuletzt
+      const own = e.hand && e.hand.length === e.cards ? [...e.hand] : null;
+      if (own) {
+        const k = own.findIndex((c) => c.card === e.top && (c.card === 'JOKER' || c.suit === e.suit));
+        if (k >= 0) own.push(own.splice(k, 1)[0]!);
+      }
+      for (let j = 0; j <= backs; j++) {
+        const c = own?.[j];
+        const from = (c ? spots.hand?.(c.card, c.suit) : null) ?? spots.nest(e.player);
+        fly({ from, card: c ? c.card : j === backs ? e.top : null, suit: suitOf(c ? c.suit : e.suit), ms: tm.flight, delay: j * STAGGER });
+      }
       d.handSizes[e.player] = 0;
       if (e.player === seat) {
         d.myHand = [];
@@ -154,17 +168,18 @@ export function planTransition(prev: GameView, next: GameView, tm: Timing, spots
     for (let k = 1; k <= n; k++) {
       const p = (next.dealer + k) % n;
       const count = Math.min(DEAL_CARDS, target[p] ?? 0);
-      for (let j = 0; j < count; j++) fly({ from: spots.deck, to: spots.nest(p), card: null, suit: suitOf(0), ms: tm.flight, delay: order * 70 + j * 60, direct: true });
+      for (let j = 0; j < count; j++) fly({ from: spots.deck, to: spots.nest(p), card: null, suit: suitOf(0), ms: tm.flight, delay: order * ANIM.dealSeat + j * ANIM.dealCard, direct: true });
       if (count > 0) order++;
     }
-    t += tm.flight + Math.max(0, order - 1) * 70 + (DEAL_CARDS - 1) * 60;
+    t += tm.flight + Math.max(0, order - 1) * ANIM.dealSeat + (DEAL_CARDS - 1) * ANIM.dealCard;
     d.handSizes = target;
     d.deckCount = next.deckCount;
     d.round = next.round;
     d.dealer = next.dealer;
-    const mineLater = later.some((e) => e.player === seat);
-    d.myHand = mineLater ? [] : [...next.myHand];
-    d.mySuits = mineLater ? [] : [...next.mySuits];
+    // Wirft der Spieler die frisch ausgeteilte Hand sofort ab, kennt ihn der Server als Abwerfenden: erst zeigen, dann abwerfen
+    const mine = later.find((e) => e.player === seat);
+    d.myHand = mine ? (mine.hand ?? []).map((c) => c.card) : [...next.myHand];
+    d.mySuits = mine ? (mine.hand ?? []).map((c) => c.suit) : [...next.mySuits];
     emit();
     t += PAUSE;
     dump(later);

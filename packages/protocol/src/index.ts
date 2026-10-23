@@ -145,6 +145,8 @@ export interface PassEvent {
   suit: number;
   /** Runde, in der abgeworfen wurde (fehlt bei älteren Spielständen) */
   round?: number;
+  /** Die abgeworfene Hand; nur für den Abwerfenden selbst sichtbar */
+  hand?: { card: Card; suit: number }[];
 }
 
 export type ServerMessage =
@@ -293,3 +295,4 @@ export function parseClientMessage(raw: unknown): ClientMessage {
       throw new ProtocolError('Unbekannte Nachricht');
   }
 }
+export * from './timing';

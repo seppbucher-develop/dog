@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { applyMoveToPegs, layoutFor, sevenNext, tryMove, type Card, type Move, type Peg, type Play, type Pos } from '@dog/engine';
 import type { GameView, LobbyView } from '@dog/protocol';
 import { Board, type BoardMarker } from './Board';
@@ -53,6 +53,8 @@ function GameInner({ lobby, view: live }: { lobby: LobbyView; view: GameView }) 
   const tm = timing(speed);
 
   // Karten fliegen nacheinander (Spielen, Übergeben, Abwerfen, Austeilen); Hand, Stapel und Kugeln folgen erst bei der Ankunft
+  const boardRef = useRef<HTMLDivElement>(null);
+  const handRef = useRef<HTMLDivElement>(null);
   const spots: Spots = useMemo(
     () => ({
       nest: (seat) => {
@@ -61,6 +63,20 @@ function GameInner({ lobby, view: live }: { lobby: LobbyView; view: GameView }) 
       },
       pile: { x: geo.centre.x, y: geo.centre.y - 44 },
       deck: { x: geo.centre.x, y: geo.centre.y + 75 },
+      // Mitte der Handkarte im Brett-Koordinatensystem, damit eigene Karten aus der Hand fliegen
+      hand: (card, suit) => {
+        const svg = boardRef.current?.querySelector('svg');
+        const el = handRef.current?.querySelector<HTMLElement>(`[data-card="${card}"][data-suit="${card === 'JOKER' ? 0 : suit}"]`) ?? handRef.current?.querySelector<HTMLElement>(`[data-card="${card}"]`);
+        const m = svg?.getScreenCTM();
+        if (!svg || !el || !m) return null;
+        const r = el.getBoundingClientRect();
+        if (r.width === 0) return null;
+        const pt = svg.createSVGPoint();
+        pt.x = r.left + r.width / 2;
+        pt.y = r.top + r.height / 2;
+        const p = pt.matrixTransform(m.inverse());
+        return { x: p.x, y: p.y };
+      },
     }),
     [geo, layout],
   );
@@ -282,7 +298,7 @@ function GameInner({ lobby, view: live }: { lobby: LobbyView; view: GameView }) 
 
   return (
     <div className="game">
-      <div className="board-wrap" style={{ '--peg-ms': `${tm.peg}ms` } as React.CSSProperties}>
+      <div className="board-wrap" ref={boardRef} style={{ '--peg-ms': `${tm.peg}ms` } as React.CSSProperties}>
         <Board
           layout={layout}
           geo={geo}
@@ -303,7 +319,7 @@ function GameInner({ lobby, view: live }: { lobby: LobbyView; view: GameView }) 
       </div>
 
       <aside className="side">
-        <div className="hand" role="list" aria-label="Deine Karten">
+        <div className="hand" role="list" aria-label="Deine Karten" ref={handRef}>
           {hand.map(({ card: c, suit }, i) => {
             const mark = view.phase === 'exchange' ? xCard : sel.card;
             const selected = mark === c && (c === 'JOKER' || suitFor(c) === suit) && hand.findIndex((h) => h.card === c && h.suit === suit) === i;
@@ -313,6 +329,8 @@ function GameInner({ lobby, view: live }: { lobby: LobbyView; view: GameView }) 
               <button
                 key={`${c}${suit}${i}`}
                 role="listitem"
+                data-card={c}
+                data-suit={suit}
                 className={`pcard${selected ? ' selected' : ''}${usable ? '' : ' dim'}${c === 'J' || c === 'Q' || c === 'K' ? ' face' : ''}${c === 'JOKER' ? ' joker' : ''}`}
                 disabled={!usable}
                 onClick={() => clickCard(c, suit)}

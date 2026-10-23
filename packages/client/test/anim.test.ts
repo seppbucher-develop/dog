@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { GameView } from '@dog/protocol';
+import { animationMs, type GameView } from '@dog/protocol';
 import { beforeFirstDeal, isFreshGame, planTransition, type Spots } from '../src/anim';
 import { timing } from '../src/speed';
 
@@ -178,5 +178,50 @@ describe('planTransition', () => {
     const dumped = plan.frames.find((f) => f.at > dealt.at && f.patch.handSizes?.[0] === 0)!;
     expect(dumped).toBeTruthy();
     expect(patchAt(plan, plan.total)?.discardCount).toBe(15);
+  });
+
+  it('eigene Karten fliegen aus der Hand, fremde vom Nest', () => {
+    const hand: Spots = { ...spots, hand: (card) => (card === '5' ? { x: 777, y: 888 } : null) };
+    const mine = view({ discardCount: 1, discardTop: '5', lastPlay: { n: 1, player: 0, card: '5', suit: 0, moves: [] } });
+    expect(planTransition(view(), mine, timing(4), hand).flights[0]!.spec.from).toEqual({ x: 777, y: 888 });
+    const theirs = view({ discardCount: 1, discardTop: '5', lastPlay: { n: 1, player: 1, card: '5', suit: 0, moves: [] } });
+    expect(planTransition(view(), theirs, timing(4), hand).flights[0]!.spec.from).toEqual(spots.nest(1));
+  });
+
+  it('eigener Abwurf fliegt mit den echten Karten, die oberste zuletzt', () => {
+    const next = view({
+      myHand: [],
+      mySuits: [],
+      handSizes: [0, 5, 5, 5],
+      discardCount: 5,
+      discardTop: 'A',
+      passes: [{ id: 1, player: 0, cards: 5, top: 'A', suit: 0, round: 0, hand: [{ card: 'A', suit: 0 }, { card: '2', suit: 0 }, { card: '3', suit: 0 }, { card: '4', suit: 0 }, { card: '5', suit: 0 }] }],
+    });
+    const plan = planTransition(view(), next, timing(4), spots);
+    expect(plan.flights.map((f) => f.spec.card)).toEqual(['2', '3', '4', '5', 'A']);
+  });
+
+  it('eigene Hand, die nach dem Austeilen sofort abgeworfen wird, ist vorher zu sehen', () => {
+    const hand = [{ card: 'K' as const, suit: 1 }, { card: 'Q' as const, suit: 2 }];
+    const prev = view({ myHand: [], mySuits: [], handSizes: [0, 0, 0, 0], round: 0, discardCount: 10 });
+    const next = view({ round: 1, myHand: [], mySuits: [], handSizes: [0, 5, 5, 5], discardCount: 12, discardTop: 'Q', passes: [{ id: 1, player: 0, cards: 2, top: 'Q', suit: 2, round: 1, hand }] });
+    const plan = planTransition(prev, next, timing(4), spots);
+    const dealt = plan.frames.find((f) => f.patch.round === 1)!;
+    expect(dealt.patch.myHand).toEqual(['K', 'Q']);
+    expect(patchAt(plan, plan.total)?.myHand).toEqual([]);
+  });
+
+  it('Planer braucht nie länger als die Schätzung des Servers (Bot-Takt)', () => {
+    for (const speed of [1, 2, 3, 4, 5]) {
+      const tm = timing(speed);
+      const play = view({ pegs: [peg(5)], discardCount: 1, discardTop: '5', lastPlay: { n: 1, player: 1, card: '5', suit: 1, moves: [] } });
+      expect(planTransition(view({ pegs: [peg(1)] }), play, tm, spots).total).toBeLessThanOrEqual(animationMs(speed, { play: true, pegsMove: true }));
+      const round = view({ round: 1, dealer: 0, handSizes: [4, 4, 4, 4], deckCount: 60, discardCount: 41, discardTop: 'A', lastPlay: { n: 1, player: 0, card: 'A', suit: 0, moves: [] } });
+      expect(planTransition(view({ myHand: ['A'], mySuits: [0], handSizes: [1, 0, 0, 0], discardCount: 40 }), round, tm, spots).total).toBeLessThanOrEqual(animationMs(speed, { play: true, deal: 4 }));
+      const dump = view({ handSizes: [0, 5, 5, 5], myHand: [], mySuits: [], discardCount: 5, discardTop: '9', passes: [{ id: 1, player: 0, cards: 5, top: '9', suit: 0, round: 0 }] });
+      expect(planTransition(view(), dump, tm, spots).total).toBeLessThanOrEqual(animationMs(speed, { dumps: [5] }));
+      const swap = view({ transfers: [{ id: 1, from: 0, to: 2, card: 'A', suit: 0 }, { id: 2, from: 2, to: 0, card: '7', suit: 1 }] });
+      expect(planTransition(view({ phase: 'exchange' }), swap, tm, spots).total).toBeLessThanOrEqual(animationMs(speed, { transfers: 2 }));
+    }
   });
 });

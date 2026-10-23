@@ -28,7 +28,7 @@ import type {
   SeatSpec,
   ServerMessage,
 } from '@dog/protocol';
-import { COLOR_COUNT } from '@dog/protocol';
+import { COLOR_COUNT, animationMs } from '@dog/protocol';
 import type { RuleSettings } from '@dog/engine';
 
 export interface Connection {
@@ -105,6 +105,8 @@ export class Room {
   lastActivity: number;
   closed = false;
   private botPending = false;
+  /** Dauer der Animation, die die letzte Aktion bei den Clients auslöst: der nächste Computerzug wartet so lange */
+  private animMs = 0;
   private playSeq = 0;
   private rand = makeRand(newSeed());
 
@@ -348,6 +350,7 @@ export class Room {
     const config: GameConfig = { players: this.seats.length, eightPegs: this.eightPegs, rules: this.rules };
     this.game = createGame(config, newSeed());
     this.recordPasses();
+    this.animMs = animationMs(layoutFor(config).rules.turnSpeed, { deal: config.players, dumps: (this.game.passed ?? []).map((e) => e.cards) });
     this.rand = makeRand(newSeed());
     this.lastPlay = null;
     this.passLog = [];
@@ -420,9 +423,25 @@ export class Room {
     }
     if (action.t === 'play') this.lastSuit = suitOf(action.player, action.card, action.suit);
     const next = applyAction(g, action);
+    this.measure(g, next, action.t === 'play', out.length);
     for (const t of out) this.transferLog.push({ id: ++this.transferSeq, round: next.round, ...t });
     this.transferLog = this.transferLog.slice(-24);
     return next;
+  }
+
+  /** Dauer der Client-Animation für den Übergang `prev` → `next` (gleiche Zeiten wie im Client) */
+  private measure(prev: GameState, next: GameState, play: boolean, transfers: number): void {
+    const dumps = (next.passed ?? []).map((e) => e.cards);
+    const deal = next.round > prev.round;
+    const reshuffle = deal && next.discard.length < prev.discard.length + (play ? 1 : 0);
+    this.animMs = animationMs(layoutFor(next.config).rules.turnSpeed, {
+      play,
+      pegsMove: JSON.stringify(prev.pegs) !== JSON.stringify(next.pegs),
+      transfers,
+      dumps,
+      ...(deal ? { deal: next.config.players } : {}),
+      reshuffle,
+    });
   }
 
   private playerAction(me: Participant, msg: Extract<ClientMessage, { t: 'exchange' | 'draw' | 'play' }>): void {
@@ -476,7 +495,13 @@ export class Room {
       this.recordPasses();
       this.lastPlay = { n: ++this.playSeq, player: action.player, card: action.card, suit: this.lastSuit, moves: action.moves, ...(action.as ? { as: action.as } : {}) };
       this.changed();
-    }, turnDelay(this.deps.botDelayMs, resolveRules({ players: this.seats.length, eightPegs: this.eightPegs, rules: this.rules }).turnSpeed));
+    }, this.botDelay());
+  }
+
+  /** Wartezeit vor dem nächsten Computerzug: mindestens die Zugpause, und so lange, bis die Animation der letzten Aktion zu Ende ist */
+  private botDelay(): number {
+    const base = turnDelay(this.deps.botDelayMs, resolveRules({ players: this.seats.length, eightPegs: this.eightPegs, rules: this.rules }).turnSpeed);
+    return this.deps.botDelayMs === 0 ? base : Math.max(base, this.animMs + 150);
   }
 
   // ---------- Sichten ----------
@@ -553,7 +578,7 @@ export class Room {
       winners: g.winners,
       legal: g.phase === 'playing' && g.current === seat ? legalPlays(g, seat) : null,
       lastPlay: this.lastPlay,
-      passes: this.passLog,
+      passes: this.passLog.map(({ hand, ...e }) => (e.player === seat && hand ? { ...e, hand } : e)),
       transfers: this.transferLog.map((t) => {
         const seen = t.from === seat || t.to === seat;
         return { id: t.id, from: t.from, to: t.to, card: seen ? t.card : null, suit: seen ? t.suit : null };
