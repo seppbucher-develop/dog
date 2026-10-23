@@ -143,6 +143,8 @@ export interface PassEvent {
   /** Oberste (zuletzt abgelegte) Karte und ihre Farbe */
   top: Card;
   suit: number;
+  /** Runde, in der abgeworfen wurde (fehlt bei älteren Spielständen) */
+  round?: number;
 }
 
 export type ServerMessage =

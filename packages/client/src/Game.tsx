@@ -1,7 +1,9 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { applyMoveToPegs, layoutFor, sevenNext, tryMove, type Card, type Move, type Peg, type Play, type Pos } from '@dog/engine';
 import type { GameView, LobbyView } from '@dog/protocol';
-import { Board, type BoardMarker, type Flight, type PileView } from './Board';
+import { Board, type BoardMarker } from './Board';
+import type { Spots } from './anim';
+import { useAnimatedView } from './useAnimatedView';
 import { isRedSuit, suitOf } from './cards';
 import { timing } from './speed';
 import { NEUTRAL, colorHex, colorName } from './colors';
@@ -17,8 +19,8 @@ export function Game({ lobby, view }: { lobby: LobbyView; view: GameView | null 
   return <GameInner lobby={lobby} view={view} />;
 }
 
-function GameInner({ lobby, view }: { lobby: LobbyView; view: GameView }) {
-  const layout = useMemo(() => layoutFor(view.config), [view.config]);
+function GameInner({ lobby, view: live }: { lobby: LobbyView; view: GameView }) {
+  const layout = useMemo(() => layoutFor(live.config), [live.config]);
   const isHost = lobby.you.status === 'host';
   // Computer tragen die Farbe im Namen, damit sie sich unterscheiden lassen
   const names = lobby.seats.map((s, i) => (s.kind === 'bot' ? `Computer ${colorName(s.color)}` : (s.name ?? `Spieler ${i + 1}`)));
@@ -30,9 +32,6 @@ function GameInner({ lobby, view }: { lobby: LobbyView; view: GameView }) {
   layout.colorsOf.forEach((cs, p) => cs.forEach((c) => (seatOfColor[c] = p)));
   const segColors = Array.from({ length: layout.colors }, (_, c) => (seatOfColor[c] !== undefined ? colorHex(lobby.seats[seatOfColor[c]!]?.color ?? 0) : NEUTRAL));
   const segNames = Array.from({ length: layout.colors }, (_, c) => (seatOfColor[c] !== undefined ? boardLines[seatOfColor[c]!]! : []));
-  // Beim Kartentausch ist noch niemand am Zug: dann zeigt der Pfeil, wer die Runde beginnt
-  const activeSeat = view.phase === 'playing' ? view.current : view.phase === 'exchange' ? (view.dealer + 1) % view.handSizes.length : -1;
-  const activeSegs = new Set<number>(layout.colorsOf[activeSeat] ?? []);
   const [style, setStyleState] = useState<BoardStyle>(() => {
     try {
       return localStorage.getItem('dog.boardStyle') === 'circle' ? 'circle' : 'original';
@@ -48,7 +47,28 @@ function GameInner({ lobby, view }: { lobby: LobbyView; view: GameView }) {
       /* ohne Speicher weiterarbeiten */
     }
   };
-  const geo = useMemo(() => makeGeo(layout, layout.colorsOf[view.seat]![0]!, style), [layout, view.seat, style]);
+  const geo = useMemo(() => makeGeo(layout, layout.colorsOf[live.seat]![0]!, style), [layout, live.seat, style]);
+
+  const speed = layout.rules.turnSpeed;
+  const tm = timing(speed);
+
+  // Karten fliegen nacheinander (Spielen, Übergeben, Abwerfen, Austeilen); Hand, Stapel und Kugeln folgen erst bei der Ankunft
+  const spots: Spots = useMemo(
+    () => ({
+      nest: (seat) => {
+        const n = geo.nest(layout.colorsOf[seat]?.[0] ?? 0);
+        return { x: n.cx, y: n.cy };
+      },
+      pile: { x: geo.centre.x, y: geo.centre.y - 44 },
+      deck: { x: geo.centre.x, y: geo.centre.y + 75 },
+    }),
+    [geo, layout],
+  );
+  const { view, flights, busy } = useAnimatedView(live, tm, spots);
+
+  // Beim Kartentausch ist noch niemand am Zug: dann zeigt der Pfeil, wer die Runde beginnt
+  const activeSeat = view.phase === 'playing' ? view.current : view.phase === 'exchange' ? (view.dealer + 1) % view.handSizes.length : -1;
+  const activeSegs = new Set<number>(layout.colorsOf[activeSeat] ?? []);
 
   const [sel, setSel] = useState<Selection>(emptySel);
   const [focus, setFocus] = useState<number | null>(null);
@@ -56,100 +76,10 @@ function GameInner({ lobby, view }: { lobby: LobbyView; view: GameView }) {
   /** Farbe der angeklickten Handkarte (bei mehreren Karten gleichen Werts) */
   const [pick, setPick] = useState<number | null>(null);
   const [note, setNote] = useState<string | null>(null);
-  // Nach dem Abschicken bleiben die Kugeln am Ziel stehen, bis der Server den neuen Stand schickt
+  // Stufe 1 (Karte und Kugeln gleichzeitig): nach dem Abschicken bleiben die Kugeln am Ziel stehen, bis der Server den neuen Stand schickt
   const [sentPegs, setSentPegs] = useState<Peg[] | null>(null);
-
-  const speed = layout.rules.turnSpeed;
-  const tm = timing(speed);
-
-  // Ablegen: Karte fliegt zum Stapel, Kugeln folgen (ab Stufe 2 erst danach)
-  const lp = view.lastPlay;
-  const [flight, setFlight] = useState<Flight | null>(null);
-  const [heldPile, setHeldPile] = useState<PileView | null>(null);
-  const [heldPegs, setHeldPegs] = useState<Peg[] | null>(null);
-  const seenPlay = useRef(lp?.n ?? 0);
-  const prevPegs = useRef(view.pegs);
-  const prevPile = useRef<PileView>({ top: view.discardTop, count: view.discardCount, suit: suitOf(view.discardSuit) });
-  // Muss ein Spieler seine Hand abwerfen, fliegen die Karten nacheinander (nach einer gerade gespielten Karte) auf den Stapel
-  const lastPass = view.passes.length > 0 ? view.passes[view.passes.length - 1]!.id : 0;
-  const seenPass = useRef(lastPass);
-  const [pflights, setPflights] = useState<Flight[]>([]);
-  useLayoutEffect(() => {
-    const playNew = lp?.n !== undefined && lp.n !== seenPlay.current;
-    const fresh = view.passes.filter((e) => e.id > seenPass.current);
-    seenPass.current = lastPass;
-    if (!playNew && fresh.length === 0) return;
-    setPflights([]);
-    const timers: ReturnType<typeof setTimeout>[] = [];
-    let pile = prevPile.current;
-    let delay = 0;
-    if (playNew) {
-      seenPlay.current = lp!.n!;
-      const nst = geo.nest(layout.colorsOf[lp!.player]?.[0] ?? 0);
-      setFlight({ key: lp!.n!, from: { x: nst.cx, y: nst.cy }, card: lp!.card, suit: suitOf(lp!.suit), ms: tm.flight });
-      pile = { top: lp!.card, suit: suitOf(lp!.suit), count: pile.count + 1 };
-      delay = tm.flight;
-      if (tm.sequential && lp!.player !== view.seat) {
-        setHeldPegs(prevPegs.current);
-        timers.push(setTimeout(() => setHeldPegs(null), tm.flight));
-      }
-    }
-    setHeldPile(prevPile.current);
-    if (fresh.length === 0) {
-      timers.push(setTimeout(() => setHeldPile(null), delay));
-      return () => timers.forEach(clearTimeout);
-    }
-    // Stapel zeigt zuerst die gespielte Karte, dann nach jedem Abwurf dessen oberste Karte
-    if (playNew) timers.push(setTimeout(() => setHeldPile(pile), delay));
-    for (const e of fresh) {
-      const nst = geo.nest(layout.colorsOf[e.player]?.[0] ?? 0);
-      const from = { x: nst.cx, y: nst.cy };
-      const backs = e.cards - 1;
-      const start = delay;
-      const flights: Flight[] = [];
-      for (let j = 0; j <= backs; j++) {
-        const top = j === backs;
-        flights.push({ key: 2_000_000 + e.id * 10 + j, from, card: top ? e.top : null, suit: suitOf(e.suit), ms: tm.flight, delay: j * 90 });
-      }
-      const total = tm.flight + backs * 90;
-      pile = { top: e.top, suit: suitOf(e.suit), count: pile.count + e.cards };
-      const landed = pile;
-      timers.push(setTimeout(() => setPflights((cur) => [...cur, ...flights]), start));
-      timers.push(setTimeout(() => { setHeldPile(landed); setPflights((cur) => cur.filter((f) => !flights.includes(f))); }, start + total));
-      delay = start + total + 120;
-    }
-    timers.push(setTimeout(() => setHeldPile(null), delay));
-    return () => timers.forEach(clearTimeout);
-  }, [lp?.n, lastPass]);
-  // Kartenübergabe (Tausch, 2 ziehen): nur die Karte, die ich bekomme, fliegt zu mir; erst bei der Ankunft liegt sie in der Hand
-  const [xflights, setXflights] = useState<Flight[]>([]);
-  const [arrived, setArrived] = useState<Set<number>>(() => new Set(view.transfers.map((t) => t.id)));
-  const seenTransfer = useRef(Math.max(0, ...view.transfers.map((t) => t.id)));
-  useLayoutEffect(() => {
-    const fresh = view.transfers.filter((t) => t.id > seenTransfer.current);
-    if (fresh.length === 0) return;
-    seenTransfer.current = Math.max(...fresh.map((t) => t.id));
-    const mine = fresh.filter((t) => t.to === view.seat && t.card !== null);
-    setArrived((cur) => new Set([...cur, ...fresh.filter((t) => !mine.includes(t)).map((t) => t.id)]));
-    if (mine.length === 0) return;
-    const ms = tm.flight * 2;
-    const nest = geo.nest(layout.colorsOf[view.seat]?.[0] ?? 0);
-    const to = { x: nest.cx, y: nest.cy };
-    const pos = (seat: number) => {
-      const n = geo.nest(layout.colorsOf[seat]?.[0] ?? 0);
-      return { x: n.cx, y: n.cy };
-    };
-    setXflights((cur) => [...cur, ...mine.map((t) => ({ key: 1_000_000 + t.id, from: pos(t.from), to, card: t.card, suit: suitOf(t.suit), ms }))]);
-    // ohne Aufräumen beim nächsten Spielstand, sonst bliebe die Karte hängen
-    setTimeout(() => {
-      setXflights((cur) => cur.filter((f) => !mine.some((t) => 1_000_000 + t.id === f.key)));
-      setArrived((cur) => new Set([...cur, ...mine.map((t) => t.id)]));
-    }, ms);
-  }, [view.transfers]);
-  useEffect(() => {
-    prevPegs.current = view.pegs;
-    prevPile.current = { top: view.discardTop, count: view.discardCount, suit: suitOf(view.discardSuit) };
-  });
+  // Zug abgeschickt, Antwort des Servers steht noch aus: keine zweite Eingabe
+  const [sent, setSent] = useState(false);
 
   // Neuer Spielstand vom Server: angefangene Auswahl verwerfen
   const stateKey = JSON.stringify([view.phase, view.current, view.myHand, view.pegs.map((p) => p.pos)]);
@@ -161,27 +91,26 @@ function GameInner({ lobby, view }: { lobby: LobbyView; view: GameView }) {
     setNote(null);
     setSentPegs(null);
   }, [stateKey]);
+  useEffect(() => setSent(false), [live]);
 
   // Lehnt der Server den Zug ab, kommt kein neuer Stand: nach kurzer Zeit wieder den echten Stand zeigen
   useEffect(() => {
-    if (!sentPegs) return;
-    const t = setTimeout(() => setSentPegs(null), 4000);
+    if (!sentPegs && !sent) return;
+    const t = setTimeout(() => {
+      setSentPegs(null);
+      setSent(false);
+    }, 4000);
     return () => clearTimeout(t);
-  }, [sentPegs]);
+  }, [sentPegs, sent]);
 
-  const myTurn = view.phase === 'playing' && view.current === view.seat && view.legal !== null;
+  const myTurn = view.phase === 'playing' && view.current === view.seat && view.legal !== null && !busy && !sent;
   const legal = view.legal ?? [];
   const teams = layout.teams;
-  // Handkarten mit Farbe; die gerade fliegende Karte erscheint erst bei der Ankunft
-  const incoming = view.transfers.filter((t) => t.to === view.seat && t.card !== null && !arrived.has(t.id));
+  // Handkarten mit Farbe; eine fliegende Karte erscheint erst bei der Ankunft (Anzeigestand `view`)
   const hand = useMemo(() => {
     const cards = view.myHand.map((card, i) => ({ card, suit: view.mySuits[i] ?? 0 }));
-    for (const t of incoming) {
-      const i = cards.findIndex((h) => h.card === t.card && h.suit === t.suit);
-      if (i >= 0) cards.splice(i, 1);
-    }
     return cards.sort((a, b) => ORDER.indexOf(a.card) - ORDER.indexOf(b.card) || a.suit - b.suit);
-  }, [view.myHand, view.mySuits, incoming.map((t) => t.id).join()]);
+  }, [view.myHand, view.mySuits]);
   /** Farbe der gewählten Karte dieses Rangs: die angeklickte, sonst die erste auf der Hand */
   const suitFor = (c: Card): number | undefined => {
     if (c === 'JOKER') return undefined;
@@ -200,7 +129,8 @@ function GameInner({ lobby, view }: { lobby: LobbyView; view: GameView }) {
 
   const submit = (p: Play) => {
     const after = p.card === '7' || p.as === '7' ? sevenNext(view.pegs, layout, view.seat, p.moves, p.card === 'JOKER').pegs : p.moves.reduce<Peg[] | null>((ps, m) => (ps ? applyMoveToPegs(ps, layout, m, false) : null), view.pegs);
-    if (after) setSentPegs(after);
+    if (after && !tm.sequential) setSentPegs(after);
+    setSent(true);
     const suit = suitFor(p.card);
     net.send({ t: 'play', card: p.card, ...(suit !== undefined ? { suit } : {}), ...(p.as ? { as: p.as } : {}), moves: p.moves });
     setSel(emptySel);
@@ -299,14 +229,14 @@ function GameInner({ lobby, view }: { lobby: LobbyView; view: GameView }) {
   };
 
   // Einzelspiel, Kartentausch: blind eine Karte vom rechten Nachbarn (nächster Spieler) ziehen
-  const drawing = view.phase === 'exchange' && !layout.teams;
+  const drawing = view.phase === 'exchange' && !layout.teams && !busy;
   const rightSeat = (view.seat + 1) % view.handSizes.length;
   const stealOpts = opts.filter((m): m is Extract<Move, { t: 'steal' }> => m.t === 'steal');
 
   const playable = playableCards(legal);
   const clickCard = (c: Card, suit: number) => {
     if (view.phase === 'exchange') {
-      if (view.exchangeDone[view.seat] || drawing) return;
+      if (view.exchangeDone[view.seat] || drawing || busy) return;
       setXCard(c);
       return setPick(suit);
     }
@@ -356,7 +286,7 @@ function GameInner({ lobby, view }: { lobby: LobbyView; view: GameView }) {
         <Board
           layout={layout}
           geo={geo}
-          pegs={heldPegs ?? sentPegs ?? seven?.pegs ?? view.pegs}
+          pegs={seven?.pegs ?? sentPegs ?? view.pegs}
           segColors={segColors}
           segNames={segNames}
           activeSegs={activeSegs}
@@ -367,8 +297,8 @@ function GameInner({ lobby, view }: { lobby: LobbyView; view: GameView }) {
           onPeg={onPeg}
           onMarker={onMarker}
           centerLines={[`Runde ${view.round + 1}`, `Stapel: ${view.deckCount}`, `Geber: ${names[view.dealer]}`]}
-          pile={heldPile ?? prevPile.current}
-          flights={[...(flight ? [flight] : []), ...pflights, ...xflights]}
+          pile={{ top: view.discardTop, count: view.discardCount, suit: suitOf(view.discardSuit) }}
+          flights={flights}
         />
       </div>
 
@@ -377,7 +307,7 @@ function GameInner({ lobby, view }: { lobby: LobbyView; view: GameView }) {
           {hand.map(({ card: c, suit }, i) => {
             const mark = view.phase === 'exchange' ? xCard : sel.card;
             const selected = mark === c && (c === 'JOKER' || suitFor(c) === suit) && hand.findIndex((h) => h.card === c && h.suit === suit) === i;
-            const usable = view.phase === 'exchange' ? !view.exchangeDone[view.seat] && !drawing : myTurn && playable.has(c);
+            const usable = view.phase === 'exchange' ? !view.exchangeDone[view.seat] && !drawing && !busy : myTurn && playable.has(c);
             const sym = suitOf(suit);
             return (
               <button
