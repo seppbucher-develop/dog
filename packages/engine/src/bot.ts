@@ -27,6 +27,8 @@ export interface LevelParams {
   enemy?: number;
   /** Bonus für gewonnene Karte (Zug 2 stiehlt eine Karte) */
   steal?: number;
+  /** Zusatzwert jeder Kugel, die nicht mehr im Heim ist (Starterkarte wiederzubekommen ist selten) */
+  out?: number;
   /** Gewicht des Schlagrisikos aus Kartenzählung (ersetzt `threat`, wenn > 0) */
   risk?: number;
 }
@@ -49,10 +51,10 @@ export function makeRand(seed: number): () => number {
 }
 
 /** Wert einer einzelnen Kugel: Heim 0, Ring 100..400 nach Fortschritt, Zielhaus 600+. */
-function pegValue(layout: Layout, peg: Peg): number {
+function pegValue(layout: Layout, peg: Peg, out = 0): number {
   if (peg.pos.t === 'home') return 0;
   if (peg.pos.t === 'fin') return 600 + 30 * peg.pos.s;
-  return 100 + (300 * progress(layout, peg)) / layout.ringSize;
+  return 100 + out + (300 * progress(layout, peg)) / layout.ringSize;
 }
 
 function teamColors(layout: Layout, player: number): number[] {
@@ -117,11 +119,11 @@ function captureProb(pegs: Peg[], layout: Layout, mine: Peg, friendly: number[],
 }
 
 /** Bewertung einer Stellung aus Sicht des Spielers (höher = besser). */
-export function evaluate(pegs: Peg[], layout: Layout, player: number, threatWeight: number, enemyWeight = 0.5, risk?: RiskModel): number {
+export function evaluate(pegs: Peg[], layout: Layout, player: number, threatWeight: number, enemyWeight = 0.5, risk?: RiskModel, out = 0): number {
   const friendly = teamColors(layout, player);
   let score = 0;
   for (const p of pegs) {
-    const v = pegValue(layout, p);
+    const v = pegValue(layout, p, out);
     if (friendly.includes(p.color)) {
       score += v;
       if (risk && p.pos.t === 'ring' && v > 0) score -= risk.weight * v * captureProb(pegs, layout, p, friendly, risk);
@@ -212,7 +214,7 @@ export function chooseAction(
     let bestScore = -Infinity;
     for (const play of plays) {
       const after = pegsAfterPlay(state.pegs, layout, play);
-      let score = evaluate(after, layout, player, params.threat, params.enemy, risk);
+      let score = evaluate(after, layout, player, params.threat, params.enemy, risk, params.out);
       if (play.moves.some((m) => m.t === 'steal')) score += params.steal ?? 25; // eine (unbekannte) Karte gewonnen
       score -= params.cardCost * cardCost(state, layout, player, play);
       if (known.received !== undefined && play.card === known.received) score -= RECEIVED_CARD_DELAY;

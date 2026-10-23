@@ -9,7 +9,7 @@
 import { appendFileSync, writeFileSync } from 'node:fs';
 import {
   applyAction, chooseAction, chooseDraw, chooseExchange, createGame, layoutFor, makeRand,
-  type BotLevel, type GameState,
+  LEVEL_PARAMS, type BotLevel, type GameState, type LevelParams,
 } from '../src';
 
 const arg = (k: string, d?: string) => {
@@ -21,6 +21,10 @@ const games = Number(arg('games', '100'));
 const seed0 = Number(arg('seed', '1'));
 const out = arg('out');
 const levels = (arg('levels', 'expert') as string).split(',') as BotLevel[];
+// Level "X": Experte mit überschriebenen Parametern aus --x out=100,risk=1 (Stufenname für Tausch: expert)
+const xParams: LevelParams = { ...LEVEL_PARAMS.expert, ...Object.fromEntries((arg('x', '') as string).split(',').filter(Boolean).map((kv) => [kv.split('=')[0], Number(kv.split('=')[1])])) };
+const paramsFor = (l: BotLevel): BotLevel | LevelParams => ((l as string) === 'X' ? xParams : l);
+const nameFor = (l: BotLevel): BotLevel => ((l as string) === 'X' ? 'expert' : l);
 const seatLevels0 = Array.from({ length: players }, (_, i) => levels[i % levels.length]!);
 const maxTurns = 4000;
 
@@ -45,13 +49,13 @@ for (let g = 0; g < games; g++) {
   while (s.phase !== 'finished' && turns < maxTurns) {
     if (s.phase === 'exchange') {
       for (let p = 0; p < players; p++) {
-        s = applyAction(s, layout.teams ? chooseExchange(s, p, seatLevel[p]!, rand) : chooseDraw(s, p, rand));
+        s = applyAction(s, layout.teams ? chooseExchange(s, p, nameFor(seatLevel[p]!), rand) : chooseDraw(s, p, rand));
       }
       continue;
     }
     const player = s.current;
     const before = s.pegs;
-    const action = chooseAction(s, player, seatLevel[player]!, rand);
+    const action = chooseAction(s, player, paramsFor(seatLevel[player]!), rand);
     s = applyAction(s, action);
     turns++;
     for (const pg of s.pegs) {
