@@ -3,11 +3,13 @@ import { Landing } from './Landing';
 import { Lobby } from './Lobby';
 import { Game } from './Game';
 import { isOutdated, useVersion } from './version';
+import { THEMES, useTheme } from './theme';
 
 export function App() {
   const s = useNet();
   const { lobby } = s;
   const ver = useVersion();
+  const [theme, setTheme] = useTheme();
 
   let body;
   if (s.closed) {
@@ -55,6 +57,15 @@ export function App() {
           {s.error}
         </div>
       )}
+      <div className="topbar">
+        <div className="theme-switch" role="group" aria-label="Darstellung">
+          {THEMES.map((t) => (
+            <button key={t.id} title={t.title} aria-label={t.title} aria-pressed={theme === t.id} onClick={() => setTheme(t.id)}>
+              {t.label}
+            </button>
+          ))}
+        </div>
+      </div>
       {body}
       {ver.current && <footer className="version">Version {ver.current}</footer>}
     </div>
