@@ -101,3 +101,19 @@ Die frühere Zahl (38 % bei 100 Spielen) war zu optimistisch. Die Vorausschau br
 aber deutlich weniger als bei 2 oder 3 Spielern. Gegen den alten Experten liegt A zwar über fair, das Intervall reicht aber knapp an 20 % heran.
 Mögliche Gründe: mit vier Gegnern ist der Einfluss eines einzelnen Zuges auf den Ausgang kleiner, und die Gegnerantworten werden nur einmal
 reihum simuliert.
+
+## Sperre (Startfeld) als Bewertungsterm
+
+Parameter `block` in `bot.ts`: Bonus je gegnerische Kugel, die auf eine eigene frische Startfeld-Kugel zuläuft (1–13 Felder dahinter voll,
+14–26 mit Faktor 0,3), Abzug je eigene oder Partnerkugel, die dahinter aufgehalten wird. Der Term hängt auch an der Vorausschau.
+
+4 Spieler (Teams), A (mit Partner, Experte + `block`) gegen Experten ohne `block`, Sitze rotiert, n=600:
+
+| `block` | Siegquote A (fair 50 %) |
+|---|---|
+| 15 | 50,0 % ±4,0 |
+| 40 | 51,0 % ±4,0 |
+| 100 | 50,3 % ±4,0 |
+
+Kein messbarer Effekt, deshalb bleibt `block` in allen Stufen ungesetzt (aus). Nicht gemessen: Einzelspiel und 6 Spieler.
+`sim/match.ts` lässt im Teamspiel A mit seinem Partner spielen (Bündeln mit esbuild, sonst finden die Worker `src` nicht).
