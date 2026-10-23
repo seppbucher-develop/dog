@@ -42,6 +42,8 @@ export interface LevelParams {
   forceDump?: number;
   /** Teamspiel, Kartentausch: Zusatzwert für eine Karte, die der Partner auf dem Brett spielen kann, wenn er sonst seine Hand abwerfen müsste (Gewicht je Karte) */
   giftPlayable?: number;
+  /** Teamspiel, Kartentausch: Gewicht des Schlag- und Tauschgewinns, den der Partner mit der Karte gegen gegnerische Kugeln erzielen könnte (je Wertpunkt) */
+  giftTactic?: number;
 }
 
 export const LEVEL_PARAMS: Record<BotLevel, LevelParams> = {
@@ -277,6 +279,24 @@ function partnerCardGain(state: GameState, layout: Layout, player: number, partn
   return best;
 }
 
+/**
+ * Was der Partner mit der Karte `card` allein gegen die Gegner erreichen kann (>= 0): Wertverlust der gegnerischen Kugeln durch
+ * Schlagen oder Tauschen (nah am Haus hoch), abzüglich dessen, was dabei Teamkugeln verlieren.
+ */
+function captureGain(state: GameState, layout: Layout, player: number, partner: number, card: Card): number {
+  const friendly = teamColors(layout, player);
+  const sum = (pegs: Peg[], mine: boolean) => pegs.reduce((a, p) => (friendly.includes(p.color) === mine ? a + pegValue(layout, p) : a), 0);
+  const hypothetical: GameState = { ...state, hands: state.hands.map((h, q) => (q === partner ? [card] : h)) };
+  const enemy0 = sum(state.pegs, false);
+  const mine0 = sum(state.pegs, true);
+  let best = 0;
+  for (const play of legalPlays(hypothetical, partner, true)) {
+    const after = pegsAfterPlay(state.pegs, layout, play);
+    best = Math.max(best, enemy0 - sum(after, false) - Math.max(0, mine0 - sum(after, true)));
+  }
+  return best;
+}
+
 /** Anzahl eigener Teamkugeln, die der Zug vom Brett heimschickt. */
 function friendlySent(before: Peg[], after: Peg[], layout: Layout, player: number): number {
   const friendly = teamColors(layout, player);
@@ -417,7 +437,7 @@ const STARTER_GIFT: Record<string, number> = { K: 200, A: 195, JOKER: 190 };
  * Nie eine Karte, ohne die man sich selbst blockiert (Starterkarte nur abgeben, wenn man schon eine Kugel auf dem
  * Ring hat oder noch eine weitere Starterkarte behält).
  */
-function cardForPartner(state: GameState, layout: Layout, player: number, hand: Card[], giftPlayable = 0): Card | undefined {
+function cardForPartner(state: GameState, layout: Layout, player: number, hand: Card[], giftPlayable = 0, giftTactic = 0): Card | undefined {
   const pegsOf = (who: number) => state.pegs.filter((p) => controlledColors(state, layout, who).includes(p.color));
   const partnerPegs = pegsOf(layout.giveTo[player]!);
   const partnerHome = partnerPegs.filter((p) => p.pos.t === 'home').length;
@@ -449,6 +469,7 @@ function cardForPartner(state: GameState, layout: Layout, player: number, hand: 
     let value = KEEP_VALUE[c];
     if (isStarter(c) && partnerHome > 0) value = partnerOut === 0 ? STARTER_GIFT[c]! : value + 20;
     if (playable?.get(c)) value += giftPlayable * dumpCards;
+    if (giftTactic > 0) value += giftTactic * captureGain(state, layout, player, layout.giveTo[player]!, c);
     if (value > bestValue) {
       bestValue = value;
       best = c;
@@ -484,7 +505,7 @@ export function chooseExchange(state: GameState, player: number, level: BotLevel
     card = sorted[0]!; // die unwichtigste Karte
     const target = layout.giveTo[player]!;
     const helps = layout.teamOf[target] === layout.teamOf[player];
-    if (params.teamwork && helps) card = cardForPartner(state, layout, player, hand, params.giftPlayable) ?? card;
+    if (params.teamwork && helps) card = cardForPartner(state, layout, player, hand, params.giftPlayable, params.giftTactic) ?? card;
     if (helps && keepsStarterAndGivesJoker(state, layout, player, hand)) card = 'JOKER';
   }
   return { t: 'exchange', player, card };

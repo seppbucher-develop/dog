@@ -99,6 +99,23 @@ describe('Kartentausch mit Sperre', () => {
   });
 });
 
+describe('Kartentausch mit Schlag', () => {
+  // Partner (Spieler 2) hat eine freie Fahrt; eine gegnerische Kugel (Farbe 1) steht 5 Felder vor ihm kurz vor ihrem Haus
+  const setup = () =>
+    scenario(
+      { players: 4 },
+      { pegs: { [peg(0, 0)]: ring(0), [peg(2, 0)]: ring(40), [peg(1, 0)]: ring(45) }, hands: [['10', '5', '3'], ['A'], ['2', '3', '6', '8', '9'], ['A']] },
+    );
+
+  it('Gibt dem Partner die Karte, mit der er die gegnerische Kugel schlagen kann', () => {
+    expect(chooseExchange(setup(), 0, { ...LEVEL_PARAMS.expert, giftTactic: 0.3 }, makeRand(1)).card).toBe('5');
+  });
+
+  it('Ohne den Term gibt er die höchste Karte', () => {
+    expect(chooseExchange(setup(), 0, 'expert', makeRand(1)).card).toBe('10');
+  });
+});
+
 describe('Bots', () => {
   it('Alle Stufen spielen ein Teamspiel und ein Einzelspiel legal bis zum Ende', () => {
     for (const level of BOT_LEVELS) {
