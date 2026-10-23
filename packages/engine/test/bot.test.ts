@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { applyAction, BOT_LEVELS, chooseAction, evaluate, chooseDraw, chooseExchange, createGame, layoutFor, legalPlays, LEVEL_PARAMS, makeRand, type BotLevel, type GameConfig, type GivenCard } from '../src';
-import { peg, ring, scenario } from './helpers';
+import { applyAction, BOT_LEVELS, chooseAction, evaluate, type Card, chooseDraw, chooseExchange, createGame, layoutFor, legalPlays, LEVEL_PARAMS, makeRand, type BotLevel, type GameConfig, type GivenCard } from '../src';
+import { fin, peg, ring, scenario } from './helpers';
 
 /** Experte ohne Vorausschau: prüft die Ein-Zug-Regeln zum Kartentausch isoliert (die Vorausschau bewertet solche Stellungen eigenständig). */
 const EXPERT_1PLY = { ...LEVEL_PARAMS.expert, lookahead: undefined };
@@ -54,6 +54,29 @@ describe('Sperre', () => {
     expect(legalPlays(s, 0).length).toBeGreaterThan(1);
     const a = chooseAction(s, 0, { ...EXPERT_1PLY, block: 100 }, makeRand(1));
     expect(applyAction(s, a).pegs.find((p) => p.id === peg(0, 0))!.pos).toEqual(ring(5));
+  });
+});
+
+describe('Erzwungener Abwurf', () => {
+  /** Farbe `c` hat drei Kugeln im Haus und eine auf Feld 62, zwei Felder vor meiner Sperre auf Feld 0. */
+  const stuck = (c: number) => ({ [peg(c, 0)]: ring(62), [peg(c, 1)]: fin(0), [peg(c, 2)]: fin(1), [peg(c, 3)]: fin(2) });
+  /** `bait`: ein Schlag mit der Sperrkugel (Feld 5) bzw. mit der anderen Kugel (Feld 25) lockt zum jeweils anderen Zug. */
+  const pick = (who: number, forceDump = 200, bait = false) => {
+    const hands: Card[][] = [['5'], ['A'], ['A'], ['A']];
+    hands[who] = ['2', '3', '5', '6', '8'];
+    const s = scenario({ players: 4 }, { pegs: { [peg(0, 0)]: ring(0), [peg(0, 1)]: ring(20), ...stuck(who), ...(bait ? { [peg(3, 0)]: ring(who === 1 ? 5 : 25) } : {}) }, hands });
+    const a = chooseAction(s, 0, { ...EXPERT_1PLY, forceDump }, makeRand(1));
+    return applyAction(s, a).pegs.find((p) => p.id === peg(0, 0))!.pos;
+  };
+
+  it('Behält die Sperre, wenn der Gegner dahinter sonst abwerfen muss', () => {
+    expect(pick(1, 200, true)).toEqual(ring(0));
+    expect(pick(1, 0, true)).toEqual(ring(5)); // ohne den Term schlägt der Bot mit der Sperrkugel
+  });
+
+  it('Gibt die Sperre frei, wenn sonst der Partner abwerfen muss', () => {
+    expect(pick(2, 1000, true)).toEqual(ring(5));
+    expect(pick(2, 0, true)).toEqual(ring(0)); // ohne den Term schlägt der Bot mit der anderen Kugel
   });
 });
 

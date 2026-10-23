@@ -38,6 +38,8 @@ export interface LevelParams {
   risk?: number;
   /** Gewicht der Startfeld-Sperre: Bonus je gegnerische Kugel, die auf meine Sperre zuläuft, Abzug je Kugel von mir/Partner, die sie aufhält */
   block?: number;
+  /** Gewicht erzwungener Handabwürfe: Bonus je Karte, die ein Gegner mangels legalem Zug abwerfen muss, Abzug beim Partner (Wahrscheinlichkeit aus Kartenzählung) */
+  forceDump?: number;
 }
 
 export const LEVEL_PARAMS: Record<BotLevel, LevelParams> = {
@@ -146,6 +148,52 @@ function blockTerm(pegs: Peg[], layout: Layout, friendly: number[]): number {
       const w = blockReach(layout, o, b.pos.f);
       if (w > 0) score += friendly.includes(o.color) ? -w : w;
     }
+  }
+  return score;
+}
+
+const RANKS_ALL: Card[] = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+
+/** Welche Karten Spieler `q` in der Stellung `pegs` überhaupt spielen könnte (Joker, wenn irgendein Rang geht). */
+function playableCards(state: GameState, q: number, pegs: Peg[]): Map<Card, boolean> {
+  const out = new Map<Card, boolean>();
+  const base: GameState = { ...state, pegs };
+  let any = false;
+  for (const r of RANKS_ALL) {
+    const ok = legalPlays({ ...base, hands: state.hands.map((h, i) => (i === q ? [r] : h)) }, q, true).length > 0;
+    out.set(r, ok);
+    any ||= ok;
+  }
+  out.set('JOKER', any);
+  return out;
+}
+
+/**
+ * Erwartete Kosten (in Karten) für das Team von `player`, wenn die Gegner mangels legalem Zug ihre Hand abwerfen müssen,
+ * minus die der Partner: Summe über Spieler q von (Handgröße × Wahrscheinlichkeit, dass keine ihrer Karten spielbar ist).
+ * Die Karten kommen aus der Kartenzählung; die beim Tausch an den Partner gegebene Karte ist bekannt.
+ */
+function dumpBalance(
+  state: GameState,
+  layout: Layout,
+  player: number,
+  pegs: Peg[],
+  unseen: RiskModel,
+  heldBy?: { partner: number; card: Card },
+): number {
+  let score = 0;
+  for (let q = 0; q < state.config.players; q++) {
+    const h = state.hands[q]!.length;
+    if (q === player || h === 0) continue;
+    const play = playableCards(state, q, pegs);
+    const known = heldBy && heldBy.partner === q ? heldBy.card : undefined;
+    let dead = 0;
+    unseen.unseen.forEach((n, c) => {
+      if (!play.get(c)) dead += n;
+    });
+    const u = Math.min(1, dead / unseen.total);
+    const p = known !== undefined ? (play.get(known) ? 0 : 1) * Math.pow(u, h - 1) : Math.pow(u, h);
+    score += (layout.teamOf[q] === layout.teamOf[player] ? -1 : 1) * h * p;
   }
   return score;
 }
@@ -323,6 +371,7 @@ export function chooseAction(
     const risk = params.risk && params.risk > 0 ? buildRisk(state, layout, player, params.risk) : undefined;
     const base: number[] = [];
     const extra: number[] = [];
+    const counted = params.forceDump ? buildRisk(state, layout, player, 0) : undefined;
     for (const play of plays) {
       const after = pegsAfterPlay(state.pegs, layout, play);
       base.push(evaluate(after, layout, player, params.threat, params.enemy, risk, params.block));
@@ -332,6 +381,7 @@ export function chooseAction(
       if (params.friendlyFire && layout.teams) e -= params.friendlyFire * friendlySent(state.pegs, after, layout, player);
       if (known.received !== undefined && play.card === known.received) e -= RECEIVED_CARD_DELAY;
       if (known.heldBy) e += PARTNER_CARD_WEIGHT * partnerCardGain(state, layout, player, known.heldBy.partner, known.heldBy.card, after);
+      if (counted) e += params.forceDump! * dumpBalance(state, layout, player, after, counted, known.heldBy);
       e += rand() * params.noise;
       extra.push(e);
     }
