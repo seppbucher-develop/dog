@@ -27,6 +27,8 @@ export interface LevelParams {
   enemy?: number;
   /** Bonus für gewonnene Karte (Zug 2 stiehlt eine Karte) */
   steal?: number;
+  /** Gewicht des Schlagrisikos aus Kartenzählung (ersetzt `threat`, wenn > 0) */
+  risk?: number;
 }
 
 export const LEVEL_PARAMS: Record<BotLevel, LevelParams> = {
@@ -57,15 +59,73 @@ function teamColors(layout: Layout, player: number): number[] {
   return layout.teamList[layout.teamOf[player]!]!.flatMap((q) => layout.colorsOf[q]!);
 }
 
+/** Kartenzählung: was die Gegner noch halten können (alles, was weder abgeworfen noch auf meiner Hand ist). */
+export interface RiskModel {
+  unseen: Map<Card, number>;
+  total: number;
+  hands: number[];
+  ownerOf: number[];
+  weight: number;
+}
+
+/** Karten, mit denen eine Kugel `d` Felder hinter einer gegnerischen Kugel erreicht (schlägt) werden kann. */
+function reachCards(d: number, ringSize: number): Card[] {
+  const out: Card[] = ['JOKER'];
+  if (d >= 1 && d <= 7) out.push('7');
+  if (d === 1 || d === 11) out.push('A');
+  if (d >= 2 && d <= 6 && d !== 7) out.push(String(d) as Card);
+  if (d >= 8 && d <= 10) out.push(String(d) as Card);
+  if (d === 12) out.push('Q');
+  if (d === 13) out.push('K');
+  if (d === ringSize - 4) out.push('4'); // 4 rückwärts
+  return out;
+}
+
+export function buildRisk(state: GameState, layout: Layout, player: number, weight: number): RiskModel {
+  const unseen = new Map<Card, number>();
+  const ranks: Card[] = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+  for (const r of ranks) unseen.set(r, 8);
+  unseen.set('JOKER', 6);
+  const dec = (c: Card) => unseen.set(c, Math.max(0, unseen.get(c)! - 1));
+  state.discard.forEach(dec);
+  state.hands[player]!.forEach(dec);
+  let total = 0;
+  unseen.forEach((n) => (total += n));
+  const ownerOf: number[] = [];
+  layout.colorsOf.forEach((cs, q) => cs.forEach((c) => (ownerOf[c] = q)));
+  return { unseen, total: Math.max(1, total), hands: state.hands.map((h) => h.length), ownerOf, weight };
+}
+
+/** Wahrscheinlichkeit, dass die Kugel `mine` im nächsten Gegnerzug geschlagen wird. */
+function captureProb(pegs: Peg[], layout: Layout, mine: Peg, friendly: number[], risk: RiskModel): number {
+  if (mine.pos.t !== 'ring' || mine.pos.f === mine.color * 16) return 0;
+  let safe = 1;
+  const hit = (cards: Card[], q: number) => {
+    const h = risk.hands[q]!;
+    if (h === 0) return;
+    let n = 0;
+    for (const c of new Set(cards)) n += risk.unseen.get(c) ?? 0;
+    safe *= Math.pow(1 - Math.min(1, n / risk.total), h);
+  };
+  for (const o of pegs) {
+    if (friendly.includes(o.color)) continue;
+    const q = risk.ownerOf[o.color]!;
+    if (o.pos.t === 'ring') hit(reachCards(mod(mine.pos.f - o.pos.f, layout.ringSize), layout.ringSize), q);
+    else if (o.pos.t === 'home' && o.color * 16 === mine.pos.f) hit(['A', 'K', 'JOKER'], q);
+  }
+  return 1 - safe;
+}
+
 /** Bewertung einer Stellung aus Sicht des Spielers (höher = besser). */
-export function evaluate(pegs: Peg[], layout: Layout, player: number, threatWeight: number, enemyWeight = 0.5): number {
+export function evaluate(pegs: Peg[], layout: Layout, player: number, threatWeight: number, enemyWeight = 0.5, risk?: RiskModel): number {
   const friendly = teamColors(layout, player);
   let score = 0;
   for (const p of pegs) {
     const v = pegValue(layout, p);
     if (friendly.includes(p.color)) {
       score += v;
-      if (threatWeight > 0 && p.pos.t === 'ring' && v > 0) score -= threatWeight * v * Math.min(2, threatCount(pegs, layout, p, friendly));
+      if (risk && p.pos.t === 'ring' && v > 0) score -= risk.weight * v * captureProb(pegs, layout, p, friendly, risk);
+      else if (threatWeight > 0 && p.pos.t === 'ring' && v > 0) score -= threatWeight * v * Math.min(2, threatCount(pegs, layout, p, friendly));
     } else {
       score -= enemyWeight * v;
     }
@@ -148,10 +208,11 @@ export function chooseAction(
   let best: Play = plays[Math.floor(rand() * plays.length)]!;
   if (!params.random) {
     const known = params.teamwork ? exchangeKnowledge(state, player) : {};
+    const risk = params.risk && params.risk > 0 ? buildRisk(state, layout, player, params.risk) : undefined;
     let bestScore = -Infinity;
     for (const play of plays) {
       const after = pegsAfterPlay(state.pegs, layout, play);
-      let score = evaluate(after, layout, player, params.threat, params.enemy);
+      let score = evaluate(after, layout, player, params.threat, params.enemy, risk);
       if (play.moves.some((m) => m.t === 'steal')) score += params.steal ?? 25; // eine (unbekannte) Karte gewonnen
       score -= params.cardCost * cardCost(state, layout, player, play);
       if (known.received !== undefined && play.card === known.received) score -= RECEIVED_CARD_DELAY;
