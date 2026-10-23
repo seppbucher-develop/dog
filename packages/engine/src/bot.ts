@@ -294,18 +294,21 @@ export function chooseAction(
   if (!params.random) {
     const known = params.teamwork ? exchangeKnowledge(state, player) : {};
     const risk = params.risk && params.risk > 0 ? buildRisk(state, layout, player, params.risk) : undefined;
-    const scores: number[] = [];
+    const base: number[] = [];
+    const extra: number[] = [];
     for (const play of plays) {
       const after = pegsAfterPlay(state.pegs, layout, play);
-      let score = evaluate(after, layout, player, params.threat, params.enemy, risk);
-      if (play.moves.some((m) => m.t === 'steal')) score += params.steal ?? 25; // eine (unbekannte) Karte gewonnen
-      score -= params.cardCost * cardCost(state, layout, player, play);
-      if (params.friendlyFire && layout.teams) score -= params.friendlyFire * friendlySent(state.pegs, after, layout, player);
-      if (known.received !== undefined && play.card === known.received) score -= RECEIVED_CARD_DELAY;
-      if (known.heldBy) score += PARTNER_CARD_WEIGHT * partnerCardGain(state, layout, player, known.heldBy.partner, known.heldBy.card, after);
-      score += rand() * params.noise;
-      scores.push(score);
+      base.push(evaluate(after, layout, player, params.threat, params.enemy, risk));
+      let e = 0;
+      if (play.moves.some((m) => m.t === 'steal')) e += params.steal ?? 25; // eine (unbekannte) Karte gewonnen
+      e -= params.cardCost * cardCost(state, layout, player, play);
+      if (params.friendlyFire && layout.teams) e -= params.friendlyFire * friendlySent(state.pegs, after, layout, player);
+      if (known.received !== undefined && play.card === known.received) e -= RECEIVED_CARD_DELAY;
+      if (known.heldBy) e += PARTNER_CARD_WEIGHT * partnerCardGain(state, layout, player, known.heldBy.partner, known.heldBy.card, after);
+      e += rand() * params.noise;
+      extra.push(e);
     }
+    const scores = base.map((v, i) => v + extra[i]!);
     const order = plays.map((_, i) => i).sort((a, b) => scores[b]! - scores[a]!);
     best = plays[order[0]!]!;
     if (params.lookahead && plays.length > 1) {
@@ -314,7 +317,7 @@ export function chooseAction(
       const w = params.lookahead.weight;
       let bestScore = -Infinity;
       top.forEach((i, c) => {
-        const v = (1 - w) * scores[i]! + w * look[c]!;
+        const v = (1 - w) * base[i]! + w * look[c]! + extra[i]!;
         if (v > bestScore) {
           bestScore = v;
           best = plays[i]!;

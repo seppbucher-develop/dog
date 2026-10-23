@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { applyAction, BOT_LEVELS, chooseAction, chooseDraw, chooseExchange, createGame, layoutFor, legalPlays, makeRand, type BotLevel, type GameConfig, type GivenCard } from '../src';
+import { applyAction, BOT_LEVELS, chooseAction, chooseDraw, chooseExchange, createGame, layoutFor, legalPlays, LEVEL_PARAMS, makeRand, type BotLevel, type GameConfig, type GivenCard } from '../src';
 import { peg, ring, scenario } from './helpers';
+
+/** Experte ohne Vorausschau: prüft die Ein-Zug-Regeln zum Kartentausch isoliert (die Vorausschau bewertet solche Stellungen eigenständig). */
+const EXPERT_1PLY = { ...LEVEL_PARAMS.expert, lookahead: undefined };
 
 /** Spielt ein komplettes Spiel; `levels[p]` ist die Stufe von Spieler p. Liefert die Gewinner. */
 function playGame(cfg: GameConfig, levels: BotLevel[], seed: number): number[] {
@@ -115,9 +118,9 @@ describe('Bots', () => {
       { players: 4 },
       { pegs: { [peg(0, 0)]: ring(24), [peg(2, 0)]: ring(10) }, hands: [['J', '5'], ['A'], ['9', '3'], ['A']] },
     );
-    expect(chooseAction(s, 0, 'expert', makeRand(1)).card).toBe('5');
+    expect(chooseAction(s, 0, EXPERT_1PLY, makeRand(1)).card).toBe('5');
     s.given = [{ from: 0, to: 2, card: '9' }];
-    const a = chooseAction(s, 0, 'expert', makeRand(1));
+    const a = chooseAction(s, 0, EXPERT_1PLY, makeRand(1));
     expect(a.card).toBe('J');
     const after = applyAction(s, a);
     expect(after.pegs.find((p) => p.id === peg(2, 0))!.pos).toEqual(ring(24));
@@ -128,17 +131,17 @@ describe('Bots', () => {
     const foreign: GivenCard[] = [{ from: 0, to: 2, card: '9' }];
     const own: GivenCard[] = [{ from: 3, to: 1, card: '9' }];
     const late = scenario({ players: 4 }, { pegs: { [peg(1, 0)]: ring(16) }, hands: [['A'], ['9', '8'], ['A'], ['A']], current: 1 });
-    expect(chooseAction(late, 1, 'expert', makeRand(1)).card).toBe('9');
-    expect(chooseAction({ ...late, given: foreign }, 1, 'expert', makeRand(1)).card).toBe('9'); // fremde 9 verzögert nichts
-    expect(chooseAction({ ...late, given: own }, 1, 'expert', makeRand(1)).card).toBe('8'); // eigene erhaltene 9 schon
+    expect(chooseAction(late, 1, EXPERT_1PLY, makeRand(1)).card).toBe('9');
+    expect(chooseAction({ ...late, given: foreign }, 1, EXPERT_1PLY, makeRand(1)).card).toBe('9'); // fremde 9 verzögert nichts
+    expect(chooseAction({ ...late, given: own }, 1, EXPERT_1PLY, makeRand(1)).card).toBe('8'); // eigene erhaltene 9 schon
 
     // Vorbereiten für den Partner (Spieler 3): nur mit der eigenen abgegebenen Karte
     const prep = scenario(
       { players: 4 },
       { pegs: { [peg(1, 0)]: ring(40), [peg(3, 0)]: ring(26) }, hands: [['A'], ['J', '5'], ['A'], ['9', '3']], current: 1 },
     );
-    expect(chooseAction({ ...prep, given: foreign }, 1, 'expert', makeRand(1)).card).toBe('5');
-    expect(chooseAction({ ...prep, given: [{ from: 1, to: 3, card: '9' }] }, 1, 'expert', makeRand(1)).card).toBe('J');
+    expect(chooseAction({ ...prep, given: foreign }, 1, EXPERT_1PLY, makeRand(1)).card).toBe('5');
+    expect(chooseAction({ ...prep, given: [{ from: 1, to: 3, card: '9' }] }, 1, EXPERT_1PLY, makeRand(1)).card).toBe('J');
   });
 
   it('Experte-Team schlägt Anfänger-Team deutlich', () => {
