@@ -12,7 +12,7 @@ export const BOT_LEVEL_LABELS: Record<BotLevel, string> = {
   expert: 'Experte',
 };
 
-interface LevelParams {
+export interface LevelParams {
   /** Zufälliger legaler Zug */
   random: boolean;
   /** Zufallsrauschen auf die Bewertung (größer = ungenauer) */
@@ -23,9 +23,13 @@ interface LevelParams {
   cardCost: number;
   /** Teamspiel: Kartentausch gezielt für den Partner und Wissen über dessen bekannte Karte nutzen */
   teamwork: boolean;
+  /** Gewicht gegnerischer Kugeln in der Bewertung (Abzug des Gegnerfortschritts) */
+  enemy?: number;
+  /** Bonus für gewonnene Karte (Zug 2 stiehlt eine Karte) */
+  steal?: number;
 }
 
-const LEVEL_PARAMS: Record<BotLevel, LevelParams> = {
+export const LEVEL_PARAMS: Record<BotLevel, LevelParams> = {
   beginner: { random: true, noise: 0, threat: 0, cardCost: 0, teamwork: false },
   intermediate: { random: false, noise: 90, threat: 0, cardCost: 0, teamwork: false },
   advanced: { random: false, noise: 25, threat: 0.12, cardCost: 0.5, teamwork: false },
@@ -54,7 +58,7 @@ function teamColors(layout: Layout, player: number): number[] {
 }
 
 /** Bewertung einer Stellung aus Sicht des Spielers (höher = besser). */
-export function evaluate(pegs: Peg[], layout: Layout, player: number, threatWeight: number): number {
+export function evaluate(pegs: Peg[], layout: Layout, player: number, threatWeight: number, enemyWeight = 0.5): number {
   const friendly = teamColors(layout, player);
   let score = 0;
   for (const p of pegs) {
@@ -63,7 +67,7 @@ export function evaluate(pegs: Peg[], layout: Layout, player: number, threatWeig
       score += v;
       if (threatWeight > 0 && p.pos.t === 'ring' && v > 0) score -= threatWeight * v * Math.min(2, threatCount(pegs, layout, p, friendly));
     } else {
-      score -= 0.5 * v;
+      score -= enemyWeight * v;
     }
   }
   return score;
@@ -133,12 +137,12 @@ function partnerCardGain(state: GameState, layout: Layout, player: number, partn
 export function chooseAction(
   state: GameState,
   player: number,
-  level: BotLevel,
+  level: BotLevel | LevelParams,
   rand: () => number,
 ): Extract<Action, { t: 'play' }> {
   const plays = legalPlays(state, player);
   if (plays.length === 0) throw new Error('Kein legaler Zug');
-  const params = LEVEL_PARAMS[level];
+  const params = typeof level === 'string' ? LEVEL_PARAMS[level] : level;
   const layout = layoutFor(state.config);
 
   let best: Play = plays[Math.floor(rand() * plays.length)]!;
@@ -147,8 +151,8 @@ export function chooseAction(
     let bestScore = -Infinity;
     for (const play of plays) {
       const after = pegsAfterPlay(state.pegs, layout, play);
-      let score = evaluate(after, layout, player, params.threat);
-      if (play.moves.some((m) => m.t === 'steal')) score += 25; // eine (unbekannte) Karte gewonnen
+      let score = evaluate(after, layout, player, params.threat, params.enemy);
+      if (play.moves.some((m) => m.t === 'steal')) score += params.steal ?? 25; // eine (unbekannte) Karte gewonnen
       score -= params.cardCost * cardCost(state, layout, player, play);
       if (known.received !== undefined && play.card === known.received) score -= RECEIVED_CARD_DELAY;
       if (known.heldBy) score += PARTNER_CARD_WEIGHT * partnerCardGain(state, layout, player, known.heldBy.partner, known.heldBy.card, after);
