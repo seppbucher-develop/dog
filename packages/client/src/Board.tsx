@@ -30,6 +30,8 @@ export interface Flight {
   ms: number;
   /** Verzögerung bis zum Start (ms) */
   delay?: number;
+  /** Ohne Halt direkt zum Ziel (Austeilen, Mischen) statt Übergabe mit Pause */
+  direct?: boolean;
 }
 
 interface Props {
@@ -232,7 +234,7 @@ export function Board({ layout, geo, pegs, segColors, segNames, activeSegs, sele
       {flights.map((flight) => (
         <g
           key={flight.key}
-          className={flight.to ? 'flight xfer' : 'flight'}
+          className={flight.to && !flight.direct ? 'flight xfer' : 'flight'}
           style={{ '--fx': `${flight.from.x}px`, '--fy': `${flight.from.y}px`, '--tx': `${flight.to?.x ?? geo.centre.x}px`, '--ty': `${flight.to?.y ?? geo.centre.y - 44}px`, '--ms': `${flight.ms}ms`, animationDelay: `${flight.delay ?? 0}ms` } as React.CSSProperties}
         >
           <g transform={`scale(${PILE_SCALE})`}>{flight.card ? <CardFace card={flight.card} suit={flight.suit} /> : <CardBack />}</g>
