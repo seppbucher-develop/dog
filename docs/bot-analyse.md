@@ -53,3 +53,23 @@ Lösung: Parameter `friendlyFire` (Abzug 500 pro heimgeschickter Teamkugel, nur 
 
 Im Einzelspiel schadet die Strafe (2 Spieler: Siegquote sinkt), deshalb dort ausgeschaltet.
 Mehr als 500 ändert nichts mehr (Rest ist erzwungen).
+
+## Vorausschau im Einzelspiel (2, 3, 5 Spieler)
+
+Für die besten 4 Kandidatenzüge (nach der bisherigen Bewertung) zieht der Experte 6-mal mögliche Gegnerhände aus den unbekannten
+Karten, spielt den Zug, lässt die Gegner mit einfacher Strategie antworten und zieht dann selbst seinen besten Folgezug.
+Bewertet wird die Stellung danach (Mittelwert über die Stichproben, gleiche Stichproben für alle Kandidaten). Nur im Einzelspiel.
+Parameter `lookahead` in `bot.ts`; für Teamspiel ausgeschaltet.
+
+Tempo: In simulierten Zügen wird die 7 nicht aufgeteilt (`legalPlays(..., fast)`) und die Zugprüfung übersprungen
+(`applyAction(..., trusted)`). Dadurch pro Zug im Median 4–14 ms, p95 17–72 ms, max 200 ms (vorher bis 3 s).
+
+Ergebnis gegen den Experten ohne Vorausschau (Sitze rotiert):
+
+| Spieler | Siegquote (fair) |
+|---|---|
+| 2 | 60,5 % ±3,4 (50 %), n=800 |
+| 3 | 45,3 % ±4,9 (33,3 %), n=400 |
+| 5 | 38,0 % ±9,5 (20 %), n=100 (Variante Gewicht 0,5) |
+
+Mehr Stichproben (12) oder mehr Kandidaten (8) bringen im Rauschen nichts.
