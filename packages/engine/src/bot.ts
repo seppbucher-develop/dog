@@ -32,7 +32,7 @@ export interface LevelParams {
   friendlyFire?: number;
   /** Schnelle Zugaufzählung (7 nicht aufteilen), nur für simulierte Züge in der Vorausschau */
   fast?: boolean;
-  /** Einzelspiel: Vorausschau über Stichproben möglicher Gegnerhände (k Kandidaten, je `samples` Stichproben, Anteil `weight`) */
+  /** Vorausschau über Stichproben möglicher Gegnerhände (k Kandidaten, je `samples` Stichproben, Anteil `weight`) */
   lookahead?: { k: number; samples: number; weight: number };
   /** Gewicht des Schlagrisikos aus Kartenzählung (ersetzt `threat`, wenn > 0) */
   risk?: number;
@@ -231,6 +231,10 @@ function lookaheadValues(state: GameState, layout: Layout, player: number, cands
   };
   state.discard.forEach(remove);
   state.hands[player]!.forEach(remove);
+  // Teamspiel: die Karte, die ich dem Partner beim Tausch gegeben habe und die er noch hält, ist bekannt
+  const known = new Map<number, Card>();
+  for (const g of state.given ?? []) if (g.from === player && g.to !== player) known.set(g.to, g.card);
+  known.forEach(remove);
   const sizes = state.hands.map((h) => h.length);
   const totals = cands.map(() => 0);
   const valueOf = (sim: GameState): number => {
@@ -249,7 +253,11 @@ function lookaheadValues(state: GameState, layout: Layout, player: number, cands
       [pool[i], pool[j]] = [pool[j]!, pool[i]!];
     }
     const hands: Card[][] = sizes.map((_, q) => (q === player ? state.hands[q]!.slice() : []));
-    for (let q = 0; q < n; q++) if (q !== player) hands[q] = pool.splice(0, sizes[q]!);
+    for (let q = 0; q < n; q++) {
+      if (q === player) continue;
+      const k = known.get(q);
+      hands[q] = k === undefined ? pool.splice(0, sizes[q]!) : [k, ...pool.splice(0, sizes[q]! - 1)];
+    }
     for (let c = 0; c < cands.length; c++) {
       const sim = structuredClone(state);
       delete sim.suits;
@@ -300,7 +308,7 @@ export function chooseAction(
     }
     const order = plays.map((_, i) => i).sort((a, b) => scores[b]! - scores[a]!);
     best = plays[order[0]!]!;
-    if (params.lookahead && !layout.teams && plays.length > 1) {
+    if (params.lookahead && plays.length > 1) {
       const top = order.slice(0, params.lookahead.k);
       const look = lookaheadValues(state, layout, player, top.map((i) => plays[i]!), params, rand);
       const w = params.lookahead.weight;

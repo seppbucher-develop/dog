@@ -22,9 +22,18 @@ const seed0 = Number(arg('seed', '1'));
 const out = arg('out');
 const levels = (arg('levels', 'expert') as string).split(',') as BotLevel[];
 // Level "X": Experte mit überschriebenen Parametern aus --x out=100,risk=1 (Stufenname für Tausch: expert)
-const xParams: LevelParams = { ...LEVEL_PARAMS.expert, ...Object.fromEntries((arg('x', '') as string).split(',').filter(Boolean).map((kv) => [kv.split('=')[0], Number(kv.split('=')[1])])) };
-const paramsFor = (l: BotLevel): BotLevel | LevelParams => ((l as string) === 'X' ? xParams : l);
-const nameFor = (l: BotLevel): BotLevel => ((l as string) === 'X' ? 'expert' : l);
+// Zusatzschlüssel: la=0 schaltet die Vorausschau aus, laK/laS/laW setzen sie (Kandidaten/Stichproben/Gewicht)
+const custom = (a: string): LevelParams => {
+  const kv = Object.fromEntries((arg(a, '') as string).split(',').filter(Boolean).map((x) => [x.split('=')[0]!, Number(x.split('=')[1])]));
+  const { la, laK, laS, laW, ...rest } = kv as Record<string, number>;
+  const p: LevelParams = { ...LEVEL_PARAMS.expert, ...rest };
+  if (la === 0) delete p.lookahead;
+  else if (laK !== undefined || laS !== undefined || laW !== undefined) p.lookahead = { k: laK ?? 4, samples: laS ?? 6, weight: laW ?? 1 };
+  return p;
+};
+const customParams: Record<string, LevelParams> = { X: custom('x'), Y: custom('y') };
+const paramsFor = (l: BotLevel): BotLevel | LevelParams => customParams[l as string] ?? l;
+const nameFor = (l: BotLevel): BotLevel => (customParams[l as string] ? 'expert' : l);
 const seatLevels0 = Array.from({ length: players }, (_, i) => levels[i % levels.length]!);
 const maxTurns = 4000;
 
