@@ -105,8 +105,12 @@ function GameInner({ lobby, view: live }: { lobby: LobbyView; view: GameView }) 
     setXCard(null);
     setPick(null);
     setNote(null);
-    setSentPegs(null);
   }, [stateKey]);
+  // Die Vorschau der 7 bleibt stehen, bis der Anzeigestand die Kugeln selbst am Ziel zeigt (sonst springen sie vorher auf die Ausgangsfelder zurück)
+  const shownPegs = JSON.stringify(view.pegs.map((p) => p.pos));
+  useEffect(() => {
+    if (sentPegs && shownPegs === JSON.stringify(sentPegs.map((p) => p.pos))) setSentPegs(null);
+  }, [shownPegs, sentPegs]);
   useEffect(() => setSent(false), [live]);
 
   // Lehnt der Server den Zug ab, kommt kein neuer Stand: nach kurzer Zeit wieder den echten Stand zeigen
@@ -145,7 +149,7 @@ function GameInner({ lobby, view: live }: { lobby: LobbyView; view: GameView }) 
 
   const submit = (p: Play) => {
     const after = p.card === '7' || p.as === '7' ? sevenNext(view.pegs, layout, view.seat, p.moves, p.card === 'JOKER').pegs : p.moves.reduce<Peg[] | null>((ps, m) => (ps ? applyMoveToPegs(ps, layout, m, false) : null), view.pegs);
-    if (after && !tm.sequential) setSentPegs(after);
+    if (after && (!tm.sequential || p.card === '7' || p.as === '7')) setSentPegs(after);
     setSent(true);
     const suit = suitFor(p.card);
     net.send({ t: 'play', card: p.card, ...(suit !== undefined ? { suit } : {}), ...(p.as ? { as: p.as } : {}), moves: p.moves });
