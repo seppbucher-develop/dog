@@ -37,3 +37,19 @@ Vergleich mit `packages/engine/sim/match.ts` (Sitze rotieren, A = neuer Experte)
 
 Gewichte: `risk` 1–2 ist ein Plateau, 3 ist schlechter. `threat`, `enemy`, `noise` allein bringen im Rauschen nichts.
 Offen: 3 und 5 Spieler (Gewinn klein bzw. nicht nachweisbar), im Team etwas mehr Eigenbeschuss (0,14 → 0,26 pro Spiel).
+
+## Eigenbeschuss im Team
+
+Im Teamspiel schickt der Experte Partnerkugeln heim (4 Spieler: 0,35 pro Spiel, 6 Spieler: 0,77). Etwa die Hälfte ist erzwungen
+(kein anderer legaler Zug, vor allem die 7, die alle übersprungenen Kugeln schlägt), der Rest wäre vermeidbar.
+Ein Zusatzwert für Kugeln außerhalb des Heims (`out`) half nicht (Experte verliert ab +200 deutlich) und wurde wieder entfernt.
+
+Lösung: Parameter `friendlyFire` (Abzug 500 pro heimgeschickter Teamkugel, nur im Teamspiel, Experte).
+
+| Spieler | Eigenbeschuss vorher → nachher | Siegquote gegen Experte ohne Abzug |
+|---|---|---|
+| 4 (Teams) | 0,35 → 0,20 | 49,2 % ±2,8 (600 Spiele, praktisch gleich) |
+| 6 (Teams) | 0,77 → 0,28 | 44,0 % ±3,4 gegen 32,5 % (400 Spiele, leicht besser) |
+
+Im Einzelspiel schadet die Strafe (2 Spieler: Siegquote sinkt), deshalb dort ausgeschaltet.
+Mehr als 500 ändert nichts mehr (Rest ist erzwungen).

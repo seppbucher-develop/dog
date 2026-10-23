@@ -20,7 +20,7 @@ function play(a: Spec, b: Spec, players: number, from: number, to: number): { wi
   for (let g = from; g < to; g++) {
     const aSeat = g % players; // A sitzt rotierend, alle anderen spielen B
     const lv = (p: number) => (p === aSeat ? A : B);
-    let s = createGame({ players }, 31337 + g);
+    let s = createGame({ players }, (Number(process.env.SEED0 ?? 31337)) + g);
     const rand = makeRand(777 + g);
     let turns = 0;
     while (s.phase !== 'finished' && turns < 4000) {

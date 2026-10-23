@@ -27,7 +27,7 @@ export interface LevelParams {
   enemy?: number;
   /** Bonus für gewonnene Karte (Zug 2 stiehlt eine Karte) */
   steal?: number;
-  /** Zusätzlicher Abzug für jede eigene oder Partnerkugel, die der Zug heimschickt (über ihren Wertverlust hinaus) */
+  /** Teamspiel: zusätzlicher Abzug für jede eigene oder Partnerkugel, die der Zug heimschickt (über ihren Wertverlust hinaus) */
   friendlyFire?: number;
   /** Gewicht des Schlagrisikos aus Kartenzählung (ersetzt `threat`, wenn > 0) */
   risk?: number;
@@ -37,7 +37,7 @@ export const LEVEL_PARAMS: Record<BotLevel, LevelParams> = {
   beginner: { random: true, noise: 0, threat: 0, cardCost: 0, teamwork: false },
   intermediate: { random: false, noise: 90, threat: 0, cardCost: 0, teamwork: false },
   advanced: { random: false, noise: 25, threat: 0.12, cardCost: 0.5, teamwork: false },
-  expert: { random: false, noise: 0, threat: 0.2, cardCost: 1, teamwork: true, risk: 1.5, steal: 60 },
+  expert: { random: false, noise: 0, threat: 0.2, cardCost: 1, teamwork: true, risk: 1.5, steal: 60, friendlyFire: 500 },
 };
 
 /** Zufallsquelle für Bots aus einem Seed (deterministisch, unabhängig vom Spielzustand). */
@@ -228,7 +228,7 @@ export function chooseAction(
       let score = evaluate(after, layout, player, params.threat, params.enemy, risk);
       if (play.moves.some((m) => m.t === 'steal')) score += params.steal ?? 25; // eine (unbekannte) Karte gewonnen
       score -= params.cardCost * cardCost(state, layout, player, play);
-      if (params.friendlyFire) score -= params.friendlyFire * friendlySent(state.pegs, after, layout, player);
+      if (params.friendlyFire && layout.teams) score -= params.friendlyFire * friendlySent(state.pegs, after, layout, player);
       if (known.received !== undefined && play.card === known.received) score -= RECEIVED_CARD_DELAY;
       if (known.heldBy) score += PARTNER_CARD_WEIGHT * partnerCardGain(state, layout, player, known.heldBy.partner, known.heldBy.card, after);
       score += rand() * params.noise;
