@@ -1,5 +1,6 @@
 import { controlledColors, layoutFor, mod, progress, type Layout } from './board';
 import { legalPlays, pegsAfterPlay } from './moves';
+import { applyAction } from './game';
 import { nextRandom } from './rng';
 import type { Action, Card, GameState, Peg, Play } from './types';
 
@@ -29,6 +30,8 @@ export interface LevelParams {
   steal?: number;
   /** Teamspiel: zusätzlicher Abzug für jede eigene oder Partnerkugel, die der Zug heimschickt (über ihren Wertverlust hinaus) */
   friendlyFire?: number;
+  /** Einzelspiel: Vorausschau über Stichproben möglicher Gegnerhände (k Kandidaten, je `samples` Stichproben, Anteil `weight`) */
+  lookahead?: { k: number; samples: number; weight: number };
   /** Gewicht des Schlagrisikos aus Kartenzählung (ersetzt `threat`, wenn > 0) */
   risk?: number;
 }
@@ -206,6 +209,65 @@ function friendlySent(before: Peg[], after: Peg[], layout: Layout, player: numbe
   return n;
 }
 
+/** Einfache Gegnerstrategie für die Vorausschau. */
+const LOOKAHEAD_OPPONENT: LevelParams = { random: false, noise: 0, threat: 0.12, cardCost: 0.5, teamwork: false };
+
+/**
+ * Vorausschau: für jeden Kandidaten werden mehrere mögliche Gegnerhände gezogen (aus den unbekannten Karten), der Zug
+ * gespielt, die Gegner antworten mit einfacher Strategie, dann zieht der Bot seinen besten Folgezug. Mittelwert der
+ * Bewertung der Stellung danach (gleiche Stichproben für alle Kandidaten).
+ */
+function lookaheadValues(state: GameState, layout: Layout, player: number, cands: Play[], params: LevelParams, rand: () => number): number[] {
+  const la = params.lookahead!;
+  const n = state.config.players;
+  const full: Card[] = [];
+  for (const r of ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'] as Card[]) for (let i = 0; i < 8; i++) full.push(r);
+  for (let i = 0; i < 6; i++) full.push('JOKER');
+  const remove = (c: Card) => {
+    const i = full.indexOf(c);
+    if (i >= 0) full.splice(i, 1);
+  };
+  state.discard.forEach(remove);
+  state.hands[player]!.forEach(remove);
+  const sizes = state.hands.map((h) => h.length);
+  const totals = cands.map(() => 0);
+  const valueOf = (sim: GameState): number => {
+    if (sim.winners) return layout.teamOf[sim.winners[0]!] === layout.teamOf[player] ? 5000 : -5000;
+    if (sim.phase === 'playing' && sim.current === player && sim.hands[player]!.length > 0) {
+      let best = -Infinity;
+      for (const p of legalPlays(sim, player)) best = Math.max(best, evaluate(pegsAfterPlay(sim.pegs, layout, p), layout, player, params.threat, params.enemy));
+      if (best > -Infinity) return best;
+    }
+    return evaluate(sim.pegs, layout, player, params.threat, params.enemy);
+  };
+  for (let s = 0; s < la.samples; s++) {
+    const pool = full.slice();
+    for (let i = pool.length - 1; i > 0; i--) {
+      const j = Math.floor(rand() * (i + 1));
+      [pool[i], pool[j]] = [pool[j]!, pool[i]!];
+    }
+    const hands: Card[][] = sizes.map((_, q) => (q === player ? state.hands[q]!.slice() : []));
+    for (let q = 0; q < n; q++) if (q !== player) hands[q] = pool.splice(0, sizes[q]!);
+    for (let c = 0; c < cands.length; c++) {
+      const sim = structuredClone(state);
+      delete sim.suits;
+      delete sim.given;
+      sim.hands = hands.map((h) => h.slice());
+      sim.deck = pool.slice();
+      let cur = sim;
+      const play = cands[c]!;
+      const first: Extract<Action, { t: 'play' }> = { t: 'play', player, card: play.card, moves: play.moves };
+      if (play.as !== undefined) first.as = play.as;
+      cur = applyAction(cur, first);
+      for (let step = 0; step < 2 * n && cur.phase === 'playing' && cur.current !== player; step++) {
+        cur = applyAction(cur, chooseAction(cur, cur.current, LOOKAHEAD_OPPONENT, rand));
+      }
+      totals[c]! += valueOf(cur);
+    }
+  }
+  return totals.map((t) => t / la.samples);
+}
+
 /** Wählt den Zug des Bots (der Spieler muss am Zug sein und mindestens einen legalen Zug haben). */
 export function chooseAction(
   state: GameState,
@@ -222,7 +284,7 @@ export function chooseAction(
   if (!params.random) {
     const known = params.teamwork ? exchangeKnowledge(state, player) : {};
     const risk = params.risk && params.risk > 0 ? buildRisk(state, layout, player, params.risk) : undefined;
-    let bestScore = -Infinity;
+    const scores: number[] = [];
     for (const play of plays) {
       const after = pegsAfterPlay(state.pegs, layout, play);
       let score = evaluate(after, layout, player, params.threat, params.enemy, risk);
@@ -232,10 +294,22 @@ export function chooseAction(
       if (known.received !== undefined && play.card === known.received) score -= RECEIVED_CARD_DELAY;
       if (known.heldBy) score += PARTNER_CARD_WEIGHT * partnerCardGain(state, layout, player, known.heldBy.partner, known.heldBy.card, after);
       score += rand() * params.noise;
-      if (score > bestScore) {
-        bestScore = score;
-        best = play;
-      }
+      scores.push(score);
+    }
+    const order = plays.map((_, i) => i).sort((a, b) => scores[b]! - scores[a]!);
+    best = plays[order[0]!]!;
+    if (params.lookahead && !layout.teams && plays.length > 1) {
+      const top = order.slice(0, params.lookahead.k);
+      const look = lookaheadValues(state, layout, player, top.map((i) => plays[i]!), params, rand);
+      const w = params.lookahead.weight;
+      let bestScore = -Infinity;
+      top.forEach((i, c) => {
+        const v = (1 - w) * scores[i]! + w * look[c]!;
+        if (v > bestScore) {
+          bestScore = v;
+          best = plays[i]!;
+        }
+      });
     }
   }
   const action: Extract<Action, { t: 'play' }> = { t: 'play', player, card: best.card, moves: best.moves };
