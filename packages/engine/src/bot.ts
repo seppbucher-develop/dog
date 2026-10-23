@@ -1,4 +1,4 @@
-import { controlledColors, layoutFor, mod, progress, type Layout } from './board';
+import { controlledColors, isBlocker, layoutFor, mod, progress, type Layout } from './board';
 import { legalPlays, pegsAfterPlay } from './moves';
 import { applyAction } from './game';
 import { nextRandom } from './rng';
@@ -36,6 +36,8 @@ export interface LevelParams {
   lookahead?: { k: number; samples: number; weight: number };
   /** Gewicht des Schlagrisikos aus Kartenzählung (ersetzt `threat`, wenn > 0) */
   risk?: number;
+  /** Gewicht der Startfeld-Sperre: Bonus je gegnerische Kugel, die auf meine Sperre zuläuft, Abzug je Kugel von mir/Partner, die sie aufhält */
+  block?: number;
 }
 
 export const LEVEL_PARAMS: Record<BotLevel, LevelParams> = {
@@ -123,10 +125,35 @@ function captureProb(pegs: Peg[], layout: Layout, mine: Peg, friendly: number[],
   return 1 - safe;
 }
 
-/** Bewertung einer Stellung aus Sicht des Spielers (höher = besser). */
-export function evaluate(pegs: Peg[], layout: Layout, player: number, threatWeight: number, enemyWeight = 0.5, risk?: RiskModel): number {
-  const friendly = teamColors(layout, player);
+/** Gewicht einer Kugel `d` Felder hinter einer Sperre: nah = voll, weiter weg abgeschwächt, 0 wenn sie die Sperre nie passiert. */
+function blockReach(layout: Layout, o: Peg, target: number): number {
+  if (o.pos.t !== 'ring' || o.pos.lap) return 0;
+  const d = mod(target - o.pos.f, layout.ringSize);
+  if (d === 0 || d >= layout.ringSize - progress(layout, o)) return 0; // die Sperre liegt nicht mehr auf ihrem Weg
+  return d <= 13 ? 1 : d <= 26 ? 0.3 : 0;
+}
+
+/**
+ * Sperre: eine frisch herausgekommene Kugel auf dem eigenen Startfeld darf nicht übersprungen werden. Das hält gegnerische
+ * Kugeln auf (Bonus), blockiert aber ebenso eigene und Partnerkugeln, die dahinter laufen (Abzug).
+ */
+function blockTerm(pegs: Peg[], layout: Layout, friendly: number[]): number {
   let score = 0;
+  for (const b of pegs) {
+    if (!friendly.includes(b.color) || !isBlocker(b) || b.pos.t !== 'ring') continue;
+    for (const o of pegs) {
+      if (o.id === b.id) continue;
+      const w = blockReach(layout, o, b.pos.f);
+      if (w > 0) score += friendly.includes(o.color) ? -w : w;
+    }
+  }
+  return score;
+}
+
+/** Bewertung einer Stellung aus Sicht des Spielers (höher = besser). */
+export function evaluate(pegs: Peg[], layout: Layout, player: number, threatWeight: number, enemyWeight = 0.5, risk?: RiskModel, blockWeight = 0): number {
+  const friendly = teamColors(layout, player);
+  let score = blockWeight > 0 ? blockWeight * blockTerm(pegs, layout, friendly) : 0;
   for (const p of pegs) {
     const v = pegValue(layout, p);
     if (friendly.includes(p.color)) {
@@ -241,10 +268,10 @@ function lookaheadValues(state: GameState, layout: Layout, player: number, cands
     if (sim.winners) return layout.teamOf[sim.winners[0]!] === layout.teamOf[player] ? 5000 : -5000;
     if (sim.phase === 'playing' && sim.current === player && sim.hands[player]!.length > 0) {
       let best = -Infinity;
-      for (const p of legalPlays(sim, player, true)) best = Math.max(best, evaluate(pegsAfterPlay(sim.pegs, layout, p), layout, player, params.threat, params.enemy));
+      for (const p of legalPlays(sim, player, true)) best = Math.max(best, evaluate(pegsAfterPlay(sim.pegs, layout, p), layout, player, params.threat, params.enemy, undefined, params.block));
       if (best > -Infinity) return best;
     }
-    return evaluate(sim.pegs, layout, player, params.threat, params.enemy);
+    return evaluate(sim.pegs, layout, player, params.threat, params.enemy, undefined, params.block);
   };
   for (let s = 0; s < la.samples; s++) {
     const pool = full.slice();
@@ -298,7 +325,7 @@ export function chooseAction(
     const extra: number[] = [];
     for (const play of plays) {
       const after = pegsAfterPlay(state.pegs, layout, play);
-      base.push(evaluate(after, layout, player, params.threat, params.enemy, risk));
+      base.push(evaluate(after, layout, player, params.threat, params.enemy, risk, params.block));
       let e = 0;
       if (play.moves.some((m) => m.t === 'steal')) e += params.steal ?? 25; // eine (unbekannte) Karte gewonnen
       e -= params.cardCost * cardCost(state, layout, player, play);

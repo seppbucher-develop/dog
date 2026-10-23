@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyAction, BOT_LEVELS, chooseAction, chooseDraw, chooseExchange, createGame, layoutFor, legalPlays, LEVEL_PARAMS, makeRand, type BotLevel, type GameConfig, type GivenCard } from '../src';
+import { applyAction, BOT_LEVELS, chooseAction, evaluate, chooseDraw, chooseExchange, createGame, layoutFor, legalPlays, LEVEL_PARAMS, makeRand, type BotLevel, type GameConfig, type GivenCard } from '../src';
 import { peg, ring, scenario } from './helpers';
 
 /** Experte ohne Vorausschau: prüft die Ein-Zug-Regeln zum Kartentausch isoliert (die Vorausschau bewertet solche Stellungen eigenständig). */
@@ -19,6 +19,43 @@ function playGame(cfg: GameConfig, levels: BotLevel[], seed: number): number[] {
   if (s.phase !== 'finished') throw new Error('Spiel nicht beendet');
   return s.winners!;
 }
+
+describe('Sperre', () => {
+  const layout = layoutFor({ players: 4 });
+  const score = (pegs: Parameters<typeof evaluate>[0], block: number) => evaluate(pegs, layout, 0, 0, 0.5, undefined, block);
+  const pegsOf = (pos: Record<number, ReturnType<typeof ring>>) => scenario({ players: 4 }, { pegs: pos }).pegs;
+
+  it('Sperre vor einer gegnerischen Kugel zählt als Vorteil', () => {
+    const pegs = pegsOf({ [peg(0, 0)]: ring(0), [peg(1, 0)]: ring(60) });
+    expect(score(pegs, 50)).toBeGreaterThan(score(pegs, 0));
+  });
+
+  it('Sperre vor einer Partnerkugel zählt als Nachteil', () => {
+    const pegs = pegsOf({ [peg(0, 0)]: ring(0), [peg(2, 0)]: ring(60) });
+    expect(score(pegs, 50)).toBeLessThan(score(pegs, 0));
+  });
+
+  it('Gegner, der die Sperre nicht mehr passiert, zählt nicht', () => {
+    // Farbe 1 steht kurz vor ihrem Startfeld 16 (Fortschritt 63): die Sperre auf 0 liegt nicht mehr auf ihrem Weg
+    const pegs = pegsOf({ [peg(0, 0)]: ring(0), [peg(1, 0)]: ring(15) });
+    expect(score(pegs, 50)).toBe(score(pegs, 0));
+  });
+
+  it('Sperre ohne gelaufene Runde endet, sobald die Kugel ihre Runde vollendet hat', () => {
+    const pegs = pegsOf({ [peg(0, 0)]: { t: 'ring', f: 0, lap: true }, [peg(1, 0)]: ring(60) });
+    expect(score(pegs, 50)).toBe(score(pegs, 0));
+  });
+
+  it('Experte mit Sperrterm gibt die Sperre frei, wenn der Partner dahinter wartet', () => {
+    const s = scenario(
+      { players: 4 },
+      { pegs: { [peg(0, 0)]: ring(0), [peg(0, 1)]: ring(20), [peg(2, 0)]: ring(60) }, hands: [['5'], ['A'], ['A'], ['A']] },
+    );
+    expect(legalPlays(s, 0).length).toBeGreaterThan(1);
+    const a = chooseAction(s, 0, { ...EXPERT_1PLY, block: 100 }, makeRand(1));
+    expect(applyAction(s, a).pegs.find((p) => p.id === peg(0, 0))!.pos).toEqual(ring(5));
+  });
+});
 
 describe('Bots', () => {
   it('Alle Stufen spielen ein Teamspiel und ein Einzelspiel legal bis zum Ende', () => {
