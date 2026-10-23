@@ -108,8 +108,11 @@ function GameInner({ lobby, view: live }: { lobby: LobbyView; view: GameView }) 
   }, [stateKey]);
   // Die Vorschau der 7 bleibt stehen, bis der Anzeigestand die Kugeln selbst am Ziel zeigt (sonst springen sie vorher auf die Ausgangsfelder zurück)
   const shownPegs = JSON.stringify(view.pegs.map((p) => p.pos));
+  const sentFrom = useRef('');
   useEffect(() => {
-    if (sentPegs && shownPegs === JSON.stringify(sentPegs.map((p) => p.pos))) setSentPegs(null);
+    if (!sentPegs) return;
+    // Stufe 1: Kugeln stehen schon am Ziel; ab Stufe 2: Anzeigestand zieht die Kugeln erst nach dem Kartenflug nach
+    if (shownPegs === JSON.stringify(sentPegs.map((p) => p.pos)) || (tm.sequential && shownPegs !== sentFrom.current)) setSentPegs(null);
   }, [shownPegs, sentPegs]);
   useEffect(() => setSent(false), [live]);
 
@@ -149,7 +152,11 @@ function GameInner({ lobby, view: live }: { lobby: LobbyView; view: GameView }) 
 
   const submit = (p: Play) => {
     const after = p.card === '7' || p.as === '7' ? sevenNext(view.pegs, layout, view.seat, p.moves, p.card === 'JOKER').pegs : p.moves.reduce<Peg[] | null>((ps, m) => (ps ? applyMoveToPegs(ps, layout, m, false) : null), view.pegs);
-    if (after && (!tm.sequential || p.card === '7' || p.as === '7')) setSentPegs(after);
+    const seven7 = p.card === '7' || p.as === '7';
+    // Ab Stufe 2 ziehen die Kugeln erst nach dem Kartenflug: bis dahin bleibt die zuletzt gezeigte Vorschau der 7 (ohne den letzten Klick) stehen (kein Rücksprung auf die Ausgangsfelder)
+    const hold = !tm.sequential ? after : seven7 ? seven?.pegs ?? null : null;
+    sentFrom.current = shownPegs;
+    if (hold) setSentPegs(hold);
     setSent(true);
     const suit = suitFor(p.card);
     net.send({ t: 'play', card: p.card, ...(suit !== undefined ? { suit } : {}), ...(p.as ? { as: p.as } : {}), moves: p.moves });
