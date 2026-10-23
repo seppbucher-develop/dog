@@ -26,7 +26,7 @@ function play(a: Spec, b: Spec, players: number, from: number, to: number): { wi
     let turns = 0;
     while (s.phase !== 'finished' && turns < 4000) {
       if (s.phase === 'exchange') {
-        for (let p = 0; p < players; p++) s = applyAction(s, layout.teams ? chooseExchange(s, p, typeof lv(p) === 'string' ? (lv(p) as BotLevel) : 'expert', rand) : chooseDraw(s, p, rand));
+        for (let p = 0; p < players; p++) s = applyAction(s, layout.teams ? chooseExchange(s, p, lv(p), rand) : chooseDraw(s, p, rand));
         continue;
       }
       s = applyAction(s, chooseAction(s, s.current, lv(s.current), rand));

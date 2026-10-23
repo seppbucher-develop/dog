@@ -80,6 +80,25 @@ describe('Erzwungener Abwurf', () => {
   });
 });
 
+describe('Kartentausch mit Sperre', () => {
+  const setup = () => {
+    // Partner (Spieler 2) steht mit der letzten Kugel 2 Felder vor meiner Sperre auf Feld 0, die übrigen Kugeln sind im Haus
+    const s = scenario(
+      { players: 4 },
+      { pegs: { [peg(0, 0)]: ring(0), [peg(2, 0)]: ring(62), [peg(2, 1)]: fin(0), [peg(2, 2)]: fin(1), [peg(2, 3)]: fin(2) }, hands: [['10', '4', '3'], ['A'], ['2', '3', '5', '6', '8'], ['A']] },
+    );
+    return s;
+  };
+
+  it('Gibt dem Partner eine Karte, die er trotz meiner Sperre spielen kann', () => {
+    expect(chooseExchange(setup(), 0, { ...LEVEL_PARAMS.expert, giftPlayable: 50 }, makeRand(1)).card).toBe('4'); // rückwärts
+  });
+
+  it('Ohne den Term gibt er die höhere Karte, die der Partner nicht spielen kann', () => {
+    expect(chooseExchange(setup(), 0, 'expert', makeRand(1)).card).toBe('10');
+  });
+});
+
 describe('Bots', () => {
   it('Alle Stufen spielen ein Teamspiel und ein Einzelspiel legal bis zum Ende', () => {
     for (const level of BOT_LEVELS) {

@@ -40,6 +40,8 @@ export interface LevelParams {
   block?: number;
   /** Gewicht erzwungener Handabwürfe: Bonus je Karte, die ein Gegner mangels legalem Zug abwerfen muss, Abzug beim Partner (Wahrscheinlichkeit aus Kartenzählung) */
   forceDump?: number;
+  /** Teamspiel, Kartentausch: Zusatzwert für eine Karte, die der Partner auf dem Brett spielen kann, wenn er sonst seine Hand abwerfen müsste (Gewicht je Karte) */
+  giftPlayable?: number;
 }
 
 export const LEVEL_PARAMS: Record<BotLevel, LevelParams> = {
@@ -415,7 +417,7 @@ const STARTER_GIFT: Record<string, number> = { K: 200, A: 195, JOKER: 190 };
  * Nie eine Karte, ohne die man sich selbst blockiert (Starterkarte nur abgeben, wenn man schon eine Kugel auf dem
  * Ring hat oder noch eine weitere Starterkarte behält).
  */
-function cardForPartner(state: GameState, layout: Layout, player: number, hand: Card[]): Card | undefined {
+function cardForPartner(state: GameState, layout: Layout, player: number, hand: Card[], giftPlayable = 0): Card | undefined {
   const pegsOf = (who: number) => state.pegs.filter((p) => controlledColors(state, layout, who).includes(p.color));
   const partnerPegs = pegsOf(layout.giveTo[player]!);
   const partnerHome = partnerPegs.filter((p) => p.pos.t === 'home').length;
@@ -424,12 +426,29 @@ function cardForPartner(state: GameState, layout: Layout, player: number, hand: 
   const needStarter = myPegs.some((p) => p.pos.t === 'home') && !myPegs.some((p) => p.pos.t === 'ring');
   const myStarters = hand.filter(isStarter).length;
 
+  // Eine spielbare Karte erspart dem Partner den Abwurf (und mir, meine Sperre für ihn zu räumen): Wert nach der Wahrscheinlichkeit,
+  // dass seine übrigen Karten alle unspielbar wären
+  let playable: Map<Card, boolean> | undefined;
+  let dumpCards = 0;
+  if (giftPlayable > 0) {
+    const partner = layout.giveTo[player]!;
+    const h = state.hands[partner]!.length;
+    const counted = buildRisk(state, layout, player, 0);
+    playable = playableCards(state, partner, state.pegs);
+    let dead = 0;
+    counted.unseen.forEach((n, c) => {
+      if (!playable!.get(c)) dead += n;
+    });
+    dumpCards = h * Math.pow(Math.min(1, dead / counted.total), Math.max(0, h - 1));
+  }
+
   let best: Card | undefined;
   let bestValue = -Infinity;
   for (const c of new Set(hand)) {
     if (isStarter(c) && needStarter && myStarters < 2) continue; // sonst komme ich selbst nicht mehr raus
     let value = KEEP_VALUE[c];
     if (isStarter(c) && partnerHome > 0) value = partnerOut === 0 ? STARTER_GIFT[c]! : value + 20;
+    if (playable?.get(c)) value += giftPlayable * dumpCards;
     if (value > bestValue) {
       bestValue = value;
       best = c;
@@ -455,16 +474,17 @@ export function chooseDraw(state: GameState, player: number, rand: () => number)
 }
 
 /** Wählt die Karte, die der Bot beim Kartentausch abgibt. */
-export function chooseExchange(state: GameState, player: number, level: BotLevel, rand: () => number): Extract<Action, { t: 'exchange' }> {
+export function chooseExchange(state: GameState, player: number, level: BotLevel | LevelParams, rand: () => number): Extract<Action, { t: 'exchange' }> {
   const hand = state.hands[player]!;
   const layout = layoutFor(state.config);
+  const params = typeof level === 'string' ? LEVEL_PARAMS[level] : level;
   let card: Card = hand[Math.floor(rand() * hand.length)]!;
   if (level !== 'beginner') {
     const sorted = hand.slice().sort((a, b) => KEEP_VALUE[a] - KEEP_VALUE[b]);
     card = sorted[0]!; // die unwichtigste Karte
     const target = layout.giveTo[player]!;
     const helps = layout.teamOf[target] === layout.teamOf[player];
-    if (LEVEL_PARAMS[level].teamwork && helps) card = cardForPartner(state, layout, player, hand) ?? card;
+    if (params.teamwork && helps) card = cardForPartner(state, layout, player, hand, params.giftPlayable) ?? card;
     if (helps && keepsStarterAndGivesJoker(state, layout, player, hand)) card = 'JOKER';
   }
   return { t: 'exchange', player, card };
