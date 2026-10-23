@@ -73,3 +73,17 @@ Ergebnis gegen den Experten ohne Vorausschau (Sitze rotiert):
 | 5 | 38,0 % ±9,5 (20 %), n=100 (Variante Gewicht 0,5) |
 
 Mehr Stichproben (12) oder mehr Kandidaten (8) bringen im Rauschen nichts.
+
+## Vorausschau im Teamspiel
+
+Gleiche Vorausschau wie im Einzelspiel (4 Kandidaten, 6 Stichproben, Gewicht 1). Der Partner wird in der Simulation wie die Gegner
+mit einfacher Strategie gespielt; die beim Tausch an ihn abgegebene Karte ist bekannt und steckt in seiner gezogenen Hand.
+
+Vergleich gegen den Experten ohne Vorausschau (Partner jeweils gleiche Stufe, Sitze rotiert):
+
+| Spieler | Siegquote (fair) | Eigenbeschuss pro Spiel |
+|---|---|---|
+| 4 (Teams) | 63,3 % ±2,7 (50 %), n=600 | 0,09 (ohne: 0,15) |
+| 6 (Teams) | 65,5 % ±3,3 (33,3 %), n=400, 3 Teams | 0,12 (ohne: 0,20) |
+
+Gewicht 0,5 statt 1: gleich stark (63,8 % bzw. 64,8 %). Zeit pro Zug: Median 8 ms (4 Spieler) bzw. 17 ms (6 Spieler), max 65 ms.
