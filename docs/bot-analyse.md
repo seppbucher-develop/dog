@@ -87,3 +87,17 @@ Vergleich gegen den Experten ohne Vorausschau (Partner jeweils gleiche Stufe, Si
 | 6 (Teams) | 65,5 % ±3,3 (33,3 %), n=400, 3 Teams | 0,12 (ohne: 0,20) |
 
 Gewicht 0,5 statt 1: gleich stark (63,8 % bzw. 64,8 %). Zeit pro Zug: Median 8 ms (4 Spieler) bzw. 17 ms (6 Spieler), max 65 ms.
+
+## 5 Spieler, größere Stichprobe
+
+Neuer Experte (A, ein Sitz, rotiert) gegen vier Bots der Vergleichsstufe, fair wären 20 %:
+
+| Gegner | Siegquote A | Spiele |
+|---|---|---|
+| Experte ohne Vorausschau | 27,6 % ±3,9 | 500 |
+| alter Experte (ohne Kartenzählung, `steal` 25, ohne Vorausschau) | 24,3 % ±4,9 | 300 |
+
+Die frühere Zahl (38 % bei 100 Spielen) war zu optimistisch. Die Vorausschau bringt bei 5 Spielern nachweisbar etwas (+7,6 Punkte über fair),
+aber deutlich weniger als bei 2 oder 3 Spielern. Gegen den alten Experten liegt A zwar über fair, das Intervall reicht aber knapp an 20 % heran.
+Mögliche Gründe: mit vier Gegnern ist der Einfluss eines einzelnen Zuges auf den Ausgang kleiner, und die Gegnerantworten werden nur einmal
+reihum simuliert.
