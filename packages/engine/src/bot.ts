@@ -30,6 +30,8 @@ export interface LevelParams {
   steal?: number;
   /** Teamspiel: zusätzlicher Abzug für jede eigene oder Partnerkugel, die der Zug heimschickt (über ihren Wertverlust hinaus) */
   friendlyFire?: number;
+  /** Schnelle Zugaufzählung (7 nicht aufteilen), nur für simulierte Züge in der Vorausschau */
+  fast?: boolean;
   /** Einzelspiel: Vorausschau über Stichproben möglicher Gegnerhände (k Kandidaten, je `samples` Stichproben, Anteil `weight`) */
   lookahead?: { k: number; samples: number; weight: number };
   /** Gewicht des Schlagrisikos aus Kartenzählung (ersetzt `threat`, wenn > 0) */
@@ -210,7 +212,7 @@ function friendlySent(before: Peg[], after: Peg[], layout: Layout, player: numbe
 }
 
 /** Einfache Gegnerstrategie für die Vorausschau. */
-const LOOKAHEAD_OPPONENT: LevelParams = { random: false, noise: 0, threat: 0.12, cardCost: 0.5, teamwork: false };
+const LOOKAHEAD_OPPONENT: LevelParams = { random: false, noise: 0, threat: 0.12, cardCost: 0.5, teamwork: false, fast: true };
 
 /**
  * Vorausschau: für jeden Kandidaten werden mehrere mögliche Gegnerhände gezogen (aus den unbekannten Karten), der Zug
@@ -235,7 +237,7 @@ function lookaheadValues(state: GameState, layout: Layout, player: number, cands
     if (sim.winners) return layout.teamOf[sim.winners[0]!] === layout.teamOf[player] ? 5000 : -5000;
     if (sim.phase === 'playing' && sim.current === player && sim.hands[player]!.length > 0) {
       let best = -Infinity;
-      for (const p of legalPlays(sim, player)) best = Math.max(best, evaluate(pegsAfterPlay(sim.pegs, layout, p), layout, player, params.threat, params.enemy));
+      for (const p of legalPlays(sim, player, true)) best = Math.max(best, evaluate(pegsAfterPlay(sim.pegs, layout, p), layout, player, params.threat, params.enemy));
       if (best > -Infinity) return best;
     }
     return evaluate(sim.pegs, layout, player, params.threat, params.enemy);
@@ -258,9 +260,9 @@ function lookaheadValues(state: GameState, layout: Layout, player: number, cands
       const play = cands[c]!;
       const first: Extract<Action, { t: 'play' }> = { t: 'play', player, card: play.card, moves: play.moves };
       if (play.as !== undefined) first.as = play.as;
-      cur = applyAction(cur, first);
+      cur = applyAction(cur, first, true);
       for (let step = 0; step < 2 * n && cur.phase === 'playing' && cur.current !== player; step++) {
-        cur = applyAction(cur, chooseAction(cur, cur.current, LOOKAHEAD_OPPONENT, rand));
+        cur = applyAction(cur, chooseAction(cur, cur.current, LOOKAHEAD_OPPONENT, rand), true);
       }
       totals[c]! += valueOf(cur);
     }
@@ -275,9 +277,9 @@ export function chooseAction(
   level: BotLevel | LevelParams,
   rand: () => number,
 ): Extract<Action, { t: 'play' }> {
-  const plays = legalPlays(state, player);
-  if (plays.length === 0) throw new Error('Kein legaler Zug');
   const params = typeof level === 'string' ? LEVEL_PARAMS[level] : level;
+  const plays = legalPlays(state, player, params.fast);
+  if (plays.length === 0) throw new Error('Kein legaler Zug');
   const layout = layoutFor(state.config);
 
   let best: Play = plays[Math.floor(rand() * plays.length)]!;

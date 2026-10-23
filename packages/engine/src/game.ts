@@ -113,7 +113,7 @@ function dropGiven(state: GameState, player: number, card: Card, suit?: number):
 }
 
 /** Überspringt Spieler ohne Karten, wirft bei Zugunfähigkeit automatisch ab und teilt neu aus. */
-function settle(state: GameState, layout: Layout): void {
+function settle(state: GameState, layout: Layout, fast = false): void {
   const n = state.config.players;
   while (state.phase === 'playing') {
     if (state.hands.every((h) => h.length === 0)) {
@@ -125,7 +125,7 @@ function settle(state: GameState, layout: Layout): void {
       state.current = (cur + 1) % n;
       continue;
     }
-    if (legalPlays(state, cur).length === 0) {
+    if (legalPlays(state, cur, fast).length === 0) {
       const dumped = state.hands[cur]!;
       (state.passed ??= []).push({ player: cur, cards: dumped.length, top: dumped[dumped.length - 1]!, suit: state.suits?.hands[cur]?.[dumped.length - 1] ?? 0, round: state.round, hand: dumped.map((card, i) => ({ card, suit: state.suits?.hands[cur]?.[i] ?? 0 })) });
       if (state.given) state.given = state.given.filter((g) => g.to !== cur);
@@ -162,7 +162,7 @@ export function playsEqual(a: Play, b: Play): boolean {
 }
 
 /** Wendet eine Aktion an und liefert den neuen Zustand. Wirft bei unzulässigen Aktionen. */
-export function applyAction(prev: GameState, action: Action): GameState {
+export function applyAction(prev: GameState, action: Action, trusted = false): GameState {
   const state = structuredClone(prev);
   const layout = layoutFor(state.config);
   const n = state.config.players;
@@ -233,7 +233,9 @@ export function applyAction(prev: GameState, action: Action): GameState {
   const play: Play = { card: action.card, moves: action.moves };
   if (action.as !== undefined) play.as = action.as;
   const asRank = action.card === 'JOKER' ? action.as : action.card;
-  if (asRank === '7') {
+  if (trusted) {
+    // Bot-Simulation: Zug stammt aus legalPlays, Prüfung (teuer bei 7/Joker) überspringen
+  } else if (asRank === '7') {
     // 7: beliebige Reihenfolge der Teilzüge, deshalb nicht gegen die (zusammengefasste) Liste prüfen
     const handHas = state.hands[action.player]!.includes(action.card);
     if (!handHas || (action.card === 'JOKER' && action.as !== '7') || !sevenValid(state.pegs, layout, action.player, action.moves, action.card === 'JOKER')) {
@@ -265,6 +267,6 @@ export function applyAction(prev: GameState, action: Action): GameState {
     return state;
   }
   state.current = (action.player + 1) % n;
-  settle(state, layout);
+  settle(state, layout, trusted);
   return state;
 }

@@ -298,7 +298,7 @@ function sevenLeafOk(before: Peg[], after: Peg[], layout: Layout, player: number
   return !finishesGroup(before, after, layout, colors);
 }
 
-function movesForRank(state: GameState, layout: Layout, player: number, rank: Rank): Move[][] {
+function movesForRank(state: GameState, layout: Layout, player: number, rank: Rank, fast = false): Move[][] {
   const colors = controlledColors(state, layout, player);
   const mine = state.pegs.filter((p) => colors.includes(p.color));
   // 7: wahlweise auf alle Kugeln auf dem Brett aufteilbar
@@ -333,7 +333,9 @@ function movesForRank(state: GameState, layout: Layout, player: number, rank: Ra
       for (const p of mine) if (tryMove(state.pegs, layout, p.id, -4, false)) out.push([{ t: 'move', peg: p.id, steps: -4 }]);
       break;
     case '7':
-      for (const m of sevenPlays(state.pegs, layout, player)) out.push(m);
+      // fast (Bot-Vorausschau): 7 nur am Stück mit einer Kugel, ohne alle Aufteilungen aufzuzählen
+      if (fast) forward(7);
+      else for (const m of sevenPlays(state.pegs, layout, player)) out.push(m);
       break;
     case 'J':
       // Der Bube dient immer nur zum Tauschen zweier Kugeln
@@ -364,21 +366,21 @@ function movesForRank(state: GameState, layout: Layout, player: number, rank: Ra
 }
 
 /** Alle regelkonformen Spielzüge (eine Karte) des Spielers im aktuellen Zustand. */
-export function legalPlays(state: GameState, player: number): Play[] {
+export function legalPlays(state: GameState, player: number, fast = false): Play[] {
   const layout = layoutFor(state.config);
   const plays: Play[] = [];
   const colors = controlledColors(state, layout, player);
   for (const card of new Set(state.hands[player])) {
     if (card === 'JOKER') {
       for (const rank of RANKS) {
-        for (const moves of movesForRank(state, layout, player, rank)) {
+        for (const moves of movesForRank(state, layout, player, rank, fast)) {
           // Die letzte Kugel (im Teamspiel: des ganzen Teams) darf nicht mit einem Joker ins Haus gebracht werden
           if (moves.length > 0 && finishesGroup(state.pegs, pegsAfterPlay(state.pegs, layout, { card, as: rank, moves }), layout, colors)) continue;
           plays.push({ card, as: rank, moves });
         }
       }
     } else {
-      for (const moves of movesForRank(state, layout, player, card)) plays.push({ card, moves });
+      for (const moves of movesForRank(state, layout, player, card, fast)) plays.push({ card, moves });
     }
   }
   return plays;
