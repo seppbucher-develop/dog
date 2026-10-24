@@ -1,4 +1,4 @@
-import { controlledColors, layoutFor, mod, progress, type Layout } from './board';
+import { controlledColors, isBlocker, layoutFor, mod, progress, type Layout } from './board';
 import { legalPlays, pegsAfterPlay } from './moves';
 import { applyAction } from './game';
 import { nextRandom } from './rng';
@@ -36,13 +36,21 @@ export interface LevelParams {
   lookahead?: { k: number; samples: number; weight: number };
   /** Gewicht des Schlagrisikos aus Kartenzählung (ersetzt `threat`, wenn > 0) */
   risk?: number;
+  /** Gewicht der Startfeld-Sperre: Bonus je gegnerische Kugel, die auf meine Sperre zuläuft, Abzug je Kugel von mir/Partner, die sie aufhält */
+  block?: number;
+  /** Teamspiel: Gewicht erzwungener Handabwürfe: Bonus je Karte, die ein Gegner mangels legalem Zug abwerfen muss, Abzug beim Partner (Wahrscheinlichkeit aus Kartenzählung) */
+  forceDump?: number;
+  /** Teamspiel, Kartentausch: Zusatzwert für eine Karte, die der Partner auf dem Brett spielen kann, wenn er sonst seine Hand abwerfen müsste (Gewicht je Karte) */
+  giftPlayable?: number;
+  /** Teamspiel, Kartentausch: Gewicht des Schlag- und Tauschgewinns, den der Partner mit der Karte gegen gegnerische Kugeln erzielen könnte (je Wertpunkt) */
+  giftTactic?: number;
 }
 
 export const LEVEL_PARAMS: Record<BotLevel, LevelParams> = {
   beginner: { random: true, noise: 0, threat: 0, cardCost: 0, teamwork: false },
   intermediate: { random: false, noise: 90, threat: 0, cardCost: 0, teamwork: false },
   advanced: { random: false, noise: 25, threat: 0.12, cardCost: 0.5, teamwork: false },
-  expert: { random: false, noise: 0, threat: 0.2, cardCost: 1, teamwork: true, risk: 1.5, steal: 60, friendlyFire: 500, lookahead: { k: 4, samples: 6, weight: 1 } },
+  expert: { random: false, noise: 0, threat: 0.2, cardCost: 1, teamwork: true, risk: 1.5, steal: 60, friendlyFire: 500, lookahead: { k: 4, samples: 6, weight: 1 }, forceDump: 60, giftPlayable: 50, giftTactic: 0.3 },
 };
 
 /** Zufallsquelle für Bots aus einem Seed (deterministisch, unabhängig vom Spielzustand). */
@@ -123,10 +131,81 @@ function captureProb(pegs: Peg[], layout: Layout, mine: Peg, friendly: number[],
   return 1 - safe;
 }
 
-/** Bewertung einer Stellung aus Sicht des Spielers (höher = besser). */
-export function evaluate(pegs: Peg[], layout: Layout, player: number, threatWeight: number, enemyWeight = 0.5, risk?: RiskModel): number {
-  const friendly = teamColors(layout, player);
+/** Gewicht einer Kugel `d` Felder hinter einer Sperre: nah = voll, weiter weg abgeschwächt, 0 wenn sie die Sperre nie passiert. */
+function blockReach(layout: Layout, o: Peg, target: number): number {
+  if (o.pos.t !== 'ring' || o.pos.lap) return 0;
+  const d = mod(target - o.pos.f, layout.ringSize);
+  if (d === 0 || d >= layout.ringSize - progress(layout, o)) return 0; // die Sperre liegt nicht mehr auf ihrem Weg
+  return d <= 13 ? 1 : d <= 26 ? 0.3 : 0;
+}
+
+/**
+ * Sperre: eine frisch herausgekommene Kugel auf dem eigenen Startfeld darf nicht übersprungen werden. Das hält gegnerische
+ * Kugeln auf (Bonus), blockiert aber ebenso eigene und Partnerkugeln, die dahinter laufen (Abzug).
+ */
+function blockTerm(pegs: Peg[], layout: Layout, friendly: number[]): number {
   let score = 0;
+  for (const b of pegs) {
+    if (!friendly.includes(b.color) || !isBlocker(b) || b.pos.t !== 'ring') continue;
+    for (const o of pegs) {
+      if (o.id === b.id) continue;
+      const w = blockReach(layout, o, b.pos.f);
+      if (w > 0) score += friendly.includes(o.color) ? -w : w;
+    }
+  }
+  return score;
+}
+
+const RANKS_ALL: Card[] = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+
+/** Welche Karten Spieler `q` in der Stellung `pegs` überhaupt spielen könnte (Joker, wenn irgendein Rang geht). */
+function playableCards(state: GameState, q: number, pegs: Peg[]): Map<Card, boolean> {
+  const out = new Map<Card, boolean>();
+  const base: GameState = { ...state, pegs };
+  let any = false;
+  for (const r of RANKS_ALL) {
+    const ok = legalPlays({ ...base, hands: state.hands.map((h, i) => (i === q ? [r] : h)) }, q, true).length > 0;
+    out.set(r, ok);
+    any ||= ok;
+  }
+  out.set('JOKER', any);
+  return out;
+}
+
+/**
+ * Erwartete Kosten (in Karten) für das Team von `player`, wenn die Gegner mangels legalem Zug ihre Hand abwerfen müssen,
+ * minus die der Partner: Summe über Spieler q von (Handgröße × Wahrscheinlichkeit, dass keine ihrer Karten spielbar ist).
+ * Die Karten kommen aus der Kartenzählung; die beim Tausch an den Partner gegebene Karte ist bekannt.
+ */
+function dumpBalance(
+  state: GameState,
+  layout: Layout,
+  player: number,
+  pegs: Peg[],
+  unseen: RiskModel,
+  heldBy?: { partner: number; card: Card },
+): number {
+  let score = 0;
+  for (let q = 0; q < state.config.players; q++) {
+    const h = state.hands[q]!.length;
+    if (q === player || h === 0) continue;
+    const play = playableCards(state, q, pegs);
+    const known = heldBy && heldBy.partner === q ? heldBy.card : undefined;
+    let dead = 0;
+    unseen.unseen.forEach((n, c) => {
+      if (!play.get(c)) dead += n;
+    });
+    const u = Math.min(1, dead / unseen.total);
+    const p = known !== undefined ? (play.get(known) ? 0 : 1) * Math.pow(u, h - 1) : Math.pow(u, h);
+    score += (layout.teamOf[q] === layout.teamOf[player] ? -1 : 1) * h * p;
+  }
+  return score;
+}
+
+/** Bewertung einer Stellung aus Sicht des Spielers (höher = besser). */
+export function evaluate(pegs: Peg[], layout: Layout, player: number, threatWeight: number, enemyWeight = 0.5, risk?: RiskModel, blockWeight = 0): number {
+  const friendly = teamColors(layout, player);
+  let score = blockWeight > 0 ? blockWeight * blockTerm(pegs, layout, friendly) : 0;
   for (const p of pegs) {
     const v = pegValue(layout, p);
     if (friendly.includes(p.color)) {
@@ -200,6 +279,24 @@ function partnerCardGain(state: GameState, layout: Layout, player: number, partn
   return best;
 }
 
+/**
+ * Was der Partner mit der Karte `card` allein gegen die Gegner erreichen kann (>= 0): Wertverlust der gegnerischen Kugeln durch
+ * Schlagen oder Tauschen (nah am Haus hoch), abzüglich dessen, was dabei Teamkugeln verlieren.
+ */
+function captureGain(state: GameState, layout: Layout, player: number, partner: number, card: Card): number {
+  const friendly = teamColors(layout, player);
+  const sum = (pegs: Peg[], mine: boolean) => pegs.reduce((a, p) => (friendly.includes(p.color) === mine ? a + pegValue(layout, p) : a), 0);
+  const hypothetical: GameState = { ...state, hands: state.hands.map((h, q) => (q === partner ? [card] : h)) };
+  const enemy0 = sum(state.pegs, false);
+  const mine0 = sum(state.pegs, true);
+  let best = 0;
+  for (const play of legalPlays(hypothetical, partner, true)) {
+    const after = pegsAfterPlay(state.pegs, layout, play);
+    best = Math.max(best, enemy0 - sum(after, false) - Math.max(0, mine0 - sum(after, true)));
+  }
+  return best;
+}
+
 /** Anzahl eigener Teamkugeln, die der Zug vom Brett heimschickt. */
 function friendlySent(before: Peg[], after: Peg[], layout: Layout, player: number): number {
   const friendly = teamColors(layout, player);
@@ -241,10 +338,10 @@ function lookaheadValues(state: GameState, layout: Layout, player: number, cands
     if (sim.winners) return layout.teamOf[sim.winners[0]!] === layout.teamOf[player] ? 5000 : -5000;
     if (sim.phase === 'playing' && sim.current === player && sim.hands[player]!.length > 0) {
       let best = -Infinity;
-      for (const p of legalPlays(sim, player, true)) best = Math.max(best, evaluate(pegsAfterPlay(sim.pegs, layout, p), layout, player, params.threat, params.enemy));
+      for (const p of legalPlays(sim, player, true)) best = Math.max(best, evaluate(pegsAfterPlay(sim.pegs, layout, p), layout, player, params.threat, params.enemy, undefined, params.block));
       if (best > -Infinity) return best;
     }
-    return evaluate(sim.pegs, layout, player, params.threat, params.enemy);
+    return evaluate(sim.pegs, layout, player, params.threat, params.enemy, undefined, params.block);
   };
   for (let s = 0; s < la.samples; s++) {
     const pool = full.slice();
@@ -296,15 +393,17 @@ export function chooseAction(
     const risk = params.risk && params.risk > 0 ? buildRisk(state, layout, player, params.risk) : undefined;
     const base: number[] = [];
     const extra: number[] = [];
+    const counted = params.forceDump && layout.teams ? buildRisk(state, layout, player, 0) : undefined;
     for (const play of plays) {
       const after = pegsAfterPlay(state.pegs, layout, play);
-      base.push(evaluate(after, layout, player, params.threat, params.enemy, risk));
+      base.push(evaluate(after, layout, player, params.threat, params.enemy, risk, params.block));
       let e = 0;
       if (play.moves.some((m) => m.t === 'steal')) e += params.steal ?? 25; // eine (unbekannte) Karte gewonnen
       e -= params.cardCost * cardCost(state, layout, player, play);
       if (params.friendlyFire && layout.teams) e -= params.friendlyFire * friendlySent(state.pegs, after, layout, player);
       if (known.received !== undefined && play.card === known.received) e -= RECEIVED_CARD_DELAY;
       if (known.heldBy) e += PARTNER_CARD_WEIGHT * partnerCardGain(state, layout, player, known.heldBy.partner, known.heldBy.card, after);
+      if (counted) e += params.forceDump! * dumpBalance(state, layout, player, after, counted, known.heldBy);
       e += rand() * params.noise;
       extra.push(e);
     }
@@ -338,7 +437,7 @@ const STARTER_GIFT: Record<string, number> = { K: 200, A: 195, JOKER: 190 };
  * Nie eine Karte, ohne die man sich selbst blockiert (Starterkarte nur abgeben, wenn man schon eine Kugel auf dem
  * Ring hat oder noch eine weitere Starterkarte behält).
  */
-function cardForPartner(state: GameState, layout: Layout, player: number, hand: Card[]): Card | undefined {
+function cardForPartner(state: GameState, layout: Layout, player: number, hand: Card[], giftPlayable = 0, giftTactic = 0): Card | undefined {
   const pegsOf = (who: number) => state.pegs.filter((p) => controlledColors(state, layout, who).includes(p.color));
   const partnerPegs = pegsOf(layout.giveTo[player]!);
   const partnerHome = partnerPegs.filter((p) => p.pos.t === 'home').length;
@@ -347,12 +446,30 @@ function cardForPartner(state: GameState, layout: Layout, player: number, hand: 
   const needStarter = myPegs.some((p) => p.pos.t === 'home') && !myPegs.some((p) => p.pos.t === 'ring');
   const myStarters = hand.filter(isStarter).length;
 
+  // Eine spielbare Karte erspart dem Partner den Abwurf (und mir, meine Sperre für ihn zu räumen): Wert nach der Wahrscheinlichkeit,
+  // dass seine übrigen Karten alle unspielbar wären
+  let playable: Map<Card, boolean> | undefined;
+  let dumpCards = 0;
+  if (giftPlayable > 0) {
+    const partner = layout.giveTo[player]!;
+    const h = state.hands[partner]!.length;
+    const counted = buildRisk(state, layout, player, 0);
+    playable = playableCards(state, partner, state.pegs);
+    let dead = 0;
+    counted.unseen.forEach((n, c) => {
+      if (!playable!.get(c)) dead += n;
+    });
+    dumpCards = h * Math.pow(Math.min(1, dead / counted.total), Math.max(0, h - 1));
+  }
+
   let best: Card | undefined;
   let bestValue = -Infinity;
   for (const c of new Set(hand)) {
     if (isStarter(c) && needStarter && myStarters < 2) continue; // sonst komme ich selbst nicht mehr raus
     let value = KEEP_VALUE[c];
     if (isStarter(c) && partnerHome > 0) value = partnerOut === 0 ? STARTER_GIFT[c]! : value + 20;
+    if (playable?.get(c)) value += giftPlayable * dumpCards;
+    if (giftTactic > 0) value += giftTactic * captureGain(state, layout, player, layout.giveTo[player]!, c);
     if (value > bestValue) {
       bestValue = value;
       best = c;
@@ -378,16 +495,17 @@ export function chooseDraw(state: GameState, player: number, rand: () => number)
 }
 
 /** Wählt die Karte, die der Bot beim Kartentausch abgibt. */
-export function chooseExchange(state: GameState, player: number, level: BotLevel, rand: () => number): Extract<Action, { t: 'exchange' }> {
+export function chooseExchange(state: GameState, player: number, level: BotLevel | LevelParams, rand: () => number): Extract<Action, { t: 'exchange' }> {
   const hand = state.hands[player]!;
   const layout = layoutFor(state.config);
+  const params = typeof level === 'string' ? LEVEL_PARAMS[level] : level;
   let card: Card = hand[Math.floor(rand() * hand.length)]!;
   if (level !== 'beginner') {
     const sorted = hand.slice().sort((a, b) => KEEP_VALUE[a] - KEEP_VALUE[b]);
     card = sorted[0]!; // die unwichtigste Karte
     const target = layout.giveTo[player]!;
     const helps = layout.teamOf[target] === layout.teamOf[player];
-    if (LEVEL_PARAMS[level].teamwork && helps) card = cardForPartner(state, layout, player, hand) ?? card;
+    if (params.teamwork && helps) card = cardForPartner(state, layout, player, hand, params.giftPlayable, params.giftTactic) ?? card;
     if (helps && keepsStarterAndGivesJoker(state, layout, player, hand)) card = 'JOKER';
   }
   return { t: 'exchange', player, card };

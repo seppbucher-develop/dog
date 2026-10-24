@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { applyAction, BOT_LEVELS, chooseAction, chooseDraw, chooseExchange, createGame, layoutFor, legalPlays, LEVEL_PARAMS, makeRand, type BotLevel, type GameConfig, type GivenCard } from '../src';
-import { peg, ring, scenario } from './helpers';
+import { applyAction, BOT_LEVELS, chooseAction, evaluate, type Card, chooseDraw, chooseExchange, createGame, layoutFor, legalPlays, LEVEL_PARAMS, makeRand, type BotLevel, type GameConfig, type GivenCard } from '../src';
+import { fin, peg, ring, scenario } from './helpers';
 
 /** Experte ohne Vorausschau: prüft die Ein-Zug-Regeln zum Kartentausch isoliert (die Vorausschau bewertet solche Stellungen eigenständig). */
 const EXPERT_1PLY = { ...LEVEL_PARAMS.expert, lookahead: undefined };
+/** Experte ohne die Tausch- und Abwurfterme (Vergleichsbasis) */
+const EXPERT_PLAIN = { ...EXPERT_1PLY, forceDump: undefined, giftPlayable: undefined, giftTactic: undefined };
 
 /** Spielt ein komplettes Spiel; `levels[p]` ist die Stufe von Spieler p. Liefert die Gewinner. */
 function playGame(cfg: GameConfig, levels: BotLevel[], seed: number): number[] {
@@ -19,6 +21,102 @@ function playGame(cfg: GameConfig, levels: BotLevel[], seed: number): number[] {
   if (s.phase !== 'finished') throw new Error('Spiel nicht beendet');
   return s.winners!;
 }
+
+describe('Sperre', () => {
+  const layout = layoutFor({ players: 4 });
+  const score = (pegs: Parameters<typeof evaluate>[0], block: number) => evaluate(pegs, layout, 0, 0, 0.5, undefined, block);
+  const pegsOf = (pos: Record<number, ReturnType<typeof ring>>) => scenario({ players: 4 }, { pegs: pos }).pegs;
+
+  it('Sperre vor einer gegnerischen Kugel zählt als Vorteil', () => {
+    const pegs = pegsOf({ [peg(0, 0)]: ring(0), [peg(1, 0)]: ring(60) });
+    expect(score(pegs, 50)).toBeGreaterThan(score(pegs, 0));
+  });
+
+  it('Sperre vor einer Partnerkugel zählt als Nachteil', () => {
+    const pegs = pegsOf({ [peg(0, 0)]: ring(0), [peg(2, 0)]: ring(60) });
+    expect(score(pegs, 50)).toBeLessThan(score(pegs, 0));
+  });
+
+  it('Gegner, der die Sperre nicht mehr passiert, zählt nicht', () => {
+    // Farbe 1 steht kurz vor ihrem Startfeld 16 (Fortschritt 63): die Sperre auf 0 liegt nicht mehr auf ihrem Weg
+    const pegs = pegsOf({ [peg(0, 0)]: ring(0), [peg(1, 0)]: ring(15) });
+    expect(score(pegs, 50)).toBe(score(pegs, 0));
+  });
+
+  it('Sperre ohne gelaufene Runde endet, sobald die Kugel ihre Runde vollendet hat', () => {
+    const pegs = pegsOf({ [peg(0, 0)]: { t: 'ring', f: 0, lap: true }, [peg(1, 0)]: ring(60) });
+    expect(score(pegs, 50)).toBe(score(pegs, 0));
+  });
+
+  it('Experte mit Sperrterm gibt die Sperre frei, wenn der Partner dahinter wartet', () => {
+    const s = scenario(
+      { players: 4 },
+      { pegs: { [peg(0, 0)]: ring(0), [peg(0, 1)]: ring(20), [peg(2, 0)]: ring(60) }, hands: [['5'], ['A'], ['A'], ['A']] },
+    );
+    expect(legalPlays(s, 0).length).toBeGreaterThan(1);
+    const a = chooseAction(s, 0, { ...EXPERT_1PLY, block: 100 }, makeRand(1));
+    expect(applyAction(s, a).pegs.find((p) => p.id === peg(0, 0))!.pos).toEqual(ring(5));
+  });
+});
+
+describe('Erzwungener Abwurf', () => {
+  /** Farbe `c` hat drei Kugeln im Haus und eine auf Feld 62, zwei Felder vor meiner Sperre auf Feld 0. */
+  const stuck = (c: number) => ({ [peg(c, 0)]: ring(62), [peg(c, 1)]: fin(0), [peg(c, 2)]: fin(1), [peg(c, 3)]: fin(2) });
+  /** `bait`: ein Schlag mit der Sperrkugel (Feld 5) bzw. mit der anderen Kugel (Feld 25) lockt zum jeweils anderen Zug. */
+  const pick = (who: number, forceDump = 200, bait = false) => {
+    const hands: Card[][] = [['5'], ['A'], ['A'], ['A']];
+    hands[who] = ['2', '3', '5', '6', '8'];
+    const s = scenario({ players: 4 }, { pegs: { [peg(0, 0)]: ring(0), [peg(0, 1)]: ring(20), ...stuck(who), ...(bait ? { [peg(3, 0)]: ring(who === 1 ? 5 : 25) } : {}) }, hands });
+    const a = chooseAction(s, 0, { ...EXPERT_1PLY, forceDump }, makeRand(1));
+    return applyAction(s, a).pegs.find((p) => p.id === peg(0, 0))!.pos;
+  };
+
+  it('Behält die Sperre, wenn der Gegner dahinter sonst abwerfen muss', () => {
+    expect(pick(1, 200, true)).toEqual(ring(0));
+    expect(pick(1, 0, true)).toEqual(ring(5)); // ohne den Term schlägt der Bot mit der Sperrkugel
+  });
+
+  it('Gibt die Sperre frei, wenn sonst der Partner abwerfen muss', () => {
+    expect(pick(2, 1000, true)).toEqual(ring(5));
+    expect(pick(2, 0, true)).toEqual(ring(0)); // ohne den Term schlägt der Bot mit der anderen Kugel
+  });
+});
+
+describe('Kartentausch mit Sperre', () => {
+  const setup = () => {
+    // Partner (Spieler 2) steht mit der letzten Kugel 2 Felder vor meiner Sperre auf Feld 0, die übrigen Kugeln sind im Haus
+    const s = scenario(
+      { players: 4 },
+      { pegs: { [peg(0, 0)]: ring(0), [peg(2, 0)]: ring(62), [peg(2, 1)]: fin(0), [peg(2, 2)]: fin(1), [peg(2, 3)]: fin(2) }, hands: [['10', '4', '3'], ['A'], ['2', '3', '5', '6', '8'], ['A']] },
+    );
+    return s;
+  };
+
+  it('Gibt dem Partner eine Karte, die er trotz meiner Sperre spielen kann', () => {
+    expect(chooseExchange(setup(), 0, 'expert', makeRand(1)).card).toBe('4'); // rückwärts
+  });
+
+  it('Ohne den Term gibt er die höhere Karte, die der Partner nicht spielen kann', () => {
+    expect(chooseExchange(setup(), 0, EXPERT_PLAIN, makeRand(1)).card).toBe('10');
+  });
+});
+
+describe('Kartentausch mit Schlag', () => {
+  // Partner (Spieler 2) hat eine freie Fahrt; eine gegnerische Kugel (Farbe 1) steht 5 Felder vor ihm kurz vor ihrem Haus
+  const setup = () =>
+    scenario(
+      { players: 4 },
+      { pegs: { [peg(0, 0)]: ring(0), [peg(2, 0)]: ring(40), [peg(1, 0)]: ring(45) }, hands: [['10', '5', '3'], ['A'], ['2', '3', '6', '8', '9'], ['A']] },
+    );
+
+  it('Gibt dem Partner die Karte, mit der er die gegnerische Kugel schlagen kann', () => {
+    expect(chooseExchange(setup(), 0, 'expert', makeRand(1)).card).toBe('5');
+  });
+
+  it('Ohne den Term gibt er die höchste Karte', () => {
+    expect(chooseExchange(setup(), 0, EXPERT_PLAIN, makeRand(1)).card).toBe('10');
+  });
+});
 
 describe('Bots', () => {
   it('Alle Stufen spielen ein Teamspiel und ein Einzelspiel legal bis zum Ende', () => {

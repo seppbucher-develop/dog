@@ -1,6 +1,7 @@
 /**
  * Stärkevergleich zweier Bot-Parametersätze im Einzelspiel (Sitze rotieren), parallel über Worker.
  *   node match.mjs '{"A":{...},"B":"advanced"}' 2 400 3 150 ...   (Spielerzahl, Spiele, ...)
+ * Im Teamspiel (4, 6 Spieler) sitzt A mit allen Partnern; fair = 1 / Teamzahl.
  * A, B: Stufenname oder Parameter-Objekt (Teile werden über `expert` gelegt). Ausgabe: Siegquote von A je Spielerzahl.
  */
 import { Worker, isMainThread, parentPort, workerData } from 'node:worker_threads';
@@ -19,13 +20,13 @@ function play(a: Spec, b: Spec, players: number, from: number, to: number): { wi
   let wins = 0;
   for (let g = from; g < to; g++) {
     const aSeat = g % players; // A sitzt rotierend, alle anderen spielen B
-    const lv = (p: number) => (p === aSeat ? A : B);
+    const lv = (p: number) => (p === aSeat || (layout.teams && layout.teamOf[p] === layout.teamOf[aSeat]) ? A : B); // im Teamspiel spielt A mit seinem Partner
     let s = createGame({ players }, (Number(process.env.SEED0 ?? 31337)) + g);
     const rand = makeRand(777 + g);
     let turns = 0;
     while (s.phase !== 'finished' && turns < 4000) {
       if (s.phase === 'exchange') {
-        for (let p = 0; p < players; p++) s = applyAction(s, layout.teams ? chooseExchange(s, p, typeof lv(p) === 'string' ? (lv(p) as BotLevel) : 'expert', rand) : chooseDraw(s, p, rand));
+        for (let p = 0; p < players; p++) s = applyAction(s, layout.teams ? chooseExchange(s, p, lv(p), rand) : chooseDraw(s, p, rand));
         continue;
       }
       s = applyAction(s, chooseAction(s, s.current, lv(s.current), rand));
@@ -53,7 +54,7 @@ if (!isMainThread) {
     const chunk = Math.ceil(j.n / cores);
     const parts = await Promise.all(Array.from({ length: cores }, (_, i) => run(j.players, i * chunk, Math.min(j.n, (i + 1) * chunk))));
     const wins = parts.reduce((x, p) => x + p.wins, 0), games = parts.reduce((x, p) => x + p.games, 0);
-    const p = wins / games, base = 1 / j.players, ci = 1.96 * Math.sqrt(p * (1 - p) / games);
+    const p = wins / games, base = 1 / layoutFor({ players: j.players }).teamList.length, ci = 1.96 * Math.sqrt(p * (1 - p) / games);
     console.log(`${j.players}p: A ${(100 * p).toFixed(1)}% ±${(100 * ci).toFixed(1)} (fair ${(100 * base).toFixed(1)}%) n=${games}`);
   }
 }
