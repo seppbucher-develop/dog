@@ -138,3 +138,15 @@ Gemessen wird immer A (Experte mit Zusatzterm, mit Partner) gegen den Experten o
 Einzeln liegt jeder Term im Rauschen, die Kombination ist im 4er-Team klar über 50 %. Im 6er-Team ist kein Effekt nachweisbar.
 Die Kombination ist für den Experten eingeschaltet. Einzelspiel (2, 3, 5 Spieler) bleibt unverändert, `forceDump` ist dort aus.
 Nicht gemessen: Mehr Gewicht als 60, die Terme in anderen Stufen.
+
+### `forceDump` im Einzelspiel
+
+Experte mit `forceDump` 60 (Beschränkung auf Teamspiel testweise aufgehoben) gegen Experte ohne, Sitze rotiert:
+
+| Spieler | Siegquote A | fair |
+|---|---|---|
+| 2 | 49,6 % ±3,5 (n=800) | 50 % |
+| 3 | 31,0 % ±3,7 (n=600) | 33,3 % |
+
+Kein Vorteil, bei 3 Spielern eher leicht darunter. `forceDump` bleibt deshalb im Einzelspiel aus (`layout.teams` in `chooseAction`).
+5 Spieler nicht gemessen: 300 Spiele sind mit Vorausschau in 30 Minuten nicht durchgelaufen.
