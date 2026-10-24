@@ -4,6 +4,8 @@ import { fin, peg, ring, scenario } from './helpers';
 
 /** Experte ohne Vorausschau: prüft die Ein-Zug-Regeln zum Kartentausch isoliert (die Vorausschau bewertet solche Stellungen eigenständig). */
 const EXPERT_1PLY = { ...LEVEL_PARAMS.expert, lookahead: undefined };
+/** Experte ohne die Tausch- und Abwurfterme (Vergleichsbasis) */
+const EXPERT_PLAIN = { ...EXPERT_1PLY, forceDump: undefined, giftPlayable: undefined, giftTactic: undefined };
 
 /** Spielt ein komplettes Spiel; `levels[p]` ist die Stufe von Spieler p. Liefert die Gewinner. */
 function playGame(cfg: GameConfig, levels: BotLevel[], seed: number): number[] {
@@ -91,11 +93,11 @@ describe('Kartentausch mit Sperre', () => {
   };
 
   it('Gibt dem Partner eine Karte, die er trotz meiner Sperre spielen kann', () => {
-    expect(chooseExchange(setup(), 0, { ...LEVEL_PARAMS.expert, giftPlayable: 50 }, makeRand(1)).card).toBe('4'); // rückwärts
+    expect(chooseExchange(setup(), 0, 'expert', makeRand(1)).card).toBe('4'); // rückwärts
   });
 
   it('Ohne den Term gibt er die höhere Karte, die der Partner nicht spielen kann', () => {
-    expect(chooseExchange(setup(), 0, 'expert', makeRand(1)).card).toBe('10');
+    expect(chooseExchange(setup(), 0, EXPERT_PLAIN, makeRand(1)).card).toBe('10');
   });
 });
 
@@ -108,11 +110,11 @@ describe('Kartentausch mit Schlag', () => {
     );
 
   it('Gibt dem Partner die Karte, mit der er die gegnerische Kugel schlagen kann', () => {
-    expect(chooseExchange(setup(), 0, { ...LEVEL_PARAMS.expert, giftTactic: 0.3 }, makeRand(1)).card).toBe('5');
+    expect(chooseExchange(setup(), 0, 'expert', makeRand(1)).card).toBe('5');
   });
 
   it('Ohne den Term gibt er die höchste Karte', () => {
-    expect(chooseExchange(setup(), 0, 'expert', makeRand(1)).card).toBe('10');
+    expect(chooseExchange(setup(), 0, EXPERT_PLAIN, makeRand(1)).card).toBe('10');
   });
 });
 

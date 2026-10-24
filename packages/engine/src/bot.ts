@@ -38,7 +38,7 @@ export interface LevelParams {
   risk?: number;
   /** Gewicht der Startfeld-Sperre: Bonus je gegnerische Kugel, die auf meine Sperre zuläuft, Abzug je Kugel von mir/Partner, die sie aufhält */
   block?: number;
-  /** Gewicht erzwungener Handabwürfe: Bonus je Karte, die ein Gegner mangels legalem Zug abwerfen muss, Abzug beim Partner (Wahrscheinlichkeit aus Kartenzählung) */
+  /** Teamspiel: Gewicht erzwungener Handabwürfe: Bonus je Karte, die ein Gegner mangels legalem Zug abwerfen muss, Abzug beim Partner (Wahrscheinlichkeit aus Kartenzählung) */
   forceDump?: number;
   /** Teamspiel, Kartentausch: Zusatzwert für eine Karte, die der Partner auf dem Brett spielen kann, wenn er sonst seine Hand abwerfen müsste (Gewicht je Karte) */
   giftPlayable?: number;
@@ -50,7 +50,7 @@ export const LEVEL_PARAMS: Record<BotLevel, LevelParams> = {
   beginner: { random: true, noise: 0, threat: 0, cardCost: 0, teamwork: false },
   intermediate: { random: false, noise: 90, threat: 0, cardCost: 0, teamwork: false },
   advanced: { random: false, noise: 25, threat: 0.12, cardCost: 0.5, teamwork: false },
-  expert: { random: false, noise: 0, threat: 0.2, cardCost: 1, teamwork: true, risk: 1.5, steal: 60, friendlyFire: 500, lookahead: { k: 4, samples: 6, weight: 1 } },
+  expert: { random: false, noise: 0, threat: 0.2, cardCost: 1, teamwork: true, risk: 1.5, steal: 60, friendlyFire: 500, lookahead: { k: 4, samples: 6, weight: 1 }, forceDump: 60, giftPlayable: 50, giftTactic: 0.3 },
 };
 
 /** Zufallsquelle für Bots aus einem Seed (deterministisch, unabhängig vom Spielzustand). */
@@ -393,7 +393,7 @@ export function chooseAction(
     const risk = params.risk && params.risk > 0 ? buildRisk(state, layout, player, params.risk) : undefined;
     const base: number[] = [];
     const extra: number[] = [];
-    const counted = params.forceDump ? buildRisk(state, layout, player, 0) : undefined;
+    const counted = params.forceDump && layout.teams ? buildRisk(state, layout, player, 0) : undefined;
     for (const play of plays) {
       const after = pegsAfterPlay(state.pegs, layout, play);
       base.push(evaluate(after, layout, player, params.threat, params.enemy, risk, params.block));

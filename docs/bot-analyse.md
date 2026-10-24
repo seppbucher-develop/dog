@@ -117,3 +117,24 @@ Parameter `block` in `bot.ts`: Bonus je gegnerische Kugel, die auf eine eigene f
 
 Kein messbarer Effekt, deshalb bleibt `block` in allen Stufen ungesetzt (aus). Nicht gemessen: Einzelspiel und 6 Spieler.
 `sim/match.ts` lässt im Teamspiel A mit seinem Partner spielen (Bündeln mit esbuild, sonst finden die Worker `src` nicht).
+
+## Abwurf, Kartentausch und Schlag (Teamspiel)
+
+Gemessen wird immer A (Experte mit Zusatzterm, mit Partner) gegen den Experten ohne Term, Sitze rotiert, 4 Spieler (Teams), fair = 50 %.
+
+- `forceDump` (Parameter in `bot.ts`): Bonus je Karte, die ein Gegner mangels legalem Zug abwerfen muss, Abzug beim Partner. Wahrscheinlichkeit aus Kartenzählung (je Rang: spielbar auf dem Brett nach dem Zug?), getauschte Partnerkarte ist bekannt. Nur im Teamspiel aktiv.
+- `giftPlayable`: beim Tausch Zusatzwert für eine Karte, die der Partner spielen kann, wenn er sonst seine Hand abwerfen müsste.
+- `giftTactic`: beim Tausch Zusatzwert für den Wertverlust gegnerischer Kugeln, den der Partner mit der Karte durch Schlagen oder Tauschen erreichen kann (nah am Haus am höchsten).
+
+| Einstellung | Siegquote A |
+|---|---|
+| `forceDump` 15 / 30 / 60 | 51,0 / 51,8 / 53,5 % (±4,0, n=600) |
+| `giftPlayable` 50 | 51,1 % ±3,5 (n=800) |
+| `giftTactic` 0,3 | 53,0 % ±3,5 (n=800) |
+| `forceDump` 30 + `giftPlayable` 50 + `giftTactic` 0,3 | 53,9 % ±3,5 (n=800) |
+| `forceDump` 60 + `giftPlayable` 50 + `giftTactic` 0,3 | **53,7 % ±2,4 (n=1600)** |
+| dieselbe Kombination, 6 Spieler (3 Teams zu 2), fair 33,3 % | 32,0 % ±4,6 (n=400, kein Effekt) |
+
+Einzeln liegt jeder Term im Rauschen, die Kombination ist im 4er-Team klar über 50 %. Im 6er-Team ist kein Effekt nachweisbar.
+Die Kombination ist für den Experten eingeschaltet. Einzelspiel (2, 3, 5 Spieler) bleibt unverändert, `forceDump` ist dort aus.
+Nicht gemessen: Mehr Gewicht als 60, die Terme in anderen Stufen.
