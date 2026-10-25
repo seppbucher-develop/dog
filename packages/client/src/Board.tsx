@@ -53,6 +53,8 @@ interface Props {
   onMarker(id: string): void;
   centerLines: string[];
   pile: PileView;
+  /** Handkarten je Spieler, neben dem Ablagestapel angezeigt */
+  handCounts: { name: string; color: string; n: number; turn: boolean }[];
   flights: Flight[];
 }
 
@@ -86,7 +88,7 @@ function CardFace({ card, suit }: { card: Card; suit: Suit }) {
 
 const stroke = (fill: string) => (fill === '#f6f3ea' ? '#8a8474' : '#15151a');
 
-export function Board({ layout, geo, pegs, segColors, segNames, activeSegs, selectable, clickable, focus, markers, onPeg, onMarker, centerLines, pile, flights }: Props) {
+export function Board({ layout, geo, pegs, segColors, segNames, activeSegs, selectable, clickable, focus, markers, onPeg, onMarker, centerLines, pile, handCounts, flights }: Props) {
   const R = layout.ringSize;
   const fields = Array.from({ length: R }, (_, f) => f);
   return (
@@ -169,6 +171,14 @@ export function Board({ layout, geo, pegs, segColors, segNames, activeSegs, sele
         {pile.count > 2 && <rect x={-CARD_W / 2} y={-CARD_H / 2} width={CARD_W} height={CARD_H} rx={6} fill="#e8e1cf" stroke="#8a8474" strokeWidth={1.5} transform="rotate(-7) translate(-2 2)" />}
         {pile.count > 1 && <rect x={-CARD_W / 2} y={-CARD_H / 2} width={CARD_W} height={CARD_H} rx={6} fill="#f2ecdc" stroke="#8a8474" strokeWidth={1.5} transform="rotate(5) translate(2 1)" />}
         {pile.count > 0 && pile.top && <CardFace card={pile.top} suit={pile.suit} />}
+      </g>
+      <g className="hand-counts" aria-label="Handkarten der Spieler">
+        {handCounts.map((h, i) => (
+          <g key={i} transform={`translate(${geo.centre.x + 2 * CARD_W / 2 + 14} ${geo.centre.y - 44 - ((handCounts.length - 1) * 24) / 2 + i * 24})`}>
+            <circle r={7} fill={h.color} stroke="#fff" strokeWidth={2} />
+            <text x={14} dominantBaseline="central" className={`hc${h.turn ? ' active' : ''}`}>🂠 {h.n}<title>{h.name}: {h.n} Karten auf der Hand</title></text>
+          </g>
+        ))}
       </g>
       <text textAnchor="middle" className="center-text">
         {centerLines.map((t, i) => <tspan key={i} x={geo.centre.x} y={geo.centre.y + 54 + i * 21}>{t}</tspan>)}

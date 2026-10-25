@@ -324,6 +324,7 @@ function GameInner({ lobby, view: live }: { lobby: LobbyView; view: GameView }) 
           onPeg={onPeg}
           onMarker={onMarker}
           centerLines={[`Runde ${view.round + 1}`, `Stapel: ${view.deckCount}`, `Geber: ${names[view.dealer]}`]}
+          handCounts={lobby.seats.map((s, p) => ({ name: names[p]!, color: colorHex(s.color), n: view.handSizes[p] ?? 0, turn: view.phase === 'playing' && view.current === p }))}
           pile={{ top: view.discardTop, count: view.discardCount, suit: suitOf(view.discardSuit) }}
           flights={flights}
         />
