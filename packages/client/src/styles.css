@@ -103,6 +103,8 @@ input.code { text-transform: uppercase; letter-spacing: 0.2em; font-weight: 700;
 .board-edge { fill: var(--line); stroke: var(--line); stroke-width: 76; stroke-linejoin: round; }
 .board-disc { fill: var(--board); stroke: var(--board); stroke-width: 70; stroke-linejoin: round; }
 .center-text { fill: var(--muted); font-size: 17px; }
+.hc { fill: var(--ink); font-size: 17px; }
+.hc.active { font-weight: 800; fill: var(--accent); }
 .pname { fill: var(--ink); font-size: 19px; font-weight: 500; }
 .pname.active { font-weight: 800; fill: var(--accent); }
 .nest.active { animation: pulse 1.4s infinite; }
