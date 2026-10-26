@@ -126,7 +126,9 @@ function GameInner({ lobby, view: live }: { lobby: LobbyView; view: GameView }) 
     return () => clearTimeout(t);
   }, [sentPegs, sent]);
 
-  const myTurn = view.phase === 'playing' && view.current === view.seat && view.legal !== null && !busy && !sent;
+  // Im Rückblick (Aufzeichnung) sind keine Eingaben möglich
+  const reviewing = !!live.review;
+  const myTurn = view.phase === 'playing' && view.current === view.seat && view.legal !== null && !busy && !sent && !reviewing;
   const legal = view.legal ?? [];
   const teams = layout.teams;
   // Handkarten mit Farbe; eine fliegende Karte erscheint erst bei der Ankunft (Anzeigestand `view`)
@@ -256,14 +258,14 @@ function GameInner({ lobby, view: live }: { lobby: LobbyView; view: GameView }) 
   };
 
   // Einzelspiel, Kartentausch: blind eine Karte vom rechten Nachbarn (nächster Spieler) ziehen
-  const drawing = view.phase === 'exchange' && !layout.teams && !busy;
+  const drawing = view.phase === 'exchange' && !layout.teams && !busy && !reviewing;
   const rightSeat = (view.seat + 1) % view.handSizes.length;
   const stealOpts = opts.filter((m): m is Extract<Move, { t: 'steal' }> => m.t === 'steal');
 
   const playable = playableCards(legal);
   const clickCard = (c: Card, suit: number) => {
     if (view.phase === 'exchange') {
-      if (view.exchangeDone[view.seat] || drawing || busy) return;
+      if (view.exchangeDone[view.seat] || drawing || busy || reviewing) return;
       setXCard(c);
       return setPick(suit);
     }
@@ -335,7 +337,7 @@ function GameInner({ lobby, view: live }: { lobby: LobbyView; view: GameView }) 
           {hand.map(({ card: c, suit }, i) => {
             const mark = view.phase === 'exchange' ? xCard : sel.card;
             const selected = mark === c && (c === 'JOKER' || suitFor(c) === suit) && hand.findIndex((h) => h.card === c && h.suit === suit) === i;
-            const usable = view.phase === 'exchange' ? !view.exchangeDone[view.seat] && !drawing && !busy : myTurn && playable.has(c);
+            const usable = view.phase === 'exchange' ? !view.exchangeDone[view.seat] && !drawing && !busy && !reviewing : myTurn && playable.has(c);
             const sym = suitOf(suit);
             return (
               <button
@@ -376,6 +378,22 @@ function GameInner({ lobby, view: live }: { lobby: LobbyView; view: GameView }) 
           </div>
         )}
 
+        {live.review && (
+          <div className="card review" role="group" aria-label="Aufzeichnung">
+            <strong>Rückblick: Zug {live.review.index} von {live.review.total}</strong>
+            <div className="row">
+              <button onClick={() => net.send({ t: 'review', index: 0 })} disabled={live.review.index === 0} aria-label="Zum Anfang">⏮</button>
+              <button onClick={() => net.send({ t: 'review', index: live.review!.index - 1 })} disabled={live.review.index === 0}>◀ Zurück</button>
+              <button onClick={() => net.send({ t: 'review', index: live.review!.index + 1 })}>Vorwärts ▶</button>
+              <button className="primary" onClick={() => net.send({ t: 'review', index: null })}>Zurück zum Spiel</button>
+            </div>
+          </div>
+        )}
+        {!live.review && (live.recorded ?? 0) > 0 && (
+          <div className="card review">
+            <button onClick={() => net.send({ t: 'review', index: live.recorded! - 1 })}>◀ Aufzeichnung ansehen ({live.recorded} Aktionen)</button>
+          </div>
+        )}
         <div className="card status" aria-live="polite">
           <div className="controls">
           {myTurn && sel.card === 'JOKER' && (

@@ -372,6 +372,28 @@ describe('Verbindung, Ersetzen, Wiederholung, Speichern', () => {
     expect(host.game()!.phase).toBe('exchange');
   });
 
+  it('Aufzeichnung: Rückblick zeigt frühere Stände, sperrt Eingaben und kehrt zum Spiel zurück', () => {
+    const env = setup();
+    const host = hostRoom(env.send);
+    env.send(host, { t: 'configure', seats: [{ kind: 'human' }, { kind: 'bot', level: 'expert' }, { kind: 'bot', level: 'expert' }], eightPegs: false, rules: {} });
+    env.send(host, { t: 'start' });
+    playAsHost(env, host);
+    const total = host.game()!.recorded!;
+    expect(total).toBeGreaterThan(5);
+    expect(host.game()!.review).toBeUndefined();
+    env.send(host, { t: 'review', index: 0 });
+    const start = host.game()!;
+    expect(start.review).toEqual({ index: 0, total });
+    expect(start.legal).toBeNull();
+    expect(start.phase).not.toBe('finished');
+    expect(start.winners).toBeNull();
+    env.send(host, { t: 'review', index: total - 1 });
+    expect(host.game()!.review!.index).toBe(total - 1);
+    env.send(host, { t: 'review', index: null });
+    expect(host.game()!.review).toBeUndefined();
+    expect(host.game()!.phase).toBe('finished');
+  });
+
   it('Host verlässt: Raum wird geschlossen; Gast verlässt in der Lobby: Platz wird frei', () => {
     const env = setup();
     const host = hostRoom(env.send);
