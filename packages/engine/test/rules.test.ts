@@ -63,6 +63,20 @@ describe('Bube-Tausch mit eigenen Kugeln', () => {
   });
 });
 
+describe('Bube-Tausch auf das eigene Startfeld', () => {
+  it('Kugel darf danach ins Zielhaus; "lap" der fremden Kugel wird nicht übernommen', () => {
+    const lapped = { t: 'ring' as const, f: start(0), lap: true as const };
+    const s = scenario(
+      { players: 4 },
+      { pegs: { [peg(0, 0)]: ring(start(0) + 20), [peg(1, 0)]: ring(start(0) + 30), [peg(0, 1)]: fin(1) }, hands: [['J', 'A'], [], [], []] },
+    );
+    s.pegs.find((p) => p.id === peg(1, 0))!.pos = ring(start(0));
+    const swapped = applyAction(s, { t: 'play', player: 0, card: 'J', moves: [{ t: 'swap', a: peg(0, 0), b: peg(1, 0) }] });
+    expect(swapped.pegs.find((p) => p.id === peg(0, 0))!.pos).toEqual(lapped);
+    expect(swapped.pegs.find((p) => p.id === peg(1, 0))!.pos).toEqual(ring(start(0) + 20));
+  });
+});
+
 describe('Bube und 2 im Einzelspiel', () => {
   const mk = (hands: Card[][]) =>
     scenario({ players: 3 }, { pegs: { [peg(0, 0)]: ring(5), [peg(1, 0)]: ring(20) }, hands });
