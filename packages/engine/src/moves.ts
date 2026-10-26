@@ -123,8 +123,10 @@ export function trySwap(pegs: Peg[], a: number, b: number): Peg[] | null {
   if (pa.pos.t !== 'ring' || pb.pos.t !== 'ring') return null;
   if (isBlocker(pa) || isBlocker(pb)) return null;
   const next = clonePegs(pegs);
-  next.find((p) => p.id === a)!.pos = { ...pb.pos };
-  next.find((p) => p.id === b)!.pos = { ...pa.pos };
+  // `lap` gilt nur für die eigene Farbe: beim Tausch nicht übernehmen; wer auf dem eigenen Startfeld landet, darf ins Zielhaus
+  const land = (peg: Peg, f: number): Peg['pos'] => (f === startField(peg.color) ? { t: 'ring', f, lap: true } : { t: 'ring', f });
+  next.find((p) => p.id === a)!.pos = land(pa, pb.pos.f);
+  next.find((p) => p.id === b)!.pos = land(pb, pa.pos.f);
   return next;
 }
 
