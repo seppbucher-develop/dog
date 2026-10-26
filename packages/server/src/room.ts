@@ -28,7 +28,7 @@ import type {
   SeatSpec,
   ServerMessage,
 } from '@dog/protocol';
-import { COLOR_COUNT, animationMs } from '@dog/protocol';
+import { COLOR_COUNT, animationMs, canReview } from '@dog/protocol';
 import type { RuleSettings } from '@dog/engine';
 
 export interface Connection {
@@ -53,6 +53,8 @@ interface Participant {
   seat: number | null;
   requestId: string;
   conn: Connection | null;
+  /** Durchblättern der Aufzeichnung: gezeigter Stand (Anzahl Aktionen), null = laufendes Spiel */
+  review?: number | null;
 }
 
 type SeatKind = { kind: 'human' } | { kind: 'bot'; level: BotLevel };
@@ -71,9 +73,12 @@ export interface RoomSnapshot {
   seats: Seat[];
   eightPegs: boolean;
   rules: Partial<RuleSettings>;
-  participants: Omit<Participant, 'conn'>[];
+  participants: Omit<Participant, 'conn' | 'review'>[];
   game: GameState | null;
   lastPlay: LastPlay | null;
+  /** Aufzeichnung: Startwert des Mischens und alle Aktionen seither (fehlt bei älteren Spielständen) */
+  seed?: number | null;
+  actions?: Action[];
   lastActivity: number;
 }
 
@@ -95,6 +100,9 @@ export class Room {
   participants = new Map<string, Participant>();
   game: GameState | null = null;
   lastPlay: LastPlay | null = null;
+  /** Aufzeichnung des laufenden Spiels: Seed und Aktionen genügen, um jeden Stand nachzuspielen */
+  private seed: number | null = null;
+  private actions: Action[] = [];
   private passLog: PassEvent[] = [];
   private passSeq = 0;
   private transferLog: { id: number; from: number; to: number; card: Card; suit: number; round: number }[] = [];
@@ -212,7 +220,12 @@ export class Room {
         this.phase = 'lobby';
         this.game = null;
         this.lastPlay = null;
+        this.seed = null;
+        this.actions = [];
+        for (const p of this.participants.values()) p.review = null;
         return this.changed();
+      case 'review':
+        return this.setReview(me, msg.index);
       case 'leave':
         return this.leave(me);
       case 'exchange':
@@ -348,7 +361,10 @@ export class Room {
     const open = this.seats.findIndex((s) => s.spec.kind === 'human' && !s.occupant);
     if (open >= 0) throw new Error(`Platz ${open + 1} ist noch frei – Mitspieler bewilligen oder Computer einsetzen`);
     const config: GameConfig = { players: this.seats.length, eightPegs: this.eightPegs, rules: this.rules };
-    this.game = createGame(config, newSeed());
+    this.seed = newSeed();
+    this.actions = [];
+    for (const p of this.participants.values()) p.review = null;
+    this.game = createGame(config, this.seed);
     this.recordPasses();
     this.animMs = animationMs(layoutFor(config).rules.turnSpeed, { deal: config.players, dumps: (this.game.passed ?? []).map((e) => e.cards) });
     this.rand = makeRand(newSeed());
@@ -423,6 +439,7 @@ export class Room {
     }
     if (action.t === 'play') this.lastSuit = suitOf(action.player, action.card, action.suit);
     const next = applyAction(g, action);
+    this.actions.push(action);
     this.measure(g, next, action.t === 'play', out.length);
     for (const t of out) this.transferLog.push({ id: ++this.transferSeq, round: next.round, ...t });
     this.transferLog = this.transferLog.slice(-24);
@@ -460,6 +477,31 @@ export class Room {
       this.lastPlay = { n: ++this.playSeq, player: me.seat, card: msg.card, suit: this.lastSuit, moves: msg.moves, ...(msg.as ? { as: msg.as } : {}) };
     }
     this.changed();
+  }
+
+  /** Aufzeichnung ansehen: nur mit bekanntem Seed; ab dem letzten Stand zurück zum laufenden Spiel. */
+  private setReview(me: Participant, index: number | null): void {
+    if (!canReview(me.name)) throw new Error('Nicht erlaubt');
+    if (index === null || this.seed === null || index >= this.actions.length) me.review = null;
+    else me.review = index;
+    this.sendTo(me);
+  }
+
+  /** Spielt die Aufzeichnung bis zur Aktion `n` nach und liefert die Sicht des Platzes darauf. */
+  private reviewView(seat: number, n: number): GameView | null {
+    if (this.seed === null || !this.game) return null;
+    const r = new Room(this.code, this.deps);
+    r.game = createGame(this.game.config, this.seed);
+    r.recordPasses();
+    for (const a of this.actions.slice(0, n)) {
+      r.game = r.apply(r.game, a);
+      r.recordPasses();
+      if (a.t === 'play') r.lastPlay = { n: ++r.playSeq, player: a.player, card: a.card, suit: r.lastSuit, moves: a.moves, ...(a.as ? { as: a.as } : {}) };
+    }
+    const view = r.gameView(seat);
+    if (!view) return null;
+    // Im Rückblick wird nicht gespielt
+    return { ...view, legal: null, recorded: this.actions.length, review: { index: n, total: this.actions.length } };
   }
 
   /** Bots ziehen lassen, solange sie am Zug sind (Tauschkarten sofort, Züge mit Verzögerung). */
@@ -583,6 +625,7 @@ export class Room {
         const seen = t.from === seat || t.to === seat;
         return { id: t.id, from: t.from, to: t.to, card: seen ? t.card : null, suit: seen ? t.suit : null };
       }),
+      ...(this.seed !== null ? { recorded: this.actions.length } : {}),
       gave: this.transferLog
         .filter((t) => t.from === seat && t.round === g.round)
         .map((t): GaveCard => ({ id: t.id, to: t.to, card: t.card, suit: t.suit, held: cardIndex(g, t.to, t.card, t.suit) >= 0 })),
@@ -592,7 +635,8 @@ export class Room {
   sendTo(p: Participant): void {
     if (!p.conn) return;
     p.conn.send({ t: 'lobby', lobby: this.lobbyView(p) });
-    p.conn.send({ t: 'game', view: p.seat !== null ? this.gameView(p.seat) : null });
+    const review = p.seat !== null && p.review != null ? this.reviewView(p.seat, Math.min(p.review, this.actions.length)) : null;
+    p.conn.send({ t: 'game', view: review ?? (p.seat !== null ? this.gameView(p.seat) : null) });
   }
 
   sendToToken(token: string): void {
@@ -618,9 +662,11 @@ export class Room {
       seats: this.seats,
       eightPegs: this.eightPegs,
       rules: this.rules,
-      participants: [...this.participants.values()].map(({ conn: _conn, ...rest }) => rest),
+      participants: [...this.participants.values()].map(({ conn: _conn, review: _review, ...rest }) => rest),
       game: this.game,
       lastPlay: this.lastPlay,
+      seed: this.seed,
+      actions: this.actions,
       lastActivity: this.lastActivity,
     };
   }
@@ -635,8 +681,10 @@ export class Room {
     if (room.game) ensureSuits(room.game);
     room.lastPlay = s.lastPlay;
     room.playSeq = s.lastPlay?.n ?? 0;
+    room.seed = s.seed ?? null;
+    room.actions = s.actions ?? [];
     room.lastActivity = s.lastActivity;
-    for (const p of s.participants) room.participants.set(p.token, { ...p, conn: null });
+    for (const p of s.participants) room.participants.set(p.token, { ...p, review: null, conn: null });
     return room;
   }
 

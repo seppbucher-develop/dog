@@ -17,6 +17,8 @@ import {
 
 /** Anzahl wählbarer Kugelfarben und ihre Namen (Index = Farbnummer) */
 export const COLOR_NAMES = ['Rot', 'Blau', 'Gelb', 'Grün', 'Schwarz', 'Weiß'] as const;
+/** Nur dieser Spieler (Name, ohne Groß-/Kleinschreibung) darf die Aufzeichnung durchblättern */
+export const canReview = (name: string) => name.trim().toLowerCase() === 'sepp';
 export const COLOR_COUNT = COLOR_NAMES.length;
 
 /** Sitzplatz: Mensch oder Computer; `color` = Kugelfarbe (fehlt sie, vergibt der Server eine freie). */
@@ -40,6 +42,8 @@ export type ClientMessage =
   /** Host: im Spiel einen Platz durch einen Bot ersetzen (z. B. bei Verbindungsabbruch). */
   | { t: 'setBot'; seat: number; level: BotLevel }
   | { t: 'start' }
+  /** Aufzeichnung durchblättern: Stand nach `index` Aktionen ansehen (0 = Ausgangslage), `null` = zurück zum laufenden Spiel */
+  | { t: 'review'; index: number | null }
   /** `suit` = Farbe der Karte (0 Herz, 1 Kreuz, 2 Ecke, 3 Schaufel) */
   | { t: 'exchange'; card: Card; suit?: number }
   /** Einzelspiel, Kartentausch: blind die Karte an Position idx aus der Hand des rechten Nachbarn ziehen */
@@ -134,6 +138,10 @@ export interface GameView {
   transfers: Transfer[];
   /** Von dir abgegebene Karten dieser Runde */
   gave: GaveCard[];
+  /** Nur beim Durchblättern der Aufzeichnung: gezeigter Stand (nach `index` von `total` Aktionen) */
+  review?: { index: number; total: number };
+  /** Anzahl aufgezeichneter Aktionen des laufenden Spiels (fehlt bei älteren Spielständen) */
+  recorded?: number;
 }
 
 export interface PassEvent {
@@ -276,6 +284,8 @@ export function parseClientMessage(raw: unknown): ClientMessage {
       return { t: 'kick', seat: int(raw.seat, 'Platz', 0, 5) };
     case 'setBot':
       return { t: 'setBot', seat: int(raw.seat, 'Platz', 0, 5), level: level(raw.level) };
+    case 'review':
+      return { t: 'review', index: raw.index === null ? null : int(raw.index, 'Position', 0, 100000) };
     case 'start':
     case 'rematch':
     case 'leave':

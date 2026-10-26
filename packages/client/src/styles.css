@@ -194,3 +194,6 @@ input.code { text-transform: uppercase; letter-spacing: 0.2em; font-weight: 700;
 .theme-switch { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; background: var(--panel); }
 .theme-switch button { border: 0; border-radius: 0; background: transparent; color: var(--muted); padding: 2px 12px; min-height: 30px; font-size: 0.95rem; cursor: pointer; }
 .theme-switch button[aria-pressed='true'] { background: var(--accent); color: var(--accent-ink); }
+
+.review { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.review .row { display: flex; flex-wrap: wrap; gap: 6px; }
