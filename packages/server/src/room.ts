@@ -503,11 +503,19 @@ export class Room {
     if (!view) return null;
     // Im Rückblick wird nicht gespielt
     const a = this.actions[n];
-    const next: ReviewNext | undefined =
-      a === undefined ? undefined
-      : a.t === 'play' ? { t: 'play', player: a.player, card: a.card, ...(a.as ? { as: a.as } : {}), moves: a.moves }
-      : a.t === 'exchange' ? { t: 'exchange', player: a.player, card: a.player === seat ? a.card : null }
-      : { t: 'draw', player: a.player };
+    let next: ReviewNext | undefined;
+    if (a) {
+      // Wer nach dem Schritt keinen Zug hat, wirft automatisch ab: Nachspielen zeigt, wer wie viele Karten verliert
+      const seen = r.passSeq;
+      r.game = r.apply(r.game!, a);
+      r.recordPasses();
+      const dumps = r.passLog.filter((e) => e.id > seen).map((e) => ({ player: e.player, cards: e.cards }));
+      const d = dumps.length > 0 ? { dumps } : {};
+      next =
+        a.t === 'play' ? { t: 'play', player: a.player, card: a.card, ...(a.as ? { as: a.as } : {}), moves: a.moves, ...d }
+        : a.t === 'exchange' ? { t: 'exchange', player: a.player, card: a.player === seat ? a.card : null, ...d }
+        : { t: 'draw', player: a.player, ...d };
+    }
     return { ...view, legal: null, recorded: this.actions.length, review: { index: n, total: this.actions.length, ...(next ? { next } : {}) } };
   }
 

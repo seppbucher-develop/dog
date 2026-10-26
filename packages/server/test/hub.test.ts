@@ -388,6 +388,13 @@ describe('Verbindung, Ersetzen, Wiederholung, Speichern', () => {
     expect(start.legal).toBeNull();
     expect(start.phase).not.toBe('finished');
     expect(start.winners).toBeNull();
+    // Irgendwo in der Aufzeichnung kündigt die Vorschau einen Zwangsabwurf an
+    let dumps = 0;
+    for (let i = 0; i < total; i++) {
+      env.send(host, { t: 'review', index: i });
+      dumps += host.game()!.review!.next?.dumps?.length ?? 0;
+    }
+    expect(dumps).toBeGreaterThan(0);
     env.send(host, { t: 'review', index: total - 1 });
     expect(host.game()!.review!.index).toBe(total - 1);
     env.send(host, { t: 'review', index: null });

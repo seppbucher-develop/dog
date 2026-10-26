@@ -22,10 +22,11 @@ export function Game({ lobby, view }: { lobby: LobbyView; view: GameView | null 
 function nextText(n: ReviewNext | undefined, names: string[], me: number): string {
   if (!n) return 'Das ist der aktuelle Stand.';
   const who = `${names[n.player]}${n.player === me ? ' (du)' : ''}`;
-  if (n.t === 'draw') return `Nächster Schritt: ${who} zieht blind eine Karte.`;
-  if (n.t === 'exchange') return `Nächster Schritt: ${who} gibt ${n.card ? `die Karte ${CARD_TEXT[n.card]}` : 'eine Karte'} ab.`;
+  const dumps = (n.dumps ?? []).map((d) => ` Danach muss ${names[d.player]}${d.player === me ? ' (du)' : ''} ${d.cards} ${d.cards === 1 ? 'Karte' : 'Karten'} abwerfen (kein Zug möglich).`).join('');
+  if (n.t === 'draw') return `Nächster Schritt: ${who} zieht blind eine Karte.${dumps}`;
+  if (n.t === 'exchange') return `Nächster Schritt: ${who} gibt ${n.card ? `die Karte ${CARD_TEXT[n.card]}` : 'eine Karte'} ab.${dumps}`;
   const moves = n.moves.length > 0 ? n.moves.map((m) => moveText(m, names)).join(', ') : 'ohne Wirkung';
-  return `Nächster Schritt: ${who} spielt ${CARD_TEXT[n.card]}${n.as ? ` als ${CARD_TEXT[n.as]}` : ''} – ${moves}.`;
+  return `Nächster Schritt: ${who} spielt ${CARD_TEXT[n.card]}${n.as ? ` als ${CARD_TEXT[n.as]}` : ''} – ${moves}.${dumps}`;
 }
 
 function GameInner({ lobby, view: live }: { lobby: LobbyView; view: GameView }) {

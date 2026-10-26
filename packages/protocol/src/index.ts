@@ -110,10 +110,14 @@ export interface GaveCard {
 }
 
 /** Die Aktion, die beim nächsten Schritt im Rückblick ausgeführt wird (Tauschkarten fremder Plätze bleiben verborgen) */
-export type ReviewNext =
+export type ReviewNext = (
   | { t: 'play'; player: number; card: Card; as?: Rank; moves: Move[] }
   | { t: 'exchange'; player: number; card: Card | null }
-  | { t: 'draw'; player: number };
+  | { t: 'draw'; player: number }
+) & {
+  /** Spieler ohne möglichen Zug, die danach automatisch ihre Karten abwerfen müssen */
+  dumps?: { player: number; cards: number }[];
+};
 
 export interface GameView {
   config: GameConfig;
