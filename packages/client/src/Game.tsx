@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { applyMoveToPegs, layoutFor, sevenNext, tryMove, type Card, type Move, type Peg, type Play, type Pos } from '@dog/engine';
-import { canReview, type GameView, type LobbyView } from '@dog/protocol';
+import { canReview, type GameView, type LobbyView, type ReviewNext } from '@dog/protocol';
 import { Board, type BoardMarker } from './Board';
 import type { Spots } from './anim';
 import { useAnimatedView } from './useAnimatedView';
@@ -17,6 +17,15 @@ const ORDER: Card[] = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', '
 export function Game({ lobby, view }: { lobby: LobbyView; view: GameView | null }) {
   if (!view) return <div className="card center">Spiel wird geladen …</div>;
   return <GameInner lobby={lobby} view={view} />;
+}
+
+function nextText(n: ReviewNext | undefined, names: string[], me: number): string {
+  if (!n) return 'Das ist der aktuelle Stand.';
+  const who = `${names[n.player]}${n.player === me ? ' (du)' : ''}`;
+  if (n.t === 'draw') return `Nächster Schritt: ${who} zieht blind eine Karte.`;
+  if (n.t === 'exchange') return `Nächster Schritt: ${who} gibt ${n.card ? `die Karte ${CARD_TEXT[n.card]}` : 'eine Karte'} ab.`;
+  const moves = n.moves.length > 0 ? n.moves.map((m) => moveText(m, names)).join(', ') : 'ohne Wirkung';
+  return `Nächster Schritt: ${who} spielt ${CARD_TEXT[n.card]}${n.as ? ` als ${CARD_TEXT[n.as]}` : ''} – ${moves}.`;
 }
 
 function GameInner({ lobby, view: live }: { lobby: LobbyView; view: GameView }) {
@@ -381,6 +390,7 @@ function GameInner({ lobby, view: live }: { lobby: LobbyView; view: GameView }) 
         {live.review && (
           <div className="card review" role="group" aria-label="Aufzeichnung">
             <strong>Rückblick: Zug {live.review.index} von {live.review.total}</strong>
+            <p className="muted">{nextText(live.review.next, names, live.seat)}</p>
             <div className="row">
               <button onClick={() => net.send({ t: 'review', index: 0 })} disabled={live.review.index === 0} aria-label="Zum Anfang">⏮</button>
               <button onClick={() => net.send({ t: 'review', index: live.review!.index - 1 })} disabled={live.review.index === 0}>◀ Zurück</button>

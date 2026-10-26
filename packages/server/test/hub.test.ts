@@ -383,7 +383,8 @@ describe('Verbindung, Ersetzen, Wiederholung, Speichern', () => {
     expect(host.game()!.review).toBeUndefined();
     env.send(host, { t: 'review', index: 0 });
     const start = host.game()!;
-    expect(start.review).toEqual({ index: 0, total });
+    expect(start.review).toMatchObject({ index: 0, total });
+    expect(start.review!.next).toBeDefined();
     expect(start.legal).toBeNull();
     expect(start.phase).not.toBe('finished');
     expect(start.winners).toBeNull();
