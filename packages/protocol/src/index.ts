@@ -109,6 +109,12 @@ export interface GaveCard {
   held: boolean;
 }
 
+/** Die Aktion, die beim nächsten Schritt im Rückblick ausgeführt wird (Tauschkarten fremder Plätze bleiben verborgen) */
+export type ReviewNext =
+  | { t: 'play'; player: number; card: Card; as?: Rank; moves: Move[] }
+  | { t: 'exchange'; player: number; card: Card | null }
+  | { t: 'draw'; player: number };
+
 export interface GameView {
   config: GameConfig;
   phase: Phase;
@@ -139,7 +145,7 @@ export interface GameView {
   /** Von dir abgegebene Karten dieser Runde */
   gave: GaveCard[];
   /** Nur beim Durchblättern der Aufzeichnung: gezeigter Stand (nach `index` von `total` Aktionen) */
-  review?: { index: number; total: number };
+  review?: { index: number; total: number; next?: ReviewNext };
   /** Anzahl aufgezeichneter Aktionen des laufenden Spiels (fehlt bei älteren Spielständen) */
   recorded?: number;
 }
