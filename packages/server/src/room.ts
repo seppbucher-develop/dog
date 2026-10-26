@@ -28,7 +28,7 @@ import type {
   SeatSpec,
   ServerMessage,
 } from '@dog/protocol';
-import { COLOR_COUNT, animationMs } from '@dog/protocol';
+import { COLOR_COUNT, animationMs, canReview } from '@dog/protocol';
 import type { RuleSettings } from '@dog/engine';
 
 export interface Connection {
@@ -481,6 +481,7 @@ export class Room {
 
   /** Aufzeichnung ansehen: nur mit bekanntem Seed; ab dem letzten Stand zurück zum laufenden Spiel. */
   private setReview(me: Participant, index: number | null): void {
+    if (!canReview(me.name)) throw new Error('Nicht erlaubt');
     if (index === null || this.seed === null || index >= this.actions.length) me.review = null;
     else me.review = index;
     this.sendTo(me);

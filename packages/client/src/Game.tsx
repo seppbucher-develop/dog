@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { applyMoveToPegs, layoutFor, sevenNext, tryMove, type Card, type Move, type Peg, type Play, type Pos } from '@dog/engine';
-import type { GameView, LobbyView } from '@dog/protocol';
+import { canReview, type GameView, type LobbyView } from '@dog/protocol';
 import { Board, type BoardMarker } from './Board';
 import type { Spots } from './anim';
 import { useAnimatedView } from './useAnimatedView';
@@ -389,7 +389,7 @@ function GameInner({ lobby, view: live }: { lobby: LobbyView; view: GameView }) 
             </div>
           </div>
         )}
-        {!live.review && (live.recorded ?? 0) > 0 && (
+        {!live.review && canReview(lobby.you.name) && (live.recorded ?? 0) > 0 && (
           <div className="card review">
             <button onClick={() => net.send({ t: 'review', index: live.recorded! - 1 })}>◀ Aufzeichnung ansehen ({live.recorded} Aktionen)</button>
           </div>

@@ -17,6 +17,8 @@ import {
 
 /** Anzahl wählbarer Kugelfarben und ihre Namen (Index = Farbnummer) */
 export const COLOR_NAMES = ['Rot', 'Blau', 'Gelb', 'Grün', 'Schwarz', 'Weiß'] as const;
+/** Nur dieser Spieler (Name, ohne Groß-/Kleinschreibung) darf die Aufzeichnung durchblättern */
+export const canReview = (name: string) => name.trim().toLowerCase() === 'sepp';
 export const COLOR_COUNT = COLOR_NAMES.length;
 
 /** Sitzplatz: Mensch oder Computer; `color` = Kugelfarbe (fehlt sie, vergibt der Server eine freie). */

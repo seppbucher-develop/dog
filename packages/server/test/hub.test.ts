@@ -394,6 +394,16 @@ describe('Verbindung, Ersetzen, Wiederholung, Speichern', () => {
     expect(host.game()!.phase).toBe('finished');
   });
 
+  it('Aufzeichnung: nur Sepp darf den Rückblick nutzen', () => {
+    const env = setup();
+    const host = hostRoom(env.send, 'Anna');
+    env.send(host, { t: 'configure', seats: [{ kind: 'human' }, { kind: 'bot', level: 'expert' }], eightPegs: false, rules: {} });
+    env.send(host, { t: 'start' });
+    env.send(host, { t: 'review', index: 0 });
+    expect(host.lastError()).toMatch(/Nicht erlaubt/);
+    expect(host.game()!.review).toBeUndefined();
+  });
+
   it('Host verlässt: Raum wird geschlossen; Gast verlässt in der Lobby: Platz wird frei', () => {
     const env = setup();
     const host = hostRoom(env.send);
