@@ -155,17 +155,23 @@ export function Board({ layout, geo, pegs, segColors, segNames, activeSegs, sele
               className={activeSegs.has(c) ? 'nest active' : 'nest'}
             />
             {[0, 1, 2, 3].map((i) => <circle key={i} cx={geo.home(c, i).x} cy={geo.home(c, i).y} r={geo.pegR + 1} fill="none" stroke={col} strokeOpacity={0.6} strokeDasharray="3 3" />)}
-            {l.side ? (
-              (segNames[c] ?? []).map((line, i, all) => (
-                <text
-                  key={i}
-                  transform={`translate(${l.side === 1 ? l.x + 15 + i * 21 : l.x - 4 - (all.length - 1 - i) * 21} ${l.y}) rotate(-90)`}
-                  textAnchor="middle"
-                  className={`pname${activeSegs.has(c) ? ' active' : ''}`}
-                >
-                  {line}
-                </text>
-              ))
+            {l.rot !== undefined && l.out ? (
+              (segNames[c] ?? []).map((line, i, all) => {
+                const rad = (l.rot! * Math.PI) / 180;
+                // nächste Zeile liegt in Richtung (-sin, cos): nach außen (dann beginnt der Name am Nest) oder nach innen
+                const outward = l.out!.x * -Math.sin(rad) + l.out!.y * Math.cos(rad) > 0;
+                const off = outward ? 15 + i * 21 : 4 + (all.length - 1 - i) * 21;
+                return (
+                  <text
+                    key={i}
+                    transform={`translate(${l.x + l.out!.x * off} ${l.y + l.out!.y * off}) rotate(${l.rot})`}
+                    textAnchor="middle"
+                    className={`pname${activeSegs.has(c) ? ' active' : ''}`}
+                  >
+                    {line}
+                  </text>
+                );
+              })
             ) : (
               <text
                 x={l.x}
