@@ -30,6 +30,8 @@ export interface Geo {
   woodW: number;
   /** Holzlasche unter dem Nest einer Farbe: vom Ring zum Nest, Breite w */
   tab(color: number): { x1: number; y1: number; x2: number; y2: number; w: number };
+  /** Seitlich neben dem Nest: Pfeil „am Zug“ (mark) und Stapel kleiner Handkarten (fan), auf gegenüberliegenden Seiten */
+  sides(color: number): { mark: Pt; fan: Pt };
   /** Mitte für den Text */
   centre: Pt;
   /** Radius der Zielfelder */
@@ -286,7 +288,26 @@ export function makeGeo(layout: Layout, myColor: number, wanted: BoardStyle = 'c
     return { x1: base.x, y1: base.y, x2: cc.x, y2: cc.y, w: Math.hypot(nst.x2 - nst.x1, nst.y2 - nst.y1) + nst.w + 24 };
   };
 
+  const sides = (c: number) => {
+    const n = nest(c);
+    const len = Math.hypot(n.x2 - n.x1, n.y2 - n.y1);
+    const rl = Math.hypot(n.cx, n.cy) || 1;
+    const t = len > 1 ? { x: (n.x2 - n.x1) / len, y: (n.y2 - n.y1) / len } : { x: -n.cy / rl, y: n.cx / rl };
+    const half = len / 2 + n.w / 2 + 20;
+    const a = { x: n.cx + t.x * half, y: n.cy + t.y * half };
+    const b = { x: n.cx - t.x * half, y: n.cy - t.y * half };
+    // Original: Pfeil auf die vom Namen abgewandte Seite; Kreis: auf die Seite zur Brettmitte
+    const l = label(c);
+    const aFirst = orig ? Math.hypot(a.x - l.x, a.y - l.y) >= Math.hypot(b.x - l.x, b.y - l.y) : Math.hypot(a.x, a.y) <= Math.hypot(b.x, b.y);
+    const [mark, other] = aFirst ? [a, b] : [b, a];
+    const out = { x: other.x - n.cx, y: other.y - n.cy };
+    const ol = Math.hypot(out.x, out.y) || 1;
+    // Kartenstapel etwas weiter weg vom Nest als der Pfeil
+    return { mark, fan: { x: other.x + (out.x / ol) * 10, y: other.y + (out.y / ol) * 10 } };
+  };
+
   return {
+    sides,
     ring,
     home,
     fin,
