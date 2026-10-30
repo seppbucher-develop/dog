@@ -355,10 +355,14 @@ function reachesHouse(sums: Set<number>, toStart: number, run: number): boolean 
   return false;
 }
 
+/** Wert der Einfahrt ins Zielhaus gegenüber der Ringkugel (Zielhaus 600+, Ring höchstens 400) */
+const HOUSE_ENTRY_VALUE = 200;
+
 /**
  * Rückwärts über das Startfeld (4) lässt eine Kugel fast eine Runde "gewinnen". Das gilt nur, wenn sie danach auch ins Haus kommt:
  * mit den restlichen Handkarten (Kombination, ohne zu kurz oder darüber hinaus zu schießen) oder, wenn keine Handkarten mehr übrig
- * sind, mit der nächsten Hand (Anteil der ungesehenen Karten, die passen). Liefert den Abzug in Bewertungspunkten.
+ * sind, mit der nächsten Hand (Anteil der ungesehenen Karten, die passen). Steht die Kugel schon kurz vor dem Haus, kostet das
+ * Zurückgehen die Einfahrt, wenn die Hand vorher gereicht hätte und danach zu kurz ist oder darüber hinausschießt. Liefert den Abzug in Bewertungspunkten.
  */
 function wrapPenalty(state: GameState, layout: Layout, player: number, play: Play, after: Peg[], risk: () => RiskModel): number {
   let penalty = 0;
@@ -368,11 +372,19 @@ function wrapPenalty(state: GameState, layout: Layout, player: number, play: Pla
     const now = after.find((p) => p.id === m.peg)!;
     if (before.pos.t !== 'ring' || now.pos.t !== 'ring') continue;
     const gain = pegValue(layout, now) - pegValue(layout, before);
-    if (gain <= 0) continue; // kein Sprung über das Startfeld
     const toStart = stepsToStart(layout, now);
     const run = freeFinishRun(after, now.color);
     const hand = state.hands[player]!.slice();
     hand.splice(hand.indexOf(play.card), 1);
+    if (gain <= 0) {
+      // Kein Sprung über das Startfeld: Kugel kurz vor dem Haus. Reichte die Hand vorher, nach dem Zurückgehen aber nicht mehr
+      // (zu kurz oder darüber hinaus), geht die Einfahrt verloren.
+      if (run > 0 && toStart <= 13 + run) {
+        const sums = stepSums(hand, layout);
+        if (reachesHouse(sums, stepsToStart(layout, before), run) && !reachesHouse(sums, toStart, run)) penalty += HOUSE_ENTRY_VALUE;
+      }
+      continue;
+    }
     if (run === 0 || reachesHouse(stepSums(hand, layout), toStart, run)) continue;
     // Solange noch Handkarten übrig sind, kommen keine neuen: die Kugel stünde bis zur nächsten Runde ungeschützt vor dem Haus
     if (hand.length > 0) {

@@ -130,6 +130,22 @@ describe('Bots', () => {
     expect(playGame({ players: 4 }, Array(4).fill('expert'), 8)).toEqual(playGame({ players: 4 }, Array(4).fill('expert'), 8));
   });
 
+  describe('4 rückwärts kurz vor dem Haus', () => {
+    // Nur Rückwärts-4 (Regel), Kugel 1 Feld vor dem Startfeld, Hand reicht ohne die 4 ins Haus
+    const config = { players: 4, rules: { fourDirection: 'backward' as const } };
+    const play = (hand: Card[], other: boolean) => {
+      const pegs = { [peg(0, 0)]: ring(63), ...(other ? { [peg(0, 1)]: ring(20) } : {}) };
+      const s = scenario(config, { pegs, hands: [hand, ['5'], ['5'], ['5']] });
+      return chooseAction(s, 0, 'expert', makeRand(1));
+    };
+
+    it('geht nicht zurück, wenn danach die Handkarten nicht mehr ins Haus passen', () => {
+      // vor der 4: 3 reicht (2..5); nach der 4 zurück (5 Felder bis zum Start): 3 zu kurz
+      const a = play(['4', '3'], true);
+      expect(a.card).toBe('3');
+    });
+  });
+
   describe('4 rückwärts über das Startfeld', () => {
     const back = (hand: Card[]) => {
       const s = scenario({ players: 4 }, { pegs: { [peg(0, 0)]: ring(2), [peg(1, 0)]: ring(30) }, hands: [hand, ['5'], ['5'], ['5']] });
