@@ -15,7 +15,7 @@ export interface Geo {
   /** Position einer Kugel */
   peg(p: Peg): Pt;
   /** Textposition des Spielernamens am Nest einer Farbe */
-  label(color: number): Pt & { anchor: 'start' | 'middle' | 'end'; above: boolean; side?: -1 | 1 };
+  label(color: number): Pt & { anchor: 'start' | 'middle' | 'end'; above: boolean; rot?: number; out?: Pt };
   fieldR: number;
   pegR: number;
   /** Abstand benachbarter Ringfelder */
@@ -174,6 +174,14 @@ function sample(c: Curve, t: number): { p: Pt; n: Pt } {
   return { p: { x: a.x + dx * f, y: a.y + dy * f }, n: { x: dy / l, y: -dx / l } };
 }
 
+/** Winkel (Grad) einer Textzeile parallel zur Nestreihe eines Arms mit Außenrichtung `axis`: nach oben gelesen, nie kopfüber */
+function textAngle(axis: Pt): number {
+  let a = (Math.atan2(axis.x, -axis.y) * 180) / Math.PI; // Tangente (-axis.y, axis.x) hat Winkel atan2(axis.x, -axis.y)
+  if (a >= 90 - 1e-6) a -= 180;
+  else if (a < -90 - 1e-6) a += 180;
+  return a;
+}
+
 // ---------- Geometrie ----------
 
 /** Brettgeometrie; die Farbe `myColor` liegt unten, damit man immer von seinem Platz aus sieht. */
@@ -242,7 +250,7 @@ export function makeGeo(layout: Layout, myColor: number, wanted: BoardStyle = 'c
     return { x: p.x - n.x * laneStep * (s + 1), y: p.y - n.y * laneStep * (s + 1) };
   };
   /** Beschriftung: `y` ist die Grundlinie der letzten Zeile (above) bzw. der ersten Zeile (sonst). */
-  const label = (c: number): Pt & { anchor: 'start' | 'middle' | 'end'; above: boolean; side?: -1 | 1 } => {
+  const label = (c: number): Pt & { anchor: 'start' | 'middle' | 'end'; above: boolean; rot?: number; out?: Pt } => {
     const n = nestCentre(c);
     if (orig) {
       const { n: axis } = armEnd(c);
@@ -251,8 +259,8 @@ export function makeGeo(layout: Layout, myColor: number, wanted: BoardStyle = 'c
       const bottom = Math.max(...hs.map((h) => h.y));
       // Nest links oder rechts am Brett: Name seitwärts (von unten nach oben gelesen) neben dem Nest, nach außen
       if (Math.abs(axis.x) > 0.5) {
-        const side = axis.x > 0 ? 1 : -1;
-        return { x: n.x + side * (pegR + 12), y: n.y, anchor: 'middle', above: false, side };
+        // Textrichtung quer zur Armachse (parallel zur Nestreihe), nach oben gerichtet und nie kopfüber
+        return { x: n.x + axis.x * (pegR + 12), y: n.y + axis.y * (pegR + 12), anchor: 'middle', above: false, rot: textAngle(axis), out: { x: axis.x, y: axis.y } };
       }
       // Unten am Brett unter das Nest, sonst über das Nest
       if (axis.y > 0.5) return { x: n.x, y: bottom + pegR + 28, anchor: 'middle', above: false };
@@ -260,7 +268,11 @@ export function makeGeo(layout: Layout, myColor: number, wanted: BoardStyle = 'c
     }
     if (Math.abs(n.x) > 40) {
       const sign = n.x > 0 ? 1 : -1;
-      return { x: n.x + sign * 46, y: n.y + 2, anchor: sign > 0 ? 'start' : 'end', above: false };
+      // Kartenfächer liegt seitlich am Nest (siehe sides): Name davon weg verschieben, damit er nicht überdeckt wird
+      const rl = Math.hypot(n.x, n.y) || 1;
+      const t = { x: -n.y / rl, y: n.x / rl };
+      const fanSign = Math.hypot(n.x + t.x * 54, n.y + t.y * 54) <= Math.hypot(n.x - t.x * 54, n.y - t.y * 54) ? -t.y : t.y;
+      return { x: n.x + sign * 46, y: n.y + 2 - Math.sign(fanSign) * 22, anchor: sign > 0 ? 'start' : 'end', above: false };
     }
     return { x: n.x, y: n.y + (n.y < 0 ? -68 : 62), anchor: 'middle', above: false };
   };
@@ -277,7 +289,7 @@ export function makeGeo(layout: Layout, myColor: number, wanted: BoardStyle = 'c
     grow(n.x, n.y, 40, 40);
     for (let i = 0; i < 4; i++) grow(home(c, i).x, home(c, i).y, 30, 30);
     const l = label(c);
-    if (l.side) grow(l.x + l.side * 50, l.y, 30, 70);
+    if (l.out) grow(l.x + l.out.x * 70, l.y + l.out.y * 70, 60, 70);
     else if (l.anchor === 'middle') grow(l.x, l.y - (l.above ? 26 : 0), 60, 30);
     else grow(l.x + (l.anchor === 'start' ? 120 : -120), l.y, 10, 20);
   }
