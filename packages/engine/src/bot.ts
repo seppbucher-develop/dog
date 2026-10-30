@@ -1,4 +1,4 @@
-import { controlledColors, isBlocker, layoutFor, mod, progress, type Layout } from './board';
+import { controlledColors, FINISH_SLOTS, isBlocker, layoutFor, mod, progress, startField, type Layout } from './board';
 import { legalPlays, pegsAfterPlay } from './moves';
 import { applyAction } from './game';
 import { nextRandom } from './rng';
@@ -44,13 +44,15 @@ export interface LevelParams {
   giftPlayable?: number;
   /** Teamspiel, Kartentausch: Gewicht des Schlag- und Tauschgewinns, den der Partner mit der Karte gegen gegnerische Kugeln erzielen könnte (je Wertpunkt) */
   giftTactic?: number;
+  /** Gewicht der Hausprüfung beim Rückwärtsziehen über das Startfeld: Der Sprung zählt nur, soweit die Kugel danach ins Haus kommt */
+  wrapFinish?: number;
 }
 
 export const LEVEL_PARAMS: Record<BotLevel, LevelParams> = {
   beginner: { random: true, noise: 0, threat: 0, cardCost: 0, teamwork: false },
   intermediate: { random: false, noise: 90, threat: 0, cardCost: 0, teamwork: false },
   advanced: { random: false, noise: 25, threat: 0.12, cardCost: 0.5, teamwork: false },
-  expert: { random: false, noise: 0, threat: 0.2, cardCost: 1, teamwork: true, risk: 1.5, steal: 60, friendlyFire: 500, lookahead: { k: 4, samples: 6, weight: 1 }, forceDump: 60, giftPlayable: 50, giftTactic: 0.3 },
+  expert: { random: false, noise: 0, threat: 0.2, cardCost: 1, teamwork: true, risk: 1.5, steal: 60, friendlyFire: 500, lookahead: { k: 4, samples: 6, weight: 1 }, forceDump: 60, giftPlayable: 50, giftTactic: 0.3, wrapFinish: 1 },
 };
 
 /** Zufallsquelle für Bots aus einem Seed (deterministisch, unabhängig vom Spielzustand). */
@@ -308,6 +310,86 @@ function friendlySent(before: Peg[], after: Peg[], layout: Layout, player: numbe
   return n;
 }
 
+/** Schritte, die eine Karte vorwärts ziehen kann (Bube: keine; Joker: jede Zahl). */
+function forwardSteps(card: Card, layout: Layout): number[] {
+  switch (card) {
+    case 'JOKER': return [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13];
+    case 'A': return [1, 11];
+    case 'Q': return [12];
+    case 'K': return [13];
+    case 'J': return [];
+    case '4': return layout.rules.fourDirection === 'both' ? [4] : [];
+    default: return [Number(card)];
+  }
+}
+
+/** Schritte einer Ringkugel bis zum eigenen Startfeld (Einfahrt ins Zielhaus). */
+function stepsToStart(layout: Layout, p: Peg): number {
+  if (p.pos.t !== 'ring') return Infinity;
+  const sf = startField(p.color);
+  return p.pos.lap ? mod(sf - p.pos.f, layout.ringSize) : layout.ringSize - mod(p.pos.f - sf, layout.ringSize);
+}
+
+/** Freie Zielhausplätze ab dem ersten (die Kugel läuft über alle bis zu ihrem Platz). */
+function freeFinishRun(pegs: Peg[], color: number): number {
+  let n = 0;
+  while (n < FINISH_SLOTS && !pegs.some((q) => q.color === color && q.pos.t === 'fin' && q.pos.s === n)) n++;
+  return n;
+}
+
+/** Mögliche Gesamtschrittzahlen, wenn man beliebig viele der Karten (je einmal) nacheinander auf dieselbe Kugel spielt. */
+function stepSums(cards: Card[], layout: Layout): Set<number> {
+  let sums = new Set<number>([0]);
+  for (const c of cards) {
+    const opts = forwardSteps(c, layout);
+    const next = new Set(sums);
+    for (const s of sums) for (const o of opts) next.add(s + o);
+    sums = next;
+  }
+  return sums;
+}
+
+/** Kommt die Kugel mit einer Kombination der Karten ins Zielhaus (nicht zu kurz, nicht darüber hinaus)? */
+function reachesHouse(sums: Set<number>, toStart: number, run: number): boolean {
+  for (const s of sums) if (s > toStart && s <= toStart + run) return true;
+  return false;
+}
+
+/**
+ * Rückwärts über das Startfeld (4) lässt eine Kugel fast eine Runde "gewinnen". Das gilt nur, wenn sie danach auch ins Haus kommt:
+ * mit den restlichen Handkarten (Kombination, ohne zu kurz oder darüber hinaus zu schießen) oder, wenn keine Handkarten mehr übrig
+ * sind, mit der nächsten Hand (Anteil der ungesehenen Karten, die passen). Liefert den Abzug in Bewertungspunkten.
+ */
+function wrapPenalty(state: GameState, layout: Layout, player: number, play: Play, after: Peg[], risk: () => RiskModel): number {
+  let penalty = 0;
+  for (const m of play.moves) {
+    if (m.t !== 'move' || m.steps >= 0) continue;
+    const before = state.pegs.find((p) => p.id === m.peg)!;
+    const now = after.find((p) => p.id === m.peg)!;
+    if (before.pos.t !== 'ring' || now.pos.t !== 'ring') continue;
+    const gain = pegValue(layout, now) - pegValue(layout, before);
+    if (gain <= 0) continue; // kein Sprung über das Startfeld
+    const toStart = stepsToStart(layout, now);
+    const run = freeFinishRun(after, now.color);
+    const hand = state.hands[player]!.slice();
+    hand.splice(hand.indexOf(play.card), 1);
+    if (run === 0 || reachesHouse(stepSums(hand, layout), toStart, run)) continue;
+    // Solange noch Handkarten übrig sind, kommen keine neuen: die Kugel stünde bis zur nächsten Runde ungeschützt vor dem Haus
+    if (hand.length > 0) {
+      penalty += gain;
+      continue;
+    }
+    // Hand leer: Chance, dass die nächste Hand (ca. drei Karten) einen passenden Schritt enthält
+    const r = risk();
+    let hits = 0;
+    r.unseen.forEach((n, c) => {
+      if (n > 0 && reachesHouse(stepSums([c], layout), toStart, run)) hits += n;
+    });
+    penalty += Math.pow(1 - hits / r.total, 3) * gain;
+  }
+  return penalty;
+}
+
 /** Einfache Gegnerstrategie für die Vorausschau. */
 const LOOKAHEAD_OPPONENT: LevelParams = { random: false, noise: 0, threat: 0.12, cardCost: 0.5, teamwork: false, fast: true };
 
@@ -393,6 +475,7 @@ export function chooseAction(
     const risk = params.risk && params.risk > 0 ? buildRisk(state, layout, player, params.risk) : undefined;
     const base: number[] = [];
     const extra: number[] = [];
+    let wrapRisk: RiskModel | undefined;
     const counted = params.forceDump && layout.teams ? buildRisk(state, layout, player, 0) : undefined;
     for (const play of plays) {
       const after = pegsAfterPlay(state.pegs, layout, play);
@@ -403,6 +486,7 @@ export function chooseAction(
       if (params.friendlyFire && layout.teams) e -= params.friendlyFire * friendlySent(state.pegs, after, layout, player);
       if (known.received !== undefined && play.card === known.received) e -= RECEIVED_CARD_DELAY;
       if (known.heldBy) e += PARTNER_CARD_WEIGHT * partnerCardGain(state, layout, player, known.heldBy.partner, known.heldBy.card, after);
+      if (params.wrapFinish) e -= params.wrapFinish * wrapPenalty(state, layout, player, play, after, () => (wrapRisk ??= buildRisk(state, layout, player, 0)));
       if (counted) e += params.forceDump! * dumpBalance(state, layout, player, after, counted, known.heldBy);
       e += rand() * params.noise;
       extra.push(e);
