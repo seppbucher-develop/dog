@@ -15,7 +15,7 @@ export interface Geo {
   /** Position einer Kugel */
   peg(p: Peg): Pt;
   /** Textposition des Spielernamens am Nest einer Farbe */
-  label(color: number): Pt & { anchor: 'start' | 'middle' | 'end'; above: boolean };
+  label(color: number): Pt & { anchor: 'start' | 'middle' | 'end'; above: boolean; side?: -1 | 1 };
   fieldR: number;
   pegR: number;
   /** Abstand benachbarter Ringfelder */
@@ -242,13 +242,18 @@ export function makeGeo(layout: Layout, myColor: number, wanted: BoardStyle = 'c
     return { x: p.x - n.x * laneStep * (s + 1), y: p.y - n.y * laneStep * (s + 1) };
   };
   /** Beschriftung: `y` ist die Grundlinie der letzten Zeile (above) bzw. der ersten Zeile (sonst). */
-  const label = (c: number): Pt & { anchor: 'start' | 'middle' | 'end'; above: boolean } => {
+  const label = (c: number): Pt & { anchor: 'start' | 'middle' | 'end'; above: boolean; side?: -1 | 1 } => {
     const n = nestCentre(c);
     if (orig) {
       const { n: axis } = armEnd(c);
       const hs = [0, 1, 2, 3].map((i) => home(c, i));
       const top = Math.min(...hs.map((h) => h.y));
       const bottom = Math.max(...hs.map((h) => h.y));
+      // Nest links oder rechts am Brett: Name seitwärts (von oben nach unten gelesen) neben dem Nest, nach außen
+      if (Math.abs(axis.x) > 0.5) {
+        const side = axis.x > 0 ? 1 : -1;
+        return { x: n.x + side * (pegR + 12), y: n.y, anchor: 'middle', above: false, side };
+      }
       // Unten am Brett unter das Nest, sonst über das Nest
       if (axis.y > 0.5) return { x: n.x, y: bottom + pegR + 28, anchor: 'middle', above: false };
       return { x: n.x, y: top - pegR - 14, anchor: 'middle', above: true };
@@ -272,7 +277,8 @@ export function makeGeo(layout: Layout, myColor: number, wanted: BoardStyle = 'c
     grow(n.x, n.y, 40, 40);
     for (let i = 0; i < 4; i++) grow(home(c, i).x, home(c, i).y, 30, 30);
     const l = label(c);
-    if (l.anchor === 'middle') grow(l.x, l.y - (l.above ? 26 : 0), 60, 30);
+    if (l.side) grow(l.x + l.side * 50, l.y, 30, 70);
+    else if (l.anchor === 'middle') grow(l.x, l.y - (l.above ? 26 : 0), 60, 30);
     else grow(l.x + (l.anchor === 'start' ? 120 : -120), l.y, 10, 20);
   }
   const pad = 10;

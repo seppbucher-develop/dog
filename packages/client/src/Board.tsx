@@ -155,14 +155,27 @@ export function Board({ layout, geo, pegs, segColors, segNames, activeSegs, sele
               className={activeSegs.has(c) ? 'nest active' : 'nest'}
             />
             {[0, 1, 2, 3].map((i) => <circle key={i} cx={geo.home(c, i).x} cy={geo.home(c, i).y} r={geo.pegR + 1} fill="none" stroke={col} strokeOpacity={0.6} strokeDasharray="3 3" />)}
-            <text
-              x={l.x}
-              y={l.above ? l.y - ((segNames[c] ?? []).length - 1) * 21 : l.y}
-              textAnchor={l.anchor}
-              className={`pname${activeSegs.has(c) ? ' active' : ''}`}
-            >
-              {(segNames[c] ?? []).map((line, i) => <tspan key={i} x={l.x} dy={i === 0 ? 0 : 21}>{line}</tspan>)}
-            </text>
+            {l.side ? (
+              (segNames[c] ?? []).map((line, i, all) => (
+                <text
+                  key={i}
+                  transform={`translate(${(l.side === 1 ? l.x + (all.length - 1) * 21 : l.x - 15) - i * 21} ${l.y}) rotate(90)`}
+                  textAnchor="middle"
+                  className={`pname${activeSegs.has(c) ? ' active' : ''}`}
+                >
+                  {line}
+                </text>
+              ))
+            ) : (
+              <text
+                x={l.x}
+                y={l.above ? l.y - ((segNames[c] ?? []).length - 1) * 21 : l.y}
+                textAnchor={l.anchor}
+                className={`pname${activeSegs.has(c) ? ' active' : ''}`}
+              >
+                {(segNames[c] ?? []).map((line, i) => <tspan key={i} x={l.x} dy={i === 0 ? 0 : 21}>{line}</tspan>)}
+              </text>
+            )}
           </g>
         );
       })}
