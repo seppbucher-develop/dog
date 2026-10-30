@@ -249,7 +249,7 @@ export function makeGeo(layout: Layout, myColor: number, wanted: BoardStyle = 'c
       const hs = [0, 1, 2, 3].map((i) => home(c, i));
       const top = Math.min(...hs.map((h) => h.y));
       const bottom = Math.max(...hs.map((h) => h.y));
-      // Nest links oder rechts am Brett: Name seitwärts (von oben nach unten gelesen) neben dem Nest, nach außen
+      // Nest links oder rechts am Brett: Name seitwärts (von unten nach oben gelesen) neben dem Nest, nach außen
       if (Math.abs(axis.x) > 0.5) {
         const side = axis.x > 0 ? 1 : -1;
         return { x: n.x + side * (pegR + 12), y: n.y, anchor: 'middle', above: false, side };

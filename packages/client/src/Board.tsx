@@ -159,7 +159,7 @@ export function Board({ layout, geo, pegs, segColors, segNames, activeSegs, sele
               (segNames[c] ?? []).map((line, i, all) => (
                 <text
                   key={i}
-                  transform={`translate(${(l.side === 1 ? l.x + (all.length - 1) * 21 : l.x - 15) - i * 21} ${l.y}) rotate(90)`}
+                  transform={`translate(${l.side === 1 ? l.x + 15 + i * 21 : l.x - 4 - (all.length - 1 - i) * 21} ${l.y}) rotate(-90)`}
                   textAnchor="middle"
                   className={`pname${activeSegs.has(c) ? ' active' : ''}`}
                 >
