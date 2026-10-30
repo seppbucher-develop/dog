@@ -67,8 +67,7 @@ function GameInner({ lobby, view: live }: { lobby: LobbyView; view: GameView }) 
   const spots: Spots = useMemo(
     () => ({
       nest: (seat) => {
-        const n = geo.nest(layout.colorsOf[seat]?.[0] ?? 0);
-        return { x: n.cx, y: n.cy };
+        return geo.sides(layout.colorsOf[seat]?.[0] ?? 0).fan;
       },
       pile: { x: geo.centre.x, y: geo.centre.y - 44 },
       deck: { x: geo.centre.x, y: geo.centre.y + 75 },
@@ -335,7 +334,7 @@ function GameInner({ lobby, view: live }: { lobby: LobbyView; view: GameView }) 
           onPeg={onPeg}
           onMarker={onMarker}
           centerLines={[`Runde ${view.round + 1}`, `Stapel: ${view.deckCount}`, `Geber: ${names[view.dealer]}`]}
-          handCounts={lobby.seats.map((s, p) => ({ name: names[p]!, color: colorHex(s.color), n: view.handSizes[p] ?? 0, turn: view.phase === 'playing' && view.current === p }))}
+          handCounts={lobby.seats.map((s, p) => ({ name: names[p]!, seg: layout.colorsOf[p]?.[0] ?? 0, n: view.handSizes[p] ?? 0, turn: view.phase === 'playing' && view.current === p }))}
           pile={{ top: view.discardTop, count: view.discardCount, suit: suitOf(view.discardSuit) }}
           flights={flights}
         />

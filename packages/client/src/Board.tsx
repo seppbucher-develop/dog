@@ -53,8 +53,8 @@ interface Props {
   onMarker(id: string): void;
   centerLines: string[];
   pile: PileView;
-  /** Handkarten je Spieler, neben dem Ablagestapel angezeigt */
-  handCounts: { name: string; color: string; n: number; turn: boolean }[];
+  /** Handkarten je Spieler (Brettabschnitt seg), als kleine Kartenrücken neben dem Nest */
+  handCounts: { name: string; seg: number; n: number; turn: boolean }[];
   flights: Flight[];
 }
 
@@ -62,6 +62,8 @@ const CARD_W = 46;
 const CARD_H = 64;
 /** Darstellungsgröße der Karten im Ablagestapel (Faktor auf CARD_W x CARD_H) */
 const PILE_SCALE = 2;
+/** Darstellungsgröße der Handkarten neben den Nestern */
+const FAN_SCALE = 0.55;
 
 function CardBack() {
   return (
@@ -172,13 +174,20 @@ export function Board({ layout, geo, pegs, segColors, segNames, activeSegs, sele
         {pile.count > 1 && <rect x={-CARD_W / 2} y={-CARD_H / 2} width={CARD_W} height={CARD_H} rx={6} fill="#f2ecdc" stroke="#8a8474" strokeWidth={1.5} transform="rotate(5) translate(2 1)" />}
         {pile.count > 0 && pile.top && <CardFace card={pile.top} suit={pile.suit} />}
       </g>
+      {/* Handkarten: kleine Kartenrücken je Spieler neben dem Nest */}
       <g className="hand-counts" aria-label="Handkarten der Spieler">
-        {handCounts.map((h, i) => (
-          <g key={i} transform={`translate(${geo.centre.x + 2 * CARD_W / 2 + 14} ${geo.centre.y - 44 - ((handCounts.length - 1) * 24) / 2 + i * 24})`}>
-            <circle r={7} fill={h.color} stroke="#fff" strokeWidth={2} />
-            <text x={14} dominantBaseline="central" className={`hc${h.turn ? ' active' : ''}`}>🂠 {h.n}<title>{h.name}: {h.n} Karten auf der Hand</title></text>
-          </g>
-        ))}
+        {handCounts.map((h) => {
+          const p = geo.sides(h.seg).fan;
+          return (
+            <g key={h.seg} transform={`translate(${p.x} ${p.y})`} className={h.turn ? 'hand-fan active' : 'hand-fan'}>
+              <title>{h.name}: {h.n} Karten auf der Hand</title>
+              {Array.from({ length: h.n }, (_, k) => {
+                const m = k - (h.n - 1) / 2;
+                return <g key={k} transform={`translate(${m * 9} ${Math.abs(m) * 1.5}) rotate(${m * 7}) scale(${FAN_SCALE})`}><CardBack /></g>;
+              })}
+            </g>
+          );
+        })}
       </g>
       <text textAnchor="middle" className="center-text">
         {centerLines.map((t, i) => <tspan key={i} x={geo.centre.x} y={geo.centre.y + 54 + i * 21}>{t}</tspan>)}
@@ -262,17 +271,9 @@ export function Board({ layout, geo, pegs, segColors, segNames, activeSegs, sele
   );
 }
 
-/** Pfeil neben dem Nest: seitlich daneben (auf der Seite zur Brettmitte), zeigt auf das Nest. */
+/** Pfeil neben dem Nest, zeigt auf das Nest. */
 function turnMark(geo: Geo, c: number): { x: number; y: number; angle: number } {
   const n = geo.nest(c);
-  const len = Math.hypot(n.x2 - n.x1, n.y2 - n.y1);
-  const rl = Math.hypot(n.cx, n.cy) || 1;
-  const t = len > 1 ? { x: (n.x2 - n.x1) / len, y: (n.y2 - n.y1) / len } : { x: -n.cy / rl, y: n.cx / rl };
-  const half = len / 2 + n.w / 2 + 20;
-  const a = { x: n.cx + t.x * half, y: n.cy + t.y * half };
-  const b = { x: n.cx - t.x * half, y: n.cy - t.y * half };
-  // Original: auf die Seite, die vom Namen abgewandt ist; Kreis: auf die Seite zur Brettmitte
-  const l = geo.label(c);
-  const p = geo.style === 'original' ? (Math.hypot(a.x - l.x, a.y - l.y) >= Math.hypot(b.x - l.x, b.y - l.y) ? a : b) : Math.hypot(a.x, a.y) <= Math.hypot(b.x, b.y) ? a : b;
+  const p = geo.sides(c).mark;
   return { x: p.x, y: p.y, angle: (Math.atan2(n.cy - p.y, n.cx - p.x) * 180) / Math.PI };
 }
