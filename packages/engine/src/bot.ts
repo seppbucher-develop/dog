@@ -310,6 +310,20 @@ function friendlySent(before: Peg[], after: Peg[], layout: Layout, player: numbe
   return n;
 }
 
+/**
+ * Teamspiel: Bleibt nach dem Zug nur die 7 auf der Hand und müsste sie in der entstehenden Stellung zwingend eine Teamkugel
+ * heimschicken, so ist das Spielen der 7 vorher besser (solange sie jetzt harmlos spielbar ist: `sevenSafeNow`).
+ */
+function forcedSevenFire(state: GameState, layout: Layout, player: number, play: Play, after: Peg[], sevenSafeNow: boolean): boolean {
+  if (!sevenSafeNow || play.card === '7') return false;
+  const hand = state.hands[player]!.slice();
+  hand.splice(hand.indexOf(play.card), 1);
+  if (hand.length !== 1 || hand[0] !== '7') return false;
+  const sim: GameState = { ...state, pegs: after, hands: state.hands.map((h, q) => (q === player ? ['7' as Card] : h)) };
+  const sevens = legalPlays(sim, player);
+  return sevens.length > 0 && sevens.every((sp) => friendlySent(after, pegsAfterPlay(after, layout, sp), layout, player) > 0);
+}
+
 /** Schritte, die eine Karte vorwärts ziehen kann (Bube: keine; Joker: jede Zahl). */
 function forwardSteps(card: Card, layout: Layout): number[] {
   switch (card) {
@@ -488,6 +502,7 @@ export function chooseAction(
     const base: number[] = [];
     const extra: number[] = [];
     let wrapRisk: RiskModel | undefined;
+    const sevenSafeNow = !!params.friendlyFire && layout.teams && plays.some((p) => p.card === '7' && friendlySent(state.pegs, pegsAfterPlay(state.pegs, layout, p), layout, player) === 0);
     const counted = params.forceDump && layout.teams ? buildRisk(state, layout, player, 0) : undefined;
     for (const play of plays) {
       const after = pegsAfterPlay(state.pegs, layout, play);
@@ -496,6 +511,7 @@ export function chooseAction(
       if (play.moves.some((m) => m.t === 'steal')) e += params.steal ?? 25; // eine (unbekannte) Karte gewonnen
       e -= params.cardCost * cardCost(state, layout, player, play);
       if (params.friendlyFire && layout.teams) e -= params.friendlyFire * friendlySent(state.pegs, after, layout, player);
+      if (params.friendlyFire && forcedSevenFire(state, layout, player, play, after, sevenSafeNow)) e -= params.friendlyFire;
       if (known.received !== undefined && play.card === known.received) e -= RECEIVED_CARD_DELAY;
       if (known.heldBy) e += PARTNER_CARD_WEIGHT * partnerCardGain(state, layout, player, known.heldBy.partner, known.heldBy.card, after);
       if (params.wrapFinish) e -= params.wrapFinish * wrapPenalty(state, layout, player, play, after, () => (wrapRisk ??= buildRisk(state, layout, player, 0)));
