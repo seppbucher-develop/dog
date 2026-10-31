@@ -276,6 +276,19 @@ describe('Bots', () => {
     expect(chooseAction({ ...prep, given: [{ from: 1, to: 3, card: '9' }] }, 1, EXPERT_1PLY, makeRand(1)).card).toBe('J');
   });
 
+  it('Experte spielt die 7 früher, wenn sie als letzte Karte zwingend den Partner fressen würde', () => {
+    // Einzige Kugel von Spieler 0 auf 10, Partner (Farbe 2) auf 25. Mit der Dame stünde sie auf 22, die verbleibende 7 müsste
+    // dann über den Partner -> die 7 jetzt spielen (10 -> 17, harmlos).
+    const s = scenario({ players: 4 }, { pegs: { [peg(0, 0)]: ring(10), [peg(2, 0)]: ring(25) }, hands: [['7', 'Q'], ['A'], ['A'], ['A']], current: 0 });
+    const a = chooseAction(s, 0, EXPERT_1PLY, makeRand(1));
+    expect(a.card).toBe('7');
+    const after = applyAction(s, a);
+    expect(after.pegs.find((p) => p.id === peg(2, 0))!.pos).toEqual(ring(25));
+    // Ist die 7 jetzt nicht harmlos spielbar (Partner direkt in Reichweite), bleibt die normale Bewertung
+    const near = scenario({ players: 4 }, { pegs: { [peg(0, 0)]: ring(10), [peg(2, 0)]: ring(14) }, hands: [['7', 'Q'], ['A'], ['A'], ['A']], current: 0 });
+    expect(chooseAction(near, 0, EXPERT_1PLY, makeRand(1)).card).toBe('Q');
+  });
+
   it('Experte-Team schlägt Anfänger-Team deutlich', () => {
     let expertWins = 0;
     const games = 16;
