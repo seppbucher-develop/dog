@@ -275,6 +275,11 @@ const RECEIVED_CARD_DELAY = 20;
 /** Gewicht des Vorteils, den die dem Partner abgegebene (noch ungespielte) Karte nach meinem Zug hätte. */
 const PARTNER_CARD_WEIGHT = 0.6;
 
+/** Kommt durch den Zug mindestens eine Kugel neu ins Zielhaus? */
+function entersHouse(before: Peg[], after: Peg[]): boolean {
+  return after.some((p) => p.pos.t === 'fin' && before.find((q) => q.id === p.id)!.pos.t !== 'fin');
+}
+
 /** Was Bot `player` aus dem Kartentausch weiß: die Karte, die der Empfänger noch hält, und die, die er selbst erhalten hat. */
 function exchangeKnowledge(state: GameState, player: number): { heldBy?: { partner: number; card: Card }; received?: Card } {
   const out: { heldBy?: { partner: number; card: Card }; received?: Card } = {};
@@ -528,7 +533,8 @@ export function chooseAction(
       e -= params.cardCost * cardCost(state, layout, player, play);
       if (params.friendlyFire && layout.teams) e -= params.friendlyFire * friendlySent(state.pegs, after, layout, player);
       if (params.friendlyFire && forcedSevenFire(state, layout, player, play, after, sevenSafeNow)) e -= params.friendlyFire;
-      if (known.received !== undefined && play.card === known.received) e -= RECEIVED_CARD_DELAY;
+      // Eine Kugel ins Zielhaus zu bringen geht vor: dann wird die erhaltene Karte auch früh gespielt
+      if (known.received !== undefined && play.card === known.received && !entersHouse(state.pegs, after)) e -= RECEIVED_CARD_DELAY;
       if (known.heldBy) e += PARTNER_CARD_WEIGHT * partnerCardGain(state, layout, player, known.heldBy.partner, known.heldBy.card, after);
       if (params.wrapFinish) e -= params.wrapFinish * wrapPenalty(state, layout, player, play, after, () => (wrapRisk ??= buildRisk(state, layout, player, 0)));
       if (counted) e += params.forceDump! * dumpBalance(state, layout, player, after, counted, known.heldBy);
