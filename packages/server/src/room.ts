@@ -508,7 +508,9 @@ export class Room {
       : a.t === 'play' ? { t: 'play', player: a.player, card: a.card, ...(a.as ? { as: a.as } : {}), moves: a.moves }
       : a.t === 'exchange' ? { t: 'exchange', player: a.player, card: a.player === seat ? a.card : null }
       : { t: 'draw', player: a.player };
-    return { ...view, legal: null, recorded: this.actions.length, review: { index: n, total: this.actions.length, ...(next ? { next } : {}) } };
+    const g = r.game;
+    const hands = g.hands.map((h, q) => h.map((card, i) => ({ card, suit: g.suits?.hands[q]?.[i] ?? 0 })));
+    return { ...view, legal: null, recorded: this.actions.length, review: { index: n, total: this.actions.length, hands, ...(next ? { next } : {}) } };
   }
 
   /** Bots ziehen lassen, solange sie am Zug sind (Tauschkarten sofort, Züge mit Verzögerung). */

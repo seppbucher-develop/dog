@@ -145,7 +145,7 @@ export interface GameView {
   /** Von dir abgegebene Karten dieser Runde */
   gave: GaveCard[];
   /** Nur beim Durchblättern der Aufzeichnung: gezeigter Stand (nach `index` von `total` Aktionen) */
-  review?: { index: number; total: number; next?: ReviewNext };
+  review?: { index: number; total: number; next?: ReviewNext; /** Alle Handkarten je Platz (nur in der Aufzeichnung) */ hands?: { card: Card; suit: number }[][] };
   /** Anzahl aufgezeichneter Aktionen des laufenden Spiels (fehlt bei älteren Spielständen) */
   recorded?: number;
 }

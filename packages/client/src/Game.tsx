@@ -390,6 +390,24 @@ function GameInner({ lobby, view: live }: { lobby: LobbyView; view: GameView }) 
           <div className="card review" role="group" aria-label="Aufzeichnung">
             <strong>Rückblick: Zug {live.review.index} von {live.review.total}</strong>
             <p className="muted">{nextText(live.review.next, names, live.seat)}</p>
+            {live.review.hands && (
+              <ul className="review-hands">
+                {live.review.hands.map((h, p) => (
+                  <li key={p}>
+                    <b>{names[p]}:</b>{' '}
+                    {h.length === 0 ? '–' : h.map((c, i) => {
+                      const sym = suitOf(c.suit);
+                      return (
+                        <span key={i} className={c.card !== 'JOKER' && isRedSuit(sym) ? 'red' : ''}>
+                          {i > 0 && ', '}
+                          {CARD_TEXT[c.card]}{c.card !== 'JOKER' && sym}
+                        </span>
+                      );
+                    })}
+                  </li>
+                ))}
+              </ul>
+            )}
             <div className="row">
               <button onClick={() => net.send({ t: 'review', index: 0 })} disabled={live.review.index === 0} aria-label="Zum Anfang">⏮</button>
               <button onClick={() => net.send({ t: 'review', index: live.review!.index - 1 })} disabled={live.review.index === 0}>◀ Zurück</button>
