@@ -46,6 +46,8 @@ export interface LevelParams {
   giftTactic?: number;
   /** Gewicht der Hausprüfung beim Rückwärtsziehen über das Startfeld: Der Sprung zählt nur, soweit die Kugel danach ins Haus kommt */
   wrapFinish?: number;
+  /** Abzug je Lücke im Zielhaus (Standard HOUSE_GAP_PENALTY) */
+  gap?: number;
 }
 
 export const LEVEL_PARAMS: Record<BotLevel, LevelParams> = {
@@ -205,29 +207,31 @@ function dumpBalance(
 }
 
 /**
- * Abzug je Lücke im Zielhaus: freie Plätze hinter einer Kugel. Eine Kugel kommt nur ins Haus, wenn alle Plätze bis zu ihrem
+ * Abzug je Lücke im Zielhaus: freie Plätze hinter einer Kugel, hinter denen noch eine weitere Kugel steht. Eine Kugel kommt nur ins Haus, wenn alle Plätze bis zu ihrem
  * Ziel frei sind – Kugeln, die nicht ganz nach hinten aufgerückt sind, versperren also den Einstieg der übrigen. Jeder Schritt im
  * Haus, der eine Lücke schließt, ist damit mehr wert als ein Schritt auf dem Ring (zusätzlich zu den 30 Punkten je Platz).
  */
-const HOUSE_GAP_PENALTY = 40;
+const HOUSE_GAP_PENALTY = 120;
 
 function finishGaps(pegs: Peg[], p: Peg): number {
   if (p.pos.t !== 'fin') return 0;
+  const taken = (s: number) => pegs.some((q) => q.color === p.color && q.pos.t === 'fin' && q.pos.s === s);
   let gaps = 0;
   for (let s = p.pos.s + 1; s < FINISH_SLOTS; s++) {
-    if (!pegs.some((q) => q.color === p.color && q.pos.t === 'fin' && q.pos.s === s)) gaps++;
+    // nur echte Lücken: freie Plätze, hinter denen noch eine Kugel steht (ein freies Ende ist keine Lücke)
+    if (!taken(s) && Array.from({ length: FINISH_SLOTS - s - 1 }, (_, i) => s + 1 + i).some(taken)) gaps++;
   }
   return gaps;
 }
 
 /** Bewertung einer Stellung aus Sicht des Spielers (höher = besser). */
-export function evaluate(pegs: Peg[], layout: Layout, player: number, threatWeight: number, enemyWeight = 0.5, risk?: RiskModel, blockWeight = 0): number {
+export function evaluate(pegs: Peg[], layout: Layout, player: number, threatWeight: number, enemyWeight = 0.5, risk?: RiskModel, blockWeight = 0, gapPenalty = HOUSE_GAP_PENALTY): number {
   const friendly = teamColors(layout, player);
   let score = blockWeight > 0 ? blockWeight * blockTerm(pegs, layout, friendly) : 0;
   for (const p of pegs) {
     const v = pegValue(layout, p);
     if (friendly.includes(p.color)) {
-      score += v - HOUSE_GAP_PENALTY * finishGaps(pegs, p);
+      score += v - gapPenalty * finishGaps(pegs, p);
       if (risk && p.pos.t === 'ring' && v > 0) score -= risk.weight * v * captureProb(pegs, layout, p, friendly, risk);
       else if (threatWeight > 0 && p.pos.t === 'ring' && v > 0) score -= threatWeight * v * Math.min(2, threatCount(pegs, layout, p, friendly));
     } else {
@@ -472,10 +476,10 @@ function lookaheadValues(state: GameState, layout: Layout, player: number, cands
     if (sim.winners) return layout.teamOf[sim.winners[0]!] === layout.teamOf[player] ? 5000 : -5000;
     if (sim.phase === 'playing' && sim.current === player && sim.hands[player]!.length > 0) {
       let best = -Infinity;
-      for (const p of legalPlays(sim, player, true)) best = Math.max(best, evaluate(pegsAfterPlay(sim.pegs, layout, p), layout, player, params.threat, params.enemy, undefined, params.block));
+      for (const p of legalPlays(sim, player, true)) best = Math.max(best, evaluate(pegsAfterPlay(sim.pegs, layout, p), layout, player, params.threat, params.enemy, undefined, params.block, params.gap));
       if (best > -Infinity) return best;
     }
-    return evaluate(sim.pegs, layout, player, params.threat, params.enemy, undefined, params.block);
+    return evaluate(sim.pegs, layout, player, params.threat, params.enemy, undefined, params.block, params.gap);
   };
   for (let s = 0; s < la.samples; s++) {
     const pool = full.slice();
@@ -532,7 +536,7 @@ export function chooseAction(
     const counted = params.forceDump && layout.teams ? buildRisk(state, layout, player, 0) : undefined;
     for (const play of plays) {
       const after = pegsAfterPlay(state.pegs, layout, play);
-      base.push(evaluate(after, layout, player, params.threat, params.enemy, risk, params.block));
+      base.push(evaluate(after, layout, player, params.threat, params.enemy, risk, params.block, params.gap));
       let e = 0;
       if (play.moves.some((m) => m.t === 'steal')) e += params.steal ?? 25; // eine (unbekannte) Karte gewonnen
       e -= params.cardCost * cardCost(state, layout, player, play);
