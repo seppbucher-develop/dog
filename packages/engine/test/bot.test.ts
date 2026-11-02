@@ -267,6 +267,24 @@ describe('Bots', () => {
     expect(chooseAction(s, 0, 'expert', makeRand(1)).card).toBe('5');
   });
 
+  it('Experte räumt mit der 7 im Zielhaus auf, statt eine Kugel mit der nächsten Karte lückenhaft einzuziehen', () => {
+    // Haus: Plätze 2 und 3 belegt; Ringkugel 14 Felder vor dem Start; die 9 käme danach auf Platz 1 und ließe eine Lücke
+    const s = scenario(
+      { players: 4 },
+      {
+        pegs: { [peg(2, 0)]: { t: 'fin', s: 1 }, [peg(2, 1)]: { t: 'fin', s: 2 }, [peg(2, 2)]: ring(18) },
+        hands: [['A', '3', '7'], ['A'], ['5', '7', 'K', 'K', '7', '9'], ['A']],
+        current: 2,
+      },
+    );
+    s.given = [{ from: 0, to: 2, card: '9' }];
+    const a = chooseAction(s, 2, 'expert', makeRand(1));
+    expect(a.card).toBe('7');
+    const after = applyAction(s, a);
+    const slots = after.pegs.filter((p) => p.color === 2 && p.pos.t === 'fin').map((p) => (p.pos as { s: number }).s).sort();
+    expect(slots).toEqual([2, 3]);
+  });
+
   it('Experte bereitet mit seinem Zug den Zug mit der abgegebenen Karte vor', () => {
     // Partner (Spieler 2) hält die 9 und steht 8 Felder vor dem Haus; der Bube holt ihn mit dem Tausch genau dorthin
     const s = scenario(
