@@ -257,6 +257,16 @@ describe('Bots', () => {
     expect(chooseAction(s, 0, 'expert', makeRand(1)).card).toBe('5');
   });
 
+  it('Experte spielt die erhaltene Karte sofort, wenn sie eine gegnerische Kugel schlägt', () => {
+    // Gegnerkugel (Spieler 1) 5 Felder vor meiner Kugel: nur die erhaltene 5 schlägt sie
+    const s = scenario(
+      { players: 4 },
+      { pegs: { [peg(0, 0)]: ring(10), [peg(1, 0)]: ring(15) }, hands: [['5', '8'], ['A'], ['A'], ['A']] },
+    );
+    s.given = [{ from: 2, to: 0, card: '5' }];
+    expect(chooseAction(s, 0, 'expert', makeRand(1)).card).toBe('5');
+  });
+
   it('Experte bereitet mit seinem Zug den Zug mit der abgegebenen Karte vor', () => {
     // Partner (Spieler 2) hält die 9 und steht 8 Felder vor dem Haus; der Bube holt ihn mit dem Tausch genau dorthin
     const s = scenario(
