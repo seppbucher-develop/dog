@@ -385,6 +385,8 @@ describe('Verbindung, Ersetzen, Wiederholung, Speichern', () => {
     const start = host.game()!;
     expect(start.review).toMatchObject({ index: 0, total });
     expect(start.review!.next).toBeDefined();
+    expect(start.review!.hands).toHaveLength(start.handSizes.length);
+    expect(start.review!.hands!.map((h) => h.length)).toEqual(start.handSizes);
     expect(start.legal).toBeNull();
     expect(start.phase).not.toBe('finished');
     expect(start.winners).toBeNull();
