@@ -244,6 +244,29 @@ describe('Bots', () => {
     expect(chooseAction(s, 0, 'expert', makeRand(1)).card).toBe('8');
   });
 
+  it('Experte spielt die erhaltene Karte sofort, wenn sie eine Kugel ins Zielhaus bringt', () => {
+    // Drei Kugeln auf Zielhaus-Platz 1..3, die letzte 4 Felder vor dem Start: die erhaltene 5 macht fertig, die 4 nicht
+    const s = scenario(
+      { players: 4 },
+      {
+        pegs: { [peg(0, 0)]: { t: 'fin', s: 1 }, [peg(0, 1)]: { t: 'fin', s: 2 }, [peg(0, 2)]: { t: 'fin', s: 3 }, [peg(0, 3)]: ring(60) },
+        hands: [['5', '4'], ['A'], ['A'], ['A']],
+      },
+    );
+    s.given = [{ from: 2, to: 0, card: '5' }];
+    expect(chooseAction(s, 0, 'expert', makeRand(1)).card).toBe('5');
+  });
+
+  it('Experte spielt die erhaltene Karte sofort, wenn sie eine gegnerische Kugel schlägt', () => {
+    // Gegnerkugel (Spieler 1) 5 Felder vor meiner Kugel: nur die erhaltene 5 schlägt sie
+    const s = scenario(
+      { players: 4 },
+      { pegs: { [peg(0, 0)]: ring(10), [peg(1, 0)]: ring(15) }, hands: [['5', '8'], ['A'], ['A'], ['A']] },
+    );
+    s.given = [{ from: 2, to: 0, card: '5' }];
+    expect(chooseAction(s, 0, 'expert', makeRand(1)).card).toBe('5');
+  });
+
   it('Experte bereitet mit seinem Zug den Zug mit der abgegebenen Karte vor', () => {
     // Partner (Spieler 2) hält die 9 und steht 8 Felder vor dem Haus; der Bube holt ihn mit dem Tausch genau dorthin
     const s = scenario(
