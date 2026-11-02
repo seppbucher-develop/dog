@@ -204,6 +204,22 @@ function dumpBalance(
   return score;
 }
 
+/**
+ * Abzug je Lücke im Zielhaus: freie Plätze hinter einer Kugel. Eine Kugel kommt nur ins Haus, wenn alle Plätze bis zu ihrem
+ * Ziel frei sind – Kugeln, die nicht ganz nach hinten aufgerückt sind, versperren also den Einstieg der übrigen. Jeder Schritt im
+ * Haus, der eine Lücke schließt, ist damit mehr wert als ein Schritt auf dem Ring (zusätzlich zu den 30 Punkten je Platz).
+ */
+const HOUSE_GAP_PENALTY = 40;
+
+function finishGaps(pegs: Peg[], p: Peg): number {
+  if (p.pos.t !== 'fin') return 0;
+  let gaps = 0;
+  for (let s = p.pos.s + 1; s < FINISH_SLOTS; s++) {
+    if (!pegs.some((q) => q.color === p.color && q.pos.t === 'fin' && q.pos.s === s)) gaps++;
+  }
+  return gaps;
+}
+
 /** Bewertung einer Stellung aus Sicht des Spielers (höher = besser). */
 export function evaluate(pegs: Peg[], layout: Layout, player: number, threatWeight: number, enemyWeight = 0.5, risk?: RiskModel, blockWeight = 0): number {
   const friendly = teamColors(layout, player);
@@ -211,7 +227,7 @@ export function evaluate(pegs: Peg[], layout: Layout, player: number, threatWeig
   for (const p of pegs) {
     const v = pegValue(layout, p);
     if (friendly.includes(p.color)) {
-      score += v;
+      score += v - HOUSE_GAP_PENALTY * finishGaps(pegs, p);
       if (risk && p.pos.t === 'ring' && v > 0) score -= risk.weight * v * captureProb(pegs, layout, p, friendly, risk);
       else if (threatWeight > 0 && p.pos.t === 'ring' && v > 0) score -= threatWeight * v * Math.min(2, threatCount(pegs, layout, p, friendly));
     } else {

@@ -310,3 +310,18 @@ describe('Bots', () => {
     expect(expertWins).toBeGreaterThanOrEqual(16); // Zufallsniveau wäre 12 von 36
   });
 });
+
+describe('Zielhaus aufräumen', () => {
+  it('Die 7 rückt im Haus so weit wie möglich auf, bevor der Rest auf den Ring geht', () => {
+    const s = scenario(
+      { players: 4 },
+      { pegs: { [peg(0, 0)]: fin(0), [peg(0, 1)]: fin(1), [peg(0, 2)]: fin(3), [peg(0, 3)]: { t: 'ring', f: 0 } }, hands: [['7'], ['2'], ['2'], ['2']] },
+    );
+    const inHouse = new Set([peg(0, 0), peg(0, 1), peg(0, 2)]);
+    for (const level of [EXPERT_1PLY, LEVEL_PARAMS.expert]) {
+      const play = chooseAction(s, 0, level, makeRand(7));
+      const houseSteps = play.moves.reduce((n, m) => (m.t === 'move' && inHouse.has(m.peg) ? n + m.steps : n), 0);
+      expect(houseSteps).toBe(2);
+    }
+  });
+});
