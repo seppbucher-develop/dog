@@ -366,3 +366,38 @@ describe('Zielhaus aufräumen', () => {
     }
   });
 });
+
+describe('Am Haus vorbei', () => {
+  const layout = layoutFor({ players: 4 });
+  const pegsOf = (pos: Record<number, ReturnType<typeof ring>>) => scenario({ players: 4 }, { pegs: pos }).pegs;
+
+  it('Eine am Haus vorbeigezogene Kugel verliert ihren Fortschritt in der Bewertung', () => {
+    const before = pegsOf({ [peg(2, 0)]: ring(28) }); // 4 Felder vor dem Startfeld 32
+    const passed = pegsOf({ [peg(2, 0)]: { t: 'ring', f: 38, lap: true } }); // 10 Felder gezogen, am Haus vorbei
+    expect(evaluate(passed, layout, 2, 0)).toBeLessThan(evaluate(before, layout, 2, 0) - 150);
+  });
+
+  it('Kugel genau auf dem Startfeld mit vollendeter Runde behält den vollen Wert', () => {
+    const atStart = pegsOf({ [peg(2, 0)]: { t: 'ring', f: 32, lap: true } });
+    const nearby = pegsOf({ [peg(2, 0)]: ring(28) });
+    expect(evaluate(atStart, layout, 2, 0)).toBeGreaterThan(evaluate(nearby, layout, 2, 0));
+  });
+
+  it('Experte zieht lieber die andere Kugel, als die Kugel vor dem Haus vorbeizuziehen', () => {
+    const s = scenario(
+      { players: 4 },
+      {
+        pegs: {
+          [peg(2, 0)]: ring(28),
+          [peg(2, 1)]: ring(40),
+          [peg(2, 2)]: fin(0),
+          [peg(2, 3)]: fin(1),
+        },
+        hands: [[], [], ['10'], []],
+        current: 2,
+      },
+    );
+    const a = chooseAction(s, 2, 'expert', makeRand(1));
+    expect(a.moves).toEqual([{ t: 'move', peg: peg(2, 1), steps: 10 }]);
+  });
+});
