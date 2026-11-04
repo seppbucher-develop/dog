@@ -71,7 +71,19 @@ export function makeRand(seed: number): () => number {
 function pegValue(layout: Layout, peg: Peg): number {
   if (peg.pos.t === 'home') return 0;
   if (peg.pos.t === 'fin') return 600 + 30 * peg.pos.s;
-  return 100 + (300 * progress(layout, peg)) / layout.ringSize;
+  return 100 + (300 * effectiveProgress(layout, peg)) / layout.ringSize;
+}
+
+/**
+ * Fortschritt für die Bewertung. Eine Kugel mit `lap`, die nicht auf dem Startfeld steht (am Haus vorbeigezogen oder rückwärts
+ * zurückgegangen), hat die Einfahrt noch vor sich: sie zählt nur mit der Strecke, die sie seit dem Startfeld zurückgelegt hat.
+ */
+function effectiveProgress(layout: Layout, peg: Peg): number {
+  if (peg.pos.t === 'ring' && peg.pos.lap) {
+    const toStart = mod(startField(peg.color) - peg.pos.f, layout.ringSize);
+    return layout.ringSize - toStart;
+  }
+  return progress(layout, peg);
 }
 
 function teamColors(layout: Layout, player: number): number[] {
