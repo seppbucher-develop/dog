@@ -6,6 +6,7 @@ import {
   type Card,
   type GameConfig,
   type Move,
+  type Opening,
   type Peg,
   type Phase,
   type Play,
@@ -131,6 +132,8 @@ export interface GameView {
   discardSuit: number;
   current: number;
   dealer: number;
+  /** Eröffnungsziehung um den ersten Spieler (offene Karten); fehlt bei älteren Spielständen */
+  opening?: Opening;
   round: number;
   /** Kartentausch: wer hat schon gewählt */
   exchangeDone: boolean[];

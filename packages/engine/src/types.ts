@@ -112,6 +112,15 @@ export interface SuitTracker {
   discard: number[];
 }
 
+/** Eine Ziehrunde der Eröffnung: pro Spieler die gezogene Karte samt Farbe */
+export type OpeningRound = { card: Card; suit: number }[];
+
+/** Ziehen um den ersten Spieler: alle Ziehrunden (bei Gleichstand mehrere) und der Sieger */
+export interface Opening {
+  rounds: OpeningRound[];
+  winner: number;
+}
+
 export type Phase = 'exchange' | 'playing' | 'finished';
 
 export interface GameState {
@@ -122,6 +131,8 @@ export interface GameState {
   deck: Card[];
   discard: Card[];
   dealer: number;
+  /** Ziehen um den ersten Spieler zu Spielbeginn (fehlt bei älteren Spielständen) */
+  opening?: Opening;
   round: number;
   current: number;
   /** Teamspiel: pro Spieler die zum Tausch gewählte Karte */

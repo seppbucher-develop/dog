@@ -624,6 +624,7 @@ export class Room {
       discardSuit: g.suits?.discard[g.suits.discard.length - 1] ?? 0,
       current: g.current,
       dealer: g.dealer,
+      ...(g.opening ? { opening: g.opening } : {}),
       round: g.round,
       exchangeDone: g.exchange.map((c) => c !== null),
       winners: g.winners,
