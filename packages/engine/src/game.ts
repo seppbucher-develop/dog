@@ -1,7 +1,7 @@
 import { allInFinish, createPegs, layoutFor, type Layout } from './board';
 import { applyMoveToPegs, legalPlays, sevenValid } from './moves';
 import { shuffle } from './rng';
-import { RANKS, type Action, type Card, type GameConfig, type GameState, type Play } from './types';
+import { RANKS, type Action, type Card, type GameConfig, type GameState, type Opening, type OpeningRound, type Play } from './types';
 
 export function fullDeck(): Card[] {
   const deck: Card[] = [];
@@ -48,12 +48,37 @@ function takeFromHand(state: GameState, player: number, idx: number): number {
   return state.suits?.hands[player]?.splice(idx, 1)[0] ?? 0;
 }
 
+/** Stärke einer Karte beim Ziehen um den ersten Spieler: Joker > Ass > König > Dame > Bube > 10 … > 2 */
+const OPENING_STRENGTH: Record<Card, number> = { JOKER: 15, A: 14, K: 13, Q: 12, J: 11, '10': 10, '9': 9, '8': 8, '7': 7, '6': 6, '5': 5, '4': 4, '3': 3, '2': 2 };
+
+/**
+ * Wer beginnt? Ein eigener Stapel wird gemischt, jeder Spieler zieht eine Karte; die höchste gewinnt.
+ * Gibt es mehrere Höchste, wird alles neu gemischt und gezogen. Der Stapel des Spiels bleibt unberührt.
+ */
+export function drawOpening(players: number, seed: number): Opening {
+  const rounds: OpeningRound[] = [];
+  const cards = fullDeck();
+  const allSuits = fullSuits();
+  let s = seed ^ 0x5bd1e995;
+  for (let attempt = 0; attempt < 100; attempt++) {
+    let order: number[];
+    [order, s] = shuffle(cards.map((_, i) => i), s);
+    const draw = order.slice(0, players).map((i) => ({ card: cards[i]!, suit: allSuits[i]! }));
+    rounds.push(draw);
+    const best = Math.max(...draw.map((d) => OPENING_STRENGTH[d.card]));
+    const winners = draw.flatMap((d, p) => (OPENING_STRENGTH[d.card] === best ? [p] : []));
+    if (winners.length === 1) return { rounds, winner: winners[0]! };
+  }
+  return { rounds, winner: 0 };
+}
+
 export function createGame(config: GameConfig, seed: number): GameState {
   const layout = layoutFor(config);
   const cards = fullDeck();
   const allSuits = fullSuits();
   const [order, rng] = shuffle(cards.map((_, i) => i), seed);
   const deck = order.map((i) => cards[i]!);
+  const opening = drawOpening(config.players, seed);
   const state: GameState = {
     config,
     phase: 'playing',
@@ -61,7 +86,9 @@ export function createGame(config: GameConfig, seed: number): GameState {
     hands: Array.from({ length: config.players }, () => []),
     deck,
     discard: [],
-    dealer: config.players - 1,
+    // startRound() rückt den Geber vor; der Spieler links vom Geber beginnt = Sieger der Eröffnungsziehung
+    dealer: (opening.winner - 2 + 2 * config.players) % config.players,
+    opening,
     round: -1,
     current: 0,
     exchange: Array(config.players).fill(null),

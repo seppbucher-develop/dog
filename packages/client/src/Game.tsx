@@ -2,8 +2,9 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { applyMoveToPegs, layoutFor, sevenNext, tryMove, type Card, type Move, type Peg, type Play, type Pos } from '@dog/engine';
 import { canReview, type GameView, type LobbyView, type ReviewNext } from '@dog/protocol';
 import { Board, type BoardMarker } from './Board';
-import type { Spots } from './anim';
+import { isFreshGame, type Spots } from './anim';
 import { useAnimatedView } from './useAnimatedView';
+import { OpeningDraw } from './Opening';
 import { isRedSuit, suitOf } from './cards';
 import { timing } from './speed';
 import { NEUTRAL, colorHex, colorName } from './colors';
@@ -15,7 +16,14 @@ import { candidates, completed, emptySel, jokerRanks, movablePegs, nextMoves, op
 const ORDER: Card[] = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'JOKER'];
 
 export function Game({ lobby, view }: { lobby: LobbyView; view: GameView | null }) {
+  // Zu Spielbeginn wird zuerst um den ersten Spieler gezogen (offene Karten), erst danach wird ausgeteilt
+  const [seenKey, setSeenKey] = useState<string | null>(null);
   if (!view) return <div className="card center">Spiel wird geladen …</div>;
+  const key = view.opening ? JSON.stringify(view.opening) : null;
+  if (view.opening && key !== seenKey && isFreshGame(view) && !view.review) {
+    const names = lobby.seats.map((s, i) => (s.kind === 'bot' ? `Computer ${colorName(s.color)}` : (s.name ?? `Spieler ${i + 1}`)));
+    return <OpeningDraw opening={view.opening} names={names} me={view.seat} onDone={() => setSeenKey(key)} />;
+  }
   return <GameInner lobby={lobby} view={view} />;
 }
 

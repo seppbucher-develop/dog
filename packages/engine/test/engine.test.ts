@@ -348,3 +348,19 @@ describe('Kartentausch im Einzelspiel', () => {
     expect(() => applyAction(createGame({ players: 4 }, 7), { t: 'draw', player: 0, idx: 0 })).toThrow();
   });
 });
+
+describe('Ziehen um den ersten Spieler', () => {
+  it('der Sieger der Eröffnung beginnt, bei Gleichstand wird wiederholt', () => {
+    const seen = new Set<number>();
+    for (let seed = 1; seed <= 200; seed++) {
+      const s = createGame({ players: 4 }, seed);
+      const o = s.opening!;
+      expect(s.current).toBe(o.winner);
+      const last = o.rounds[o.rounds.length - 1]!;
+      expect(last).toHaveLength(4);
+      for (const r of o.rounds.slice(0, -1)) expect(r).toHaveLength(4);
+      seen.add(o.winner);
+    }
+    expect(seen.size).toBe(4);
+  });
+});
