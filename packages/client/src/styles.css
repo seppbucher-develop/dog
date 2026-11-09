@@ -95,9 +95,13 @@ input.code { text-transform: uppercase; letter-spacing: 0.2em; font-weight: 700;
 .rule input[type='checkbox'] { width: 22px; height: 22px; }
 
 /* Spiel */
-.game { display: flex; flex-direction: column; gap: 12px; max-width: 920px; margin: 0 auto; }
+.game { display: flex; flex-direction: column; gap: 12px; max-width: 1080px; margin: 0 auto; }
 .side { display: flex; flex-direction: column; gap: 0; }
 .board { overflow: visible; width: 100%; height: auto; max-height: 92vh; display: block; }
+@media (max-width: 720px) {
+  .app { padding: 8px; }
+  .game .board { width: 100vw; max-width: none; margin-left: 50%; transform: translateX(-50%); }
+}
 .style-switch { margin: 6px 0 2px; }
 .style-switch button { padding: 3px 10px; min-height: 30px; }
 .board-edge { fill: var(--line); stroke: var(--line); stroke-width: 76; stroke-linejoin: round; }
