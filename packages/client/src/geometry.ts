@@ -289,11 +289,11 @@ export function makeGeo(layout: Layout, myColor: number, wanted: BoardStyle = 'c
     grow(n.x, n.y, 40, 40);
     for (let i = 0; i < 4; i++) grow(home(c, i).x, home(c, i).y, 30, 30);
     const l = label(c);
-    if (l.out) grow(l.x, l.y, 14 + 56 * Math.abs(l.out.y), 14 + 56 * Math.abs(l.out.x));
+    if (l.out) grow(l.x + l.out.x * 18, l.y + l.out.y * 18, 22 + 56 * Math.abs(l.out.y), 22 + 56 * Math.abs(l.out.x));
     else if (l.anchor === 'middle') grow(l.x, l.y - (l.above ? 26 : 0), 60, 30);
     else grow(l.x + (l.anchor === 'start' ? 120 : -120), l.y, 10, 20);
   }
-  const pad = 4;
+  const pad = 8;
   const viewBox = `${minX - pad} ${minY - pad} ${maxX - minX + 2 * pad} ${maxY - minY + 2 * pad}`;
 
   const edgePath = `M${curve.points.map((p) => `${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join('L')}Z`;
