@@ -421,12 +421,14 @@ function GameInner({ lobby, view: live }: { lobby: LobbyView; view: GameView }) 
               <button onClick={() => net.send({ t: 'review', index: live.review!.index - 1 })} disabled={live.review.index === 0}>◀ Zurück</button>
               <button onClick={() => net.send({ t: 'review', index: live.review!.index + 1 })}>Vorwärts ▶</button>
               <button className="primary" onClick={() => net.send({ t: 'review', index: null })}>Zurück zum Spiel</button>
+              <button onClick={() => net.send({ t: 'export' })}>Log exportieren</button>
             </div>
           </div>
         )}
         {!live.review && canReview(lobby.you.name) && (live.recorded ?? 0) > 0 && (
           <div className="card review">
             <button onClick={() => net.send({ t: 'review', index: live.recorded! - 1 })}>◀ Aufzeichnung ansehen ({live.recorded} Aktionen)</button>
+            <button onClick={() => net.send({ t: 'export' })}>Log exportieren</button>
           </div>
         )}
         <div className="card status" aria-live="polite">

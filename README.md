@@ -104,3 +104,15 @@ STATIC_DIR=packages/client/dist node packages/server/dist/server.js
 
 Docker: `docker build -t dog .` und `docker run -p 3000:3000 -v dog-data:/data dog`. Die Version (`APP_VERSION`, wird beim Bau
 auf GitHub aus Datum und Commit gesetzt) steht unter `/version` und unten auf der Startseite.
+
+## Spiel analysieren (Log-Export)
+
+Im Rückblick (nur für den Spieler „Sepp“) gibt es den Knopf **Log exportieren**; er lädt eine `dog-log-….json` mit Konfiguration, Seed und allen Aktionen herunter. Damit lässt sich jeder Stand exakt nachspielen:
+
+```
+cd packages/engine
+npx tsx sim/analyze.ts spiel.json                # alle Aktionen
+npx tsx sim/analyze.ts spiel.json 174 --runs 40  # Stellung vor Aktion 174 + Bewertung jeder Zugmöglichkeit des Bots
+```
+
+Die Zahl entspricht „Zug N von M“ im Rückblick. Bei Bot-Zügen werden Stellungsbewertung, Vorausschau und alle Zusatzterme je Kandidat gezeigt; `--runs` zeigt, wie oft jeder Zug gewählt wird (die Vorausschau würfelt).

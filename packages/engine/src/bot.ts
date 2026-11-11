@@ -525,12 +525,27 @@ function lookaheadValues(state: GameState, layout: Layout, player: number, cands
   return totals.map((t) => t / la.samples);
 }
 
+/** Aufschlüsselung der Bewertung eines Kandidatenzugs (für die Analyse von Aufzeichnungen) */
+export interface PlayTrace {
+  play: Play;
+  /** Bewertung der Stellung nach dem Zug */
+  base: number;
+  /** Einzelterme (nur gesetzte, Vorzeichen wie in der Summe) */
+  terms: Record<string, number>;
+  /** Mittelwert der Vorausschau (nur für die besten Kandidaten) */
+  look?: number;
+  /** Endwert, nach dem gewählt wird */
+  total: number;
+  chosen: boolean;
+}
+
 /** Wählt den Zug des Bots (der Spieler muss am Zug sein und mindestens einen legalen Zug haben). */
 export function chooseAction(
   state: GameState,
   player: number,
   level: BotLevel | LevelParams,
   rand: () => number,
+  trace?: PlayTrace[],
 ): Extract<Action, { t: 'play' }> {
   const params = typeof level === 'string' ? LEVEL_PARAMS[level] : level;
   const plays = legalPlays(state, player, params.fast);
@@ -543,6 +558,7 @@ export function chooseAction(
     const risk = params.risk && params.risk > 0 ? buildRisk(state, layout, player, params.risk) : undefined;
     const base: number[] = [];
     const extra: number[] = [];
+    const termsOf: Record<string, number>[] = [];
     let wrapRisk: RiskModel | undefined;
     const sevenSafeNow = !!params.friendlyFire && layout.teams && plays.some((p) => p.card === '7' && friendlySent(state.pegs, pegsAfterPlay(state.pegs, layout, p), layout, player) === 0);
     const counted = params.forceDump && layout.teams ? buildRisk(state, layout, player, 0) : undefined;
@@ -550,21 +566,29 @@ export function chooseAction(
       const after = pegsAfterPlay(state.pegs, layout, play);
       base.push(evaluate(after, layout, player, params.threat, params.enemy, risk, params.block, params.gap));
       let e = 0;
-      if (play.moves.some((m) => m.t === 'steal')) e += params.steal ?? 25; // eine (unbekannte) Karte gewonnen
-      e -= params.cardCost * cardCost(state, layout, player, play);
-      if (params.friendlyFire && layout.teams) e -= params.friendlyFire * friendlySent(state.pegs, after, layout, player);
-      if (params.friendlyFire && forcedSevenFire(state, layout, player, play, after, sevenSafeNow)) e -= params.friendlyFire;
+      const terms: Record<string, number> = {};
+      const add = (k: string, v: number) => {
+        if (v !== 0) terms[k] = v;
+        e += v;
+      };
+      if (play.moves.some((m) => m.t === 'steal')) add('Karte gewonnen', params.steal ?? 25); // eine (unbekannte) Karte gewonnen
+      add('Kartenwert', -params.cardCost * cardCost(state, layout, player, play));
+      if (params.friendlyFire && layout.teams) add('eigene heimgeschickt', -params.friendlyFire * friendlySent(state.pegs, after, layout, player));
+      if (params.friendlyFire && forcedSevenFire(state, layout, player, play, after, sevenSafeNow)) add('7 erzwingt Eigenschlag', -params.friendlyFire);
       // Eine Kugel ins Zielhaus zu bringen oder eine gegnerische zu schlagen geht vor: dann wird die erhaltene Karte auch früh gespielt
-      if (known.received !== undefined && play.card === known.received && !entersHouse(state.pegs, after) && !capturesEnemy(state.pegs, after, teamColors(layout, player))) e -= RECEIVED_CARD_DELAY;
-      if (known.heldBy) e += PARTNER_CARD_WEIGHT * partnerCardGain(state, layout, player, known.heldBy.partner, known.heldBy.card, after);
-      if (params.wrapFinish) e -= params.wrapFinish * wrapPenalty(state, layout, player, play, after, () => (wrapRisk ??= buildRisk(state, layout, player, 0)));
-      if (counted) e += params.forceDump! * dumpBalance(state, layout, player, after, counted, known.heldBy);
-      e += rand() * params.noise;
+      if (known.received !== undefined && play.card === known.received && !entersHouse(state.pegs, after) && !capturesEnemy(state.pegs, after, teamColors(layout, player))) add('erhaltene Karte früh', -RECEIVED_CARD_DELAY);
+      if (known.heldBy) add('Partnerkarte', PARTNER_CARD_WEIGHT * partnerCardGain(state, layout, player, known.heldBy.partner, known.heldBy.card, after));
+      if (params.wrapFinish) add('Rückwärts über Start', -params.wrapFinish * wrapPenalty(state, layout, player, play, after, () => (wrapRisk ??= buildRisk(state, layout, player, 0))));
+      if (counted) add('erzwungene Abwürfe', params.forceDump! * dumpBalance(state, layout, player, after, counted, known.heldBy));
+      add('Rauschen', rand() * params.noise);
+      termsOf.push(terms);
       extra.push(e);
     }
     const scores = base.map((v, i) => v + extra[i]!);
     const order = plays.map((_, i) => i).sort((a, b) => scores[b]! - scores[a]!);
     best = plays[order[0]!]!;
+    const looks = new Map<number, number>();
+    const totals = new Map<number, number>(scores.map((v, i) => [i, v]));
     if (params.lookahead && plays.length > 1) {
       const top = order.slice(0, params.lookahead.k);
       const look = lookaheadValues(state, layout, player, top.map((i) => plays[i]!), params, rand);
@@ -572,12 +596,15 @@ export function chooseAction(
       let bestScore = -Infinity;
       top.forEach((i, c) => {
         const v = (1 - w) * base[i]! + w * look[c]! + extra[i]!;
+        looks.set(i, look[c]!);
+        totals.set(i, v);
         if (v > bestScore) {
           bestScore = v;
           best = plays[i]!;
         }
       });
     }
+    if (trace) plays.forEach((play, i) => trace.push({ play, base: base[i]!, terms: termsOf[i]!, ...(looks.has(i) ? { look: looks.get(i)! } : {}), total: totals.get(i)!, chosen: play === best }));
   }
   const action: Extract<Action, { t: 'play' }> = { t: 'play', player, card: best.card, moves: best.moves };
   if (best.as !== undefined) action.as = best.as;
