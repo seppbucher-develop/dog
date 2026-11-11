@@ -2,6 +2,7 @@ import {
   BOT_LEVELS,
   DEFAULT_RULES,
   RANKS,
+  type Action,
   type BotLevel,
   type Card,
   type GameConfig,
@@ -45,6 +46,8 @@ export type ClientMessage =
   | { t: 'start' }
   /** Aufzeichnung durchblättern: Stand nach `index` Aktionen ansehen (0 = Ausgangslage), `null` = zurück zum laufenden Spiel */
   | { t: 'review'; index: number | null }
+  /** Aufzeichnung des laufenden Spiels als Log-Datei herunterladen (nur wer die Aufzeichnung ansehen darf) */
+  | { t: 'export' }
   /** `suit` = Farbe der Karte (0 Herz, 1 Kreuz, 2 Ecke, 3 Schaufel) */
   | { t: 'exchange'; card: Card; suit?: number }
   /** Einzelspiel, Kartentausch: blind die Karte an Position idx aus der Hand des rechten Nachbarn ziehen */
@@ -166,10 +169,27 @@ export interface PassEvent {
   hand?: { card: Card; suit: number }[];
 }
 
+/**
+ * Vollständige Aufzeichnung eines Spiels: Konfiguration, Seed und alle Aktionen genügen, um jeden Stand exakt nachzuspielen
+ * (`engine/sim/analyze.ts` liest diese Datei und erklärt die Bot-Entscheidungen).
+ */
+export interface GameLog {
+  format: 'dog-log';
+  version: 1;
+  exportedAt: string;
+  config: GameConfig;
+  seed: number;
+  seats: { kind: 'human' | 'bot'; level?: BotLevel; color: number; colorName: string; name?: string }[];
+  actions: Action[];
+  /** Spielstand zum Zeitpunkt des Exports (Kontrolle, ob das Nachspielen übereinstimmt) */
+  finished: boolean;
+}
+
 export type ServerMessage =
   | { t: 'welcome'; token: string; code: string }
   | { t: 'lobby'; lobby: LobbyView }
   | { t: 'game'; view: GameView | null }
+  | { t: 'log'; log: GameLog }
   | { t: 'error'; message: string }
   | { t: 'closed'; reason: string };
 
@@ -295,6 +315,7 @@ export function parseClientMessage(raw: unknown): ClientMessage {
       return { t: 'setBot', seat: int(raw.seat, 'Platz', 0, 5), level: level(raw.level) };
     case 'review':
       return { t: 'review', index: raw.index === null ? null : int(raw.index, 'Position', 0, 100000) };
+    case 'export':
     case 'start':
     case 'rematch':
     case 'leave':

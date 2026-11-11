@@ -19,6 +19,7 @@ import {
 } from '@dog/engine';
 import type {
   ClientMessage,
+  GameLog,
   GameView,
   LastPlay,
   PassEvent,
@@ -29,7 +30,7 @@ import type {
   SeatSpec,
   ServerMessage,
 } from '@dog/protocol';
-import { COLOR_COUNT, animationMs, canReview } from '@dog/protocol';
+import { COLOR_COUNT, COLOR_NAMES, animationMs, canReview } from '@dog/protocol';
 import type { RuleSettings } from '@dog/engine';
 
 export interface Connection {
@@ -227,6 +228,8 @@ export class Room {
         return this.changed();
       case 'review':
         return this.setReview(me, msg.index);
+      case 'export':
+        return this.exportLog(me);
       case 'leave':
         return this.leave(me);
       case 'exchange':
@@ -478,6 +481,30 @@ export class Room {
       this.lastPlay = { n: ++this.playSeq, player: me.seat, card: msg.card, suit: this.lastSuit, moves: msg.moves, ...(msg.as ? { as: msg.as } : {}) };
     }
     this.changed();
+  }
+
+  /** Schickt die komplette Aufzeichnung als Log (zum Herunterladen und Analysieren). */
+  private exportLog(me: Participant): void {
+    if (!canReview(me.name)) throw new Error('Nicht erlaubt');
+    if (this.seed === null || !this.game) throw new Error('Keine Aufzeichnung vorhanden (Spiel vor dem Update gestartet)');
+    const names = this.seats.map((s) => (s.occupant ? this.participants.get(s.occupant)?.name : undefined));
+    const log: GameLog = {
+      format: 'dog-log',
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      config: this.game.config,
+      seed: this.seed,
+      seats: this.seats.map((s, i) => ({
+        kind: s.spec.kind,
+        ...(s.spec.kind === 'bot' ? { level: s.spec.level } : {}),
+        color: s.color,
+        colorName: COLOR_NAMES[s.color] ?? String(s.color),
+        ...(names[i] ? { name: names[i] } : {}),
+      })),
+      actions: this.actions,
+      finished: this.game.phase === 'finished',
+    };
+    me.conn?.send({ t: 'log', log });
   }
 
   /** Aufzeichnung ansehen: nur mit bekanntem Seed; ab dem letzten Stand zurück zum laufenden Spiel. */

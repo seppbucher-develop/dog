@@ -81,6 +81,15 @@ class Net {
       case 'game':
         this.set({ game: m.view });
         break;
+      case 'log': {
+        const blob = new Blob([JSON.stringify(m.log)], { type: 'application/json' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `dog-log-${m.log.exportedAt.slice(0, 19).replace(/[:T]/g, '-')}.json`;
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+        break;
+      }
       case 'error':
         // Sitzung existiert nicht mehr (z. B. Server neu aufgesetzt): Token verwerfen
         if (/nicht mehr vorhanden/.test(m.message)) {
