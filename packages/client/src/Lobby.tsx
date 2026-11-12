@@ -76,9 +76,14 @@ export function Lobby({ lobby }: { lobby: LobbyView }) {
             )}
           </p>
         </div>
-        <button onClick={() => confirm(isHost ? 'Spiel für alle beenden?' : 'Spiel verlassen?') && net.send({ t: 'leave' })}>
-          {isHost ? 'Spiel beenden' : 'Verlassen'}
-        </button>
+        <div className="row">
+          {isHost && (
+            <button className="primary" disabled={!allFilled} onClick={() => net.send({ t: 'start' })}>Spiel starten</button>
+          )}
+          <button onClick={() => confirm(isHost ? 'Spiel für alle beenden?' : 'Spiel verlassen?') && net.send({ t: 'leave' })}>
+            {isHost ? 'Spiel beenden' : 'Verlassen'}
+          </button>
+        </div>
       </header>
 
       {isHost && lobby.requests && lobby.requests.length > 0 && (
@@ -155,7 +160,6 @@ export function Lobby({ lobby }: { lobby: LobbyView }) {
       <section className="card center">
         {isHost ? (
           <>
-            <button className="primary big" disabled={!allFilled} onClick={() => net.send({ t: 'start' })}>Spiel starten</button>
             {!allFilled && <p className="muted">Es warten noch Menschenplätze auf Mitspieler – bewillige Anfragen oder setze Computer ein.</p>}
           </>
         ) : (
