@@ -281,7 +281,7 @@ function isStarter(c: Card): boolean {
 function cardCost(state: GameState, layout: Layout, player: number, play: Play): number {
   const isStart = play.moves.some((m) => m.t === 'start');
   const teamHasHome = state.pegs.some((p) => layout.colorsOf[player]!.includes(p.color) && p.pos.t === 'home');
-  if (play.card === 'JOKER') return isStart ? 15 : 45;
+  if (play.card === 'JOKER') return isStart ? 30 : 45;
   if (isStarter(play.card) && !isStart && teamHasHome) return play.card === 'A' ? 25 : 20;
   return 0;
 }
