@@ -58,7 +58,6 @@ export function Lobby({ lobby }: { lobby: LobbyView }) {
     <div className="lobby">
       <header className="lobby-head">
         <div className="head-left">
-          <h1>Lobby</h1>
           <span className="code-line">Code <b className="code-badge">{lobby.code}</b></span>
           {isHost && (
             <button

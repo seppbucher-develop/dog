@@ -62,6 +62,7 @@ export function App() {
         </div>
       )}
       <div className="topbar">
+        {inLobby && <h1>Lobby</h1>}
         <div className="theme-switch" role="group" aria-label="Darstellung">
           {THEMES.map((t) => (
             <button key={t.id} title={t.title} aria-label={t.title} aria-pressed={theme === t.id} onClick={() => setTheme(t.id)}>

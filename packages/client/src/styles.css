@@ -217,7 +217,7 @@ input.code { text-transform: uppercase; letter-spacing: 0.2em; font-weight: 700;
 .opening-result { min-height: 1.6em; font-size: 1.2rem; font-weight: 700; }
 @media (prefers-reduced-motion: reduce) { .ocard { transition: none; } }
 .head-left { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
-.head-left h1 { margin: 0; font-size: 1.6rem; }
+.topbar h1 { margin: 0 auto 0 0; font-size: 1.6rem; }
 .code-line { display: flex; align-items: center; gap: 6px; color: var(--muted); }
 .head-actions { display: flex; flex-direction: column; align-items: stretch; gap: 6px; }
 .help-btn { width: 32px; height: 32px; padding: 0; border-radius: 50%; font-weight: 700; font-size: 1rem; line-height: 1; flex: none; }
