@@ -59,27 +59,23 @@ export function Lobby({ lobby }: { lobby: LobbyView }) {
   return (
     <div className="lobby">
       <header className="lobby-head">
-        <div>
+        <div className="head-top">
           <h1>Spiellobby</h1>
-          <p className="muted">
-            Code <b className="code-badge">{lobby.code}</b>
-            {isHost && (
-              <>
-                {' '}
-                <button
-                  onClick={() => {
-                    void navigator.clipboard?.writeText(link).then(() => setCopied(true));
-                    setTimeout(() => setCopied(false), 2000);
-                  }}
-                >
-                  {copied ? 'Kopiert ✓' : 'Einladungslink kopieren'}
-                </button>
-              </>
-            )}
-          </p>
+          <span className="code-line">Code <b className="code-badge">{lobby.code}</b></span>
+          <button className="help-btn" aria-label="Hilfe" title="Hilfe" onClick={() => setHelp(true)}>?</button>
         </div>
-        <div className="head-actions">
-          <div className="row">
+        <div className="head-bar">
+          {isHost && (
+            <button
+              onClick={() => {
+                void navigator.clipboard?.writeText(link).then(() => setCopied(true));
+                setTimeout(() => setCopied(false), 2000);
+              }}
+            >
+              {copied ? 'Kopiert ✓' : 'Link kopieren'}
+            </button>
+          )}
+          <div className="row head-actions">
             {isHost && (
               <button className="primary" disabled={!allFilled} onClick={() => net.send({ t: 'start' })}>Spiel starten</button>
             )}
@@ -87,7 +83,6 @@ export function Lobby({ lobby }: { lobby: LobbyView }) {
               {isHost ? 'Spiel beenden' : 'Verlassen'}
             </button>
           </div>
-          <button onClick={() => setHelp(true)}>Hilfe</button>
         </div>
       </header>
 
