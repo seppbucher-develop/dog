@@ -72,7 +72,7 @@ input.code { text-transform: uppercase; letter-spacing: 0.2em; font-weight: 700;
 
 .landing { max-width: 720px; margin: 6vh auto; }
 
-.lobby-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; position: sticky; top: 0; z-index: 10; background: var(--bg); padding: 8px 0; border-bottom: 1px solid var(--line); }
+.lobby-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding-top: 8px; position: sticky; top: 0; z-index: 10; background: var(--bg); padding-bottom: 8px; border-bottom: 1px solid var(--line); }
 .seats { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 8px; }
 .seat { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; }
 .seat.me { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
@@ -194,9 +194,11 @@ input.code { text-transform: uppercase; letter-spacing: 0.2em; font-weight: 700;
 .gave li.held { color: var(--accent); }
 .gave li.gone { color: var(--muted); }
 
-.topbar { display: flex; justify-content: flex-end; align-items: center; gap: 8px; margin: 0 0 8px; }
-.theme-switch { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; background: var(--panel); }
-.theme-switch button { border: 0; border-radius: 0; background: transparent; color: var(--muted); padding: 2px 12px; min-height: 30px; font-size: 0.95rem; cursor: pointer; }
+.topbar { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin: 0; min-height: 36px; }
+.top-right { display: flex; align-items: center; gap: 6px; margin-left: auto; }
+.topbar:has(.help-btn) .top-right { width: var(--rw); }
+.theme-switch { display: inline-flex; height: 36px; flex: 1; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; background: var(--panel); }
+.theme-switch button { border: 0; border-radius: 0; background: transparent; color: var(--muted); padding: 0 6px; min-height: 0; flex: 1; font-size: 0.95rem; cursor: pointer; }
 .theme-switch button[aria-pressed='true'] { background: var(--accent); color: var(--accent-ink); }
 
 .review { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
@@ -216,8 +218,12 @@ input.code { text-transform: uppercase; letter-spacing: 0.2em; font-weight: 700;
 .ocard.joker { color: #7a3fb3; }
 .opening-result { min-height: 1.6em; font-size: 1.2rem; font-weight: 700; }
 @media (prefers-reduced-motion: reduce) { .ocard { transition: none; } }
-.head-left { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+:root { --rw: 10rem; }
+.head-left { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.head-left > * { height: 36px; min-height: 0; }
 .topbar h1 { margin: 0 auto 0 0; font-size: 1.6rem; }
 .code-line { display: flex; align-items: center; gap: 6px; color: var(--muted); }
-.head-actions { display: flex; flex-direction: column; align-items: stretch; gap: 6px; }
-.help-btn { width: 32px; height: 32px; padding: 0; border-radius: 50%; font-weight: 700; font-size: 1rem; line-height: 1; flex: none; }
+.head-actions { display: flex; flex-direction: column; gap: 8px; width: var(--rw); }
+.head-actions button { height: 36px; min-height: 0; padding: 0 8px; white-space: nowrap; }
+.head-left button { padding: 0 12px; white-space: nowrap; }
+.help-btn { width: 36px; height: 36px; min-height: 0; padding: 0; border-radius: 50%; font-weight: 700; font-size: 1rem; line-height: 1; flex: none; }
