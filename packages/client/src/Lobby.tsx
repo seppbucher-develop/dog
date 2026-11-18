@@ -4,7 +4,6 @@ import type { RuleSettings } from '@dog/engine';
 import { colorHex, colorName } from './colors';
 import { LEVEL_LABEL, RULE_FIELDS } from './labels';
 import { net } from './net';
-import { Help } from './Help';
 
 const teamName = (i: number) => `Team ${String.fromCharCode(65 + i)}`;
 
@@ -38,7 +37,6 @@ export function Lobby({ lobby }: { lobby: LobbyView }) {
   const allFilled = lobby.seats.every((s) => s.filled);
   const link = `${location.origin}/?code=${lobby.code}`;
   const [copied, setCopied] = useState(false);
-  const [help, setHelp] = useState(false);
 
   const configure = (seats: SeatSpec[], eightPegs = lobby.eightPegs, rules: Partial<RuleSettings> = lobby.rules) =>
     net.send({ t: 'configure', seats, eightPegs, rules });
@@ -59,39 +57,28 @@ export function Lobby({ lobby }: { lobby: LobbyView }) {
   return (
     <div className="lobby">
       <header className="lobby-head">
-        <div>
-          <h1>Spiellobby</h1>
-          <p className="muted">
-            Code <b className="code-badge">{lobby.code}</b>
-            {isHost && (
-              <>
-                {' '}
-                <button
-                  onClick={() => {
-                    void navigator.clipboard?.writeText(link).then(() => setCopied(true));
-                    setTimeout(() => setCopied(false), 2000);
-                  }}
-                >
-                  {copied ? 'Kopiert ✓' : 'Einladungslink kopieren'}
-                </button>
-              </>
-            )}
-          </p>
+        <div className="head-left">
+          <span className="code-line">Code <b className="code-badge">{lobby.code}</b></span>
+          {isHost && (
+            <button
+              onClick={() => {
+                void navigator.clipboard?.writeText(link).then(() => setCopied(true));
+                setTimeout(() => setCopied(false), 2000);
+              }}
+            >
+              {copied ? 'Kopiert ✓' : 'Einladungslink kopieren'}
+            </button>
+          )}
         </div>
         <div className="head-actions">
-          <div className="row">
-            {isHost && (
-              <button className="primary" disabled={!allFilled} onClick={() => net.send({ t: 'start' })}>Spiel starten</button>
-            )}
-            <button onClick={() => confirm(isHost ? 'Spiel für alle beenden?' : 'Spiel verlassen?') && net.send({ t: 'leave' })}>
-              {isHost ? 'Spiel beenden' : 'Verlassen'}
-            </button>
-          </div>
-          <button onClick={() => setHelp(true)}>Hilfe</button>
+          {isHost && (
+            <button className="primary" disabled={!allFilled} onClick={() => net.send({ t: 'start' })}>Spiel starten</button>
+          )}
+          <button onClick={() => confirm(isHost ? 'Spiel für alle beenden?' : 'Spiel verlassen?') && net.send({ t: 'leave' })}>
+            {isHost ? 'Spiel beenden' : 'Verlassen'}
+          </button>
         </div>
       </header>
-
-      {help && <Help isHost={isHost} onClose={() => setHelp(false)} />}
 
       {isHost && lobby.requests && lobby.requests.length > 0 && (
         <section className="card">
