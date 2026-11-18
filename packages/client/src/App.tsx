@@ -63,14 +63,16 @@ export function App() {
       )}
       <div className="topbar">
         {inLobby && <h1>Lobby</h1>}
-        <div className="theme-switch" role="group" aria-label="Darstellung">
-          {THEMES.map((t) => (
-            <button key={t.id} title={t.title} aria-label={t.title} aria-pressed={theme === t.id} onClick={() => setTheme(t.id)}>
-              {t.label}
-            </button>
-          ))}
+        <div className="top-right">
+          <div className="theme-switch" role="group" aria-label="Darstellung">
+            {THEMES.map((t) => (
+              <button key={t.id} title={t.title} aria-label={t.title} aria-pressed={theme === t.id} onClick={() => setTheme(t.id)}>
+                {t.label}
+              </button>
+            ))}
+          </div>
+          {inLobby && <button className="help-btn" aria-label="Hilfe" title="Hilfe" onClick={() => setHelp(true)}>?</button>}
         </div>
-        {inLobby && <button className="help-btn" aria-label="Hilfe" title="Hilfe" onClick={() => setHelp(true)}>?</button>}
       </div>
       {inLobby && help && <Help isHost={lobby.you.status === 'host'} onClose={() => setHelp(false)} />}
       {body}
