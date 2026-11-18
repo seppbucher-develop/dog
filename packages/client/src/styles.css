@@ -216,3 +216,9 @@ input.code { text-transform: uppercase; letter-spacing: 0.2em; font-weight: 700;
 .ocard.joker { color: #7a3fb3; }
 .opening-result { min-height: 1.6em; font-size: 1.2rem; font-weight: 700; }
 @media (prefers-reduced-motion: reduce) { .ocard { transition: none; } }
+.head-actions { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
+.overlay .card.help { max-width: 560px; max-height: 90vh; overflow-y: auto; margin: 0; }
+.help h3 { margin: 14px 0 6px; font-size: 1rem; }
+.help ul { margin: 0 0 8px; padding-left: 20px; }
+.help li { margin: 3px 0; }
+.help p { margin: 6px 0; }
