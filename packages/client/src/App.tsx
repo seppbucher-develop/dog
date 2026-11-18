@@ -1,7 +1,9 @@
+import { useState } from 'react';
 import { net, useNet } from './net';
 import { Landing } from './Landing';
 import { Lobby } from './Lobby';
 import { Game } from './Game';
+import { Help } from './Help';
 import { isOutdated, useVersion } from './version';
 import { THEMES, useTheme } from './theme';
 
@@ -10,6 +12,8 @@ export function App() {
   const { lobby } = s;
   const ver = useVersion();
   const [theme, setTheme] = useTheme();
+  const [help, setHelp] = useState(false);
+  const inLobby = !!lobby && !s.closed && lobby.phase === 'lobby' && lobby.you.status !== 'pending' && lobby.you.status !== 'rejected';
 
   let body;
   if (s.closed) {
@@ -65,7 +69,9 @@ export function App() {
             </button>
           ))}
         </div>
+        {inLobby && <button className="help-btn" aria-label="Hilfe" title="Hilfe" onClick={() => setHelp(true)}>?</button>}
       </div>
+      {inLobby && help && <Help isHost={lobby.you.status === 'host'} onClose={() => setHelp(false)} />}
       {body}
       {ver.current && <footer className="version">Version {ver.current}</footer>}
     </div>
