@@ -8,6 +8,7 @@ Computerspielern in vier Stärken.
 - **Plätze und Farben:** Der Initiator legt fest, wer wo sitzt und mit welcher Kugelfarbe spielt.
 - **Original-Bretter** bei 3, 4 und 6 Spielern in Kreuzform (jeder Spieler hat einen Arm: Löcher hinaus, über das Ende und zurück, Startfeld in der rechten Ecke des Armendes, Zielhaus von dort nach innen; je Arm vier Abschnitte zu 4 Löchern, abgeschrägte Ecken) oder als Kreis; wechselbar im Spiel.
 - **Einstellungen und Regeln wählbar** (siehe unten), damit jede Runde nach ihren Hausregeln spielen kann.
+- **Hilfe:** In der Spiellobby erklärt der Knopf **Hilfe** (unter „Spiel beenden“ / „Verlassen“) die Lobby, die Karten und den Spielablauf.
 - **Notizen** auf der Startseite (Textzeilen, wahlweise Todos mit Checkbox), nur im eigenen Browser gespeichert.
 - Läuft auf dem eigenen NAS: [Anleitung für Synology](docs/NAS-Anleitung.md).
 
@@ -37,7 +38,7 @@ gerade erst herausgekommen ist, muss zuerst eine ganze Runde laufen. Gespielt we
 | König | herauskommen, 13 Felder |
 | Dame | 12 Felder |
 | 4 | 4 Felder vorwärts oder rückwärts (einstellbar; rückwärts nie ins Haus) |
-| 7 | beliebig auf mehrere Kugeln aufteilbar (eigene; im Teamspiel die der Partner, wenn man fertig ist; Regel `playForAllPartners`; einstellbar: alle Kugeln); alle übersprungenen Kugeln fliegen heim |
+| 7 | beliebig auf mehrere Kugeln aufteilbar (bei 2, 3, 5 Spielern alle Kugeln auf dem Brett; im Teamspiel die eigenen, die der Partner, wenn man fertig ist; Regel `sevenAnyPeg`); alle übersprungenen Kugeln fliegen heim |
 | Bube | immer: zwei Kugeln tauschen |
 | Joker | ersetzt jede Karte, aber nicht für die letzte Kugel ins Haus |
 | 2 | 2 Felder vor; bei 2, 3 und 5 Spielern alternativ blind eine Karte eines Gegners ziehen (zählt als Zug) |
@@ -55,7 +56,7 @@ Spieler fertig, zieht er im Teamspiel für die noch nicht fertigen Partner weite
 | Eigene und Team-Kugeln dürfen geschlagen werden | ja |
 | Bube: Tausch mit Kugeln des Partners | ja |
 | Bube: Tausch zweier eigener Kugeln (verhindert den Abwurf der Hand) | ja |
-| 7: auf alle Kugeln aufteilbar | nein (nur eigene, bzw. Partner wenn fertig) |
+| 7: auf alle Kugeln aufteilbar | automatisch (bei 2, 3, 5 Spielern alle Kugeln, im Teamspiel nur eigene bzw. Partner wenn fertig) |
 | 4 spielen | vorwärts oder rückwärts |
 | 7: dieselbe Kugel mehrfach aufteilen | ja (ändert die Stellungen praktisch nie) |
 | Brett bei 2 Spielern (4 Kugeln) | klein (2 Abschnitte) |
