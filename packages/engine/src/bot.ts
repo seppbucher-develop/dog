@@ -628,6 +628,20 @@ function cardForPartner(state: GameState, layout: Layout, player: number, hand: 
   const needStarter = myPegs.some((p) => p.pos.t === 'home') && !myPegs.some((p) => p.pos.t === 'ring');
   const myStarters = hand.filter(isStarter).length;
 
+  // Wer vom Team spielt in dieser Runde als Erster? Ist das der Empfänger (z. B. weil er fertig ist und für mich mitspielt) und
+  // hat er keine spielbare Karte, würde er seine ganze Hand abwerfen: dann nur Karten geben, die er spielen kann (Starter eingeschlossen)
+  const receiver = layout.giveTo[player]!;
+  let firstOfTeam: number | undefined;
+  for (let i = 0; i < state.config.players && firstOfTeam === undefined; i++) {
+    const q = (state.current + i) % state.config.players;
+    if (layout.teamOf[q] === layout.teamOf[player] && state.hands[q]!.length > 0) firstOfTeam = q;
+  }
+  let mustHelp: Map<Card, boolean> | undefined;
+  if (firstOfTeam === receiver && receiver !== player) {
+    const map = playableCards(state, receiver, state.pegs);
+    if (!state.hands[receiver]!.some((c) => map.get(c)) && hand.some((c) => map.get(c))) mustHelp = map;
+  }
+
   // Eine spielbare Karte erspart dem Partner den Abwurf (und mir, meine Sperre für ihn zu räumen): Wert nach der Wahrscheinlichkeit,
   // dass seine übrigen Karten alle unspielbar wären
   let playable: Map<Card, boolean> | undefined;
@@ -647,7 +661,8 @@ function cardForPartner(state: GameState, layout: Layout, player: number, hand: 
   let best: Card | undefined;
   let bestValue = -Infinity;
   for (const c of new Set(hand)) {
-    if (isStarter(c) && needStarter && myStarters < 2) continue; // sonst komme ich selbst nicht mehr raus
+    if (mustHelp && !mustHelp.get(c)) continue;
+    if (isStarter(c) && needStarter && myStarters < 2 && !mustHelp) continue; // sonst komme ich selbst nicht mehr raus
     let value = KEEP_VALUE[c];
     if (isStarter(c) && partnerHome > 0) value = partnerOut === 0 ? STARTER_GIFT[c]! : value + 20;
     if (playable?.get(c)) value += giftPlayable * dumpCards;
