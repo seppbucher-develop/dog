@@ -124,6 +124,7 @@ Gemessen wird immer A (Experte mit Zusatzterm, mit Partner) gegen den Experten o
 
 - `forceDump` (Parameter in `bot.ts`): Bonus je Karte, die ein Gegner mangels legalem Zug abwerfen muss, Abzug beim Partner. Wahrscheinlichkeit aus Kartenzählung (je Rang: spielbar auf dem Brett nach dem Zug?), getauschte Partnerkarte ist bekannt. Nur im Teamspiel aktiv.
 - `giftPlayable`: beim Tausch Zusatzwert für eine Karte, die der Partner spielen kann, wenn er sonst seine Hand abwerfen müsste.
+- Erstspieler: Der Bot ermittelt beim Tausch, wer vom Team als Erster spielt (z. B. ein fertiger Spieler, der für den Partner mitspielt). Hat dieser als Empfänger keine spielbare Karte, gibt der Bot nur spielbare Karten, auch den einzigen eigenen Starter.
 - `giftTactic`: beim Tausch Zusatzwert für den Wertverlust gegnerischer Kugeln, den der Partner mit der Karte durch Schlagen oder Tauschen erreichen kann (nah am Haus am höchsten).
 
 | Einstellung | Siegquote A |

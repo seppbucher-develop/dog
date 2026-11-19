@@ -54,6 +54,7 @@ export function Help({ isHost, onClose }: { isHost: boolean; onClose: () => void
         <ul>
           <li>Zu Beginn zieht jeder eine offene Karte; die höchste beginnt.</li>
           <li>Kartentausch zu Rundenbeginn: im Team mit dem Partner, sonst blind eine Karte vom rechten Nachbarn ziehen.</li>
+          <li>Hat eine Partei alle Kugeln im Haus, spielt sie für den Partner mit. Achte beim Tausch darauf, wer vom Team als Erster spielt, und gib ihm wenn möglich eine Karte, die er spielen kann (z. B. einen Starter).</li>
           <li>Wähle deine Karte, dann die Kugel bzw. das Zielfeld auf dem Brett. Bei mehreren Möglichkeiten erscheint eine Auswahl.</li>
           <li>Das Brett kannst du zwischen «Original» und «Kreis» umschalten (bei 3, 4 und 6 Spielern).</li>
         </ul>

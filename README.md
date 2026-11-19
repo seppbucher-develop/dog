@@ -53,6 +53,7 @@ Spieler fertig, zieht er im Teamspiel für die noch nicht fertigen Partner weite
 |---|---|
 | Erste Kugel schon auf dem Startfeld | automatisch (bei 2, 3, 5 Spielern) |
 | Kartentausch zu Rundenbeginn | ja (Team: mit dem Partner, sonst blind vom rechten Nachbarn ziehen) |
+| Tausch: Erstspieler im Team | Der Bot prüft, wer vom Team zuerst spielt (z. B. fertiger Spieler, der für den Partner mitspielt), und gibt ihm nach Möglichkeit eine spielbare Karte |
 | Eigene und Team-Kugeln dürfen geschlagen werden | ja |
 | Bube: Tausch mit Kugeln des Partners | ja |
 | Bube: Tausch zweier eigener Kugeln (verhindert den Abwurf der Hand) | ja |
