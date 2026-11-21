@@ -3,7 +3,7 @@ import { applyAction, BOT_LEVELS, chooseAction, evaluate, type Card, chooseDraw,
 import { fin, peg, ring, scenario } from './helpers';
 
 /** Experte ohne Vorausschau: prüft die Ein-Zug-Regeln zum Kartentausch isoliert (die Vorausschau bewertet solche Stellungen eigenständig). */
-const EXPERT_1PLY = { ...LEVEL_PARAMS.expert, lookahead: undefined };
+const EXPERT_1PLY = { ...LEVEL_PARAMS.expert, lookahead: undefined, blockade: undefined };
 /** Experte ohne die Tausch- und Abwurfterme (Vergleichsbasis) */
 const EXPERT_PLAIN = { ...EXPERT_1PLY, forceDump: undefined, giftPlayable: undefined, giftTactic: undefined };
 
@@ -79,6 +79,23 @@ describe('Erzwungener Abwurf', () => {
   it('Gibt die Sperre frei, wenn sonst der Partner abwerfen muss', () => {
     expect(pick(2, 1000, true)).toEqual(ring(5));
     expect(pick(2, 0, true)).toEqual(ring(0)); // ohne den Term schlägt der Bot mit der anderen Kugel
+  });
+});
+
+describe('Sperrgefahr', () => {
+  // Spieler 0 hat nur Kugeln im Heim und im Haus, die Königin (Spieler 2, mein Partner) steht mit ihrer letzten Ringkugel auf 57,
+  // sieben Felder vor Feld 0. Der Partner (Spieler 0) hält zwei Könige (bekannt) und würde mit einem König eine Sperre setzen.
+  const setup = () => {
+    const s = scenario(
+      { players: 4 },
+      { pegs: { [peg(0, 0)]: fin(2), [peg(0, 1)]: fin(1), [peg(2, 0)]: ring(57), [peg(2, 1)]: fin(0), [peg(2, 2)]: fin(1), [peg(2, 3)]: fin(2) }, hands: [['6', 'K', '9', 'K'], ['A'], ['5', '6', '5', '10'], ['A']], current: 2 },
+    );
+    s.given = [{ from: 2, to: 0, card: 'K' }, { from: 0, to: 2, card: '10' }];
+    return s;
+  };
+
+  it('Läuft mit der erhaltenen 10 über das Startfeld des Partners, bevor er mit dem König sperrt', () => {
+    expect(chooseAction(setup(), 2, { ...LEVEL_PARAMS.expert, lookahead: undefined }, makeRand(1)).card).toBe('10');
   });
 });
 

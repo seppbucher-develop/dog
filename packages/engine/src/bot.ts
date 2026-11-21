@@ -46,6 +46,8 @@ export interface LevelParams {
   giftTactic?: number;
   /** Gewicht der Hausprüfung beim Rückwärtsziehen über das Startfeld: Der Sprung zählt nur, soweit die Kugel danach ins Haus kommt */
   wrapFinish?: number;
+  /** Teamspiel: Abzug für eine Teamkugel vor dem Startfeld eines Spielers mit Heimkugeln, der sie sperren könnte (je Wahrscheinlichkeit) */
+  blockade?: number;
   /** Abzug je Lücke im Zielhaus (Standard HOUSE_GAP_PENALTY) */
   gap?: number;
 }
@@ -54,7 +56,7 @@ export const LEVEL_PARAMS: Record<BotLevel, LevelParams> = {
   beginner: { random: true, noise: 0, threat: 0, cardCost: 0, teamwork: false },
   intermediate: { random: false, noise: 90, threat: 0, cardCost: 0, teamwork: false },
   advanced: { random: false, noise: 25, threat: 0.12, cardCost: 0.5, teamwork: false },
-  expert: { random: false, noise: 0, threat: 0.2, cardCost: 1, teamwork: true, risk: 1.5, steal: 60, friendlyFire: 500, lookahead: { k: 4, samples: 16, weight: 0.6 }, forceDump: 60, giftPlayable: 50, giftTactic: 0.3, wrapFinish: 1 },
+  expert: { random: false, noise: 0, threat: 0.2, cardCost: 1, teamwork: true, risk: 1.5, steal: 60, friendlyFire: 500, lookahead: { k: 4, samples: 16, weight: 0.6 }, forceDump: 60, giftPlayable: 50, giftTactic: 0.3, wrapFinish: 1, blockade: 150 },
 };
 
 /** Zufallsquelle für Bots aus einem Seed (deterministisch, unabhängig vom Spielzustand). */
@@ -458,6 +460,39 @@ function wrapPenalty(state: GameState, layout: Layout, player: number, play: Pla
   return penalty;
 }
 
+/**
+ * Sperrgefahr: Steht eine Teamkugel kurz vor dem Startfeld eines anderen Spielers (auch des Partners), dessen Kugeln noch im Heim sind,
+ * und kommt dieser mit einer Starterkarte heraus, steht seine Kugel als Sperre davor. Kommt die Teamkugel dann nicht vorbei, muss
+ * das Team im schlimmsten Fall die ganze Hand abwerfen. Wahrscheinlichkeit: Starterkarte auf der Hand (bekannte Tauschkarte des
+ * Partners = sicher, sonst aus der Kartenzählung). Eigene Heimkugeln zählen nicht (die setzt der Bot selbst nicht ein).
+ */
+function blockadeRisk(state: GameState, layout: Layout, player: number, after: Peg[], risk: RiskModel, heldBy?: { partner: number; card: Card }): number {
+  const friendly = teamColors(layout, player);
+  // Nur gefährlich, wenn jede bewegliche Ringkugel des Teams betroffen wäre (sonst zieht das Team mit einer anderen Kugel)
+  const movers = after.filter((o) => friendly.includes(o.color) && o.pos.t === 'ring' && !o.pos.lap);
+  if (movers.length === 0) return 0;
+  const starters = risk.unseen.get('A')! + risk.unseen.get('K')! + risk.unseen.get('JOKER')!;
+  let notBlocked = 1;
+  const exposed = new Set<number>();
+  for (let q = 0; q < state.config.players; q++) {
+    const h = state.hands[q]!.length;
+    if (q === player || h === 0) continue;
+    const known = heldBy && heldBy.partner === q ? heldBy.card : undefined;
+    let p = 1 - Math.pow(1 - Math.min(1, starters / risk.total), h);
+    if (known !== undefined) p = isStarter(known) ? 1 : 1 - Math.pow(1 - Math.min(1, starters / risk.total), h - 1);
+    for (const c of layout.colorsOf[q]!) {
+      const s = startField(c);
+      if (!after.some((x) => x.color === c && x.pos.t === 'home')) continue;
+      if (after.some((x) => x.pos.t === 'ring' && x.pos.f === s)) continue;
+      const hit = movers.filter((o) => o.color !== c && blockReach(layout, o, s) === 1);
+      if (hit.length === 0) continue;
+      hit.forEach((o) => exposed.add(o.id));
+      notBlocked *= 1 - p;
+    }
+  }
+  return movers.every((o) => exposed.has(o.id)) ? 1 - notBlocked : 0;
+}
+
 /** Einfache Gegnerstrategie für die Vorausschau. */
 const LOOKAHEAD_OPPONENT: LevelParams = { random: false, noise: 0, threat: 0.12, cardCost: 0.5, teamwork: false, fast: true };
 
@@ -579,6 +614,7 @@ export function chooseAction(
       if (known.received !== undefined && play.card === known.received && !entersHouse(state.pegs, after) && !capturesEnemy(state.pegs, after, teamColors(layout, player))) add('erhaltene Karte früh', -RECEIVED_CARD_DELAY);
       if (known.heldBy) add('Partnerkarte', PARTNER_CARD_WEIGHT * partnerCardGain(state, layout, player, known.heldBy.partner, known.heldBy.card, after));
       if (params.wrapFinish) add('Rückwärts über Start', -params.wrapFinish * wrapPenalty(state, layout, player, play, after, () => (wrapRisk ??= buildRisk(state, layout, player, 0))));
+      if (counted && params.blockade) add('Sperrgefahr', -params.blockade * blockadeRisk(state, layout, player, after, counted, known.heldBy));
       if (counted) add('erzwungene Abwürfe', params.forceDump! * dumpBalance(state, layout, player, after, counted, known.heldBy));
       add('Rauschen', rand() * params.noise);
       termsOf.push(terms);
