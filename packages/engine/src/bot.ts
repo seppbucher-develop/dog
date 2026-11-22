@@ -44,6 +44,8 @@ export interface LevelParams {
   giftPlayable?: number;
   /** Teamspiel, Kartentausch: Gewicht des Schlag- und Tauschgewinns, den der Partner mit der Karte gegen gegnerische Kugeln erzielen könnte (je Wertpunkt) */
   giftTactic?: number;
+  /** Teamspiel, Kartentausch: den einzigen eigenen Starter auch dann behalten, wenn der Partner sonst seine ganze Hand abwerfen müsste (sonst wirft stattdessen man selbst ab) */
+  keepLastStarter?: boolean;
   /** Gewicht der Hausprüfung beim Rückwärtsziehen über das Startfeld: Der Sprung zählt nur, soweit die Kugel danach ins Haus kommt */
   wrapFinish?: number;
   /** Teamspiel: Abzug für eine Teamkugel vor dem Startfeld eines Spielers mit Heimkugeln, der sie sperren könnte (je Wahrscheinlichkeit) */
@@ -56,7 +58,7 @@ export const LEVEL_PARAMS: Record<BotLevel, LevelParams> = {
   beginner: { random: true, noise: 0, threat: 0, cardCost: 0, teamwork: false },
   intermediate: { random: false, noise: 90, threat: 0, cardCost: 0, teamwork: false },
   advanced: { random: false, noise: 25, threat: 0.12, cardCost: 0.5, teamwork: false },
-  expert: { random: false, noise: 0, threat: 0.2, cardCost: 1, teamwork: true, risk: 1.5, steal: 60, friendlyFire: 500, lookahead: { k: 4, samples: 16, weight: 0.6 }, forceDump: 60, giftPlayable: 50, giftTactic: 0.3, wrapFinish: 1, blockade: 150 },
+  expert: { random: false, noise: 0, threat: 0.2, cardCost: 1, teamwork: true, risk: 1.5, steal: 60, friendlyFire: 500, lookahead: { k: 4, samples: 16, weight: 0.6 }, forceDump: 60, giftPlayable: 50, giftTactic: 0.3, keepLastStarter: false, wrapFinish: 1, blockade: 150 },
 };
 
 /** Zufallsquelle für Bots aus einem Seed (deterministisch, unabhängig vom Spielzustand). */
@@ -655,7 +657,7 @@ const STARTER_GIFT: Record<string, number> = { K: 200, A: 195, JOKER: 190 };
  * Nie eine Karte, ohne die man sich selbst blockiert (Starterkarte nur abgeben, wenn man schon eine Kugel auf dem
  * Ring hat oder noch eine weitere Starterkarte behält).
  */
-function cardForPartner(state: GameState, layout: Layout, player: number, hand: Card[], giftPlayable = 0, giftTactic = 0): Card | undefined {
+function cardForPartner(state: GameState, layout: Layout, player: number, hand: Card[], giftPlayable = 0, giftTactic = 0, keepLastStarter = false): Card | undefined {
   const pegsOf = (who: number) => state.pegs.filter((p) => controlledColors(state, layout, who).includes(p.color));
   const partnerPegs = pegsOf(layout.giveTo[player]!);
   const partnerHome = partnerPegs.filter((p) => p.pos.t === 'home').length;
@@ -698,7 +700,7 @@ function cardForPartner(state: GameState, layout: Layout, player: number, hand: 
   let bestValue = -Infinity;
   for (const c of new Set(hand)) {
     if (mustHelp && !mustHelp.get(c)) continue;
-    if (isStarter(c) && needStarter && myStarters < 2 && !mustHelp) continue; // sonst komme ich selbst nicht mehr raus
+    if (isStarter(c) && needStarter && myStarters < 2 && (keepLastStarter || !mustHelp)) continue; // sonst komme ich selbst nicht mehr raus
     let value = KEEP_VALUE[c];
     if (isStarter(c) && partnerHome > 0) value = partnerOut === 0 ? STARTER_GIFT[c]! : value + 20;
     if (playable?.get(c)) value += giftPlayable * dumpCards;
@@ -738,7 +740,7 @@ export function chooseExchange(state: GameState, player: number, level: BotLevel
     card = sorted[0]!; // die unwichtigste Karte
     const target = layout.giveTo[player]!;
     const helps = layout.teamOf[target] === layout.teamOf[player];
-    if (params.teamwork && helps) card = cardForPartner(state, layout, player, hand, params.giftPlayable, params.giftTactic) ?? card;
+    if (params.teamwork && helps) card = cardForPartner(state, layout, player, hand, params.giftPlayable, params.giftTactic, params.keepLastStarter) ?? card;
     if (helps && keepsStarterAndGivesJoker(state, layout, player, hand)) card = 'JOKER';
   }
   return { t: 'exchange', player, card };
