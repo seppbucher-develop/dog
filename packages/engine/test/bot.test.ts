@@ -234,14 +234,17 @@ describe('Bots', () => {
     expect(chooseExchange(s, 0, 'expert', makeRand(1)).card).toBe('A');
   });
 
-  it('Ist der Empfänger fertig und spielt als Erster für mich, gibt der Bot ihm seinen einzigen Starter', () => {
+  it('Ist der Empfänger fertig und spielt als Erster für mich, gibt der Bot ihm den einzigen Starter nur ohne keepLastStarter', () => {
     const s = createGame({ players: 4 }, 5);
     for (let i = 0; i < 4; i++) s.pegs.find((p) => p.id === peg(0, i))!.pos = fin(i); // Spieler 0 ist fertig und spielt für Spieler 2
     s.current = 0;
     s.hands[2] = ['K', '2', '3', '9', '5', '6'];
     s.hands[0] = ['2', '3', '4', '5', '6', '9']; // kein Starter: würde alles abwerfen
-    expect(chooseExchange(s, 2, 'expert', makeRand(1)).card).toBe('K');
-    s.current = 2; // Spieler 2 spielt zuerst: den einzigen Starter behält er
+    const without = { ...LEVEL_PARAMS.expert, keepLastStarter: false };
+    expect(chooseExchange(s, 2, without, makeRand(1)).card).toBe('K');
+    expect(chooseExchange(s, 2, 'expert', makeRand(1)).card).not.toBe('K'); // Standard: den einzigen Starter behält er trotzdem
+    s.current = 2; // Spieler 2 spielt zuerst: den einzigen Starter behält er in beiden Fällen
+    expect(chooseExchange(s, 2, without, makeRand(1)).card).not.toBe('K');
     expect(chooseExchange(s, 2, 'expert', makeRand(1)).card).not.toBe('K');
   });
 
@@ -427,5 +430,27 @@ describe('Am Haus vorbei', () => {
     );
     const a = chooseAction(s, 2, 'expert', makeRand(1));
     expect(a.moves).toEqual([{ t: 'move', peg: peg(2, 1), steps: 10 }]);
+  });
+});
+
+describe('Sofortiger Sieg', () => {
+  it('Experte spielt den Siegzug, auch wenn andere Terme einen anderen Zug bevorzugen', () => {
+    // Team Rot/Gelb: Rot fertig, Gelb hat 3 Kugeln im Haus und die letzte 6 Felder vor dem Startfeld; die 7 gewinnt
+    const s = scenario(
+      { players: 4 },
+      {
+        pegs: {
+          [peg(0, 0)]: fin(0), [peg(0, 1)]: fin(1), [peg(0, 2)]: fin(2), [peg(0, 3)]: fin(3),
+          [peg(2, 0)]: fin(3), [peg(2, 1)]: fin(2), [peg(2, 2)]: fin(1), [peg(2, 3)]: ring(26),
+        },
+        hands: [['2'], ['A'], ['4', '7', '6'], ['A']],
+        current: 2,
+      },
+    );
+    for (let seed = 1; seed <= 5; seed++) {
+      const a = chooseAction(s, 2, 'expert', makeRand(seed));
+      expect(a.card).toBe('7');
+      expect(applyAction(s, a).winners).toEqual([0, 2]);
+    }
   });
 });
