@@ -576,6 +576,18 @@ export interface PlayTrace {
   chosen: boolean;
 }
 
+/** Ein Zug, der das Spiel sofort für das Team des Spielers beendet (nur Züge prüfen, die eine Kugel ins Haus bringen). */
+function winningPlay(state: GameState, layout: Layout, player: number, plays: Play[]): Play | undefined {
+  for (const play of plays) {
+    if (!entersHouse(state.pegs, pegsAfterPlay(state.pegs, layout, play))) continue;
+    const action: Extract<Action, { t: 'play' }> = { t: 'play', player, card: play.card, moves: play.moves };
+    if (play.as !== undefined) action.as = play.as;
+    const next = applyAction(state, action, true);
+    if (next.winners?.some((w) => layout.teamOf[w] === layout.teamOf[player])) return play;
+  }
+  return undefined;
+}
+
 /** Wählt den Zug des Bots (der Spieler muss am Zug sein und mindestens einen legalen Zug haben). */
 export function chooseAction(
   state: GameState,
@@ -590,7 +602,10 @@ export function chooseAction(
   const layout = layoutFor(state.config);
 
   let best: Play = plays[Math.floor(rand() * plays.length)]!;
-  if (!params.random) {
+  // Ein Zug, der das Spiel sofort für das eigene Team gewinnt, geht allen Bewertungen vor
+  const winning = params.random ? undefined : winningPlay(state, layout, player, plays);
+  if (winning) best = winning;
+  else if (!params.random) {
     const known = params.teamwork ? exchangeKnowledge(state, player) : {};
     const risk = params.risk && params.risk > 0 ? buildRisk(state, layout, player, params.risk) : undefined;
     const base: number[] = [];

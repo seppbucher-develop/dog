@@ -429,3 +429,25 @@ describe('Am Haus vorbei', () => {
     expect(a.moves).toEqual([{ t: 'move', peg: peg(2, 1), steps: 10 }]);
   });
 });
+
+describe('Sofortiger Sieg', () => {
+  it('Experte spielt den Siegzug, auch wenn andere Terme einen anderen Zug bevorzugen', () => {
+    // Team Rot/Gelb: Rot fertig, Gelb hat 3 Kugeln im Haus und die letzte 6 Felder vor dem Startfeld; die 7 gewinnt
+    const s = scenario(
+      { players: 4 },
+      {
+        pegs: {
+          [peg(0, 0)]: fin(0), [peg(0, 1)]: fin(1), [peg(0, 2)]: fin(2), [peg(0, 3)]: fin(3),
+          [peg(2, 0)]: fin(3), [peg(2, 1)]: fin(2), [peg(2, 2)]: fin(1), [peg(2, 3)]: ring(26),
+        },
+        hands: [['2'], ['A'], ['4', '7', '6'], ['A']],
+        current: 2,
+      },
+    );
+    for (let seed = 1; seed <= 5; seed++) {
+      const a = chooseAction(s, 2, 'expert', makeRand(seed));
+      expect(a.card).toBe('7');
+      expect(applyAction(s, a).winners).toEqual([0, 2]);
+    }
+  });
+});
