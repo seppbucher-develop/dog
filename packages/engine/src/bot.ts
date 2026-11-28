@@ -464,13 +464,19 @@ function wrapPenalty(state: GameState, layout: Layout, player: number, play: Pla
   return penalty;
 }
 
+/** Hand ohne die gespielte Karte (eine Instanz) */
+function restHand(hand: Card[], played: Card): Card[] {
+  const i = hand.indexOf(played);
+  return i < 0 ? hand : [...hand.slice(0, i), ...hand.slice(i + 1)];
+}
+
 /**
  * Sperrgefahr: Steht eine Teamkugel kurz vor dem Startfeld eines anderen Spielers (auch des Partners), dessen Kugeln noch im Heim sind,
  * und kommt dieser mit einer Starterkarte heraus, steht seine Kugel als Sperre davor. Kommt die Teamkugel dann nicht vorbei, muss
  * das Team im schlimmsten Fall die ganze Hand abwerfen. Wahrscheinlichkeit: Starterkarte auf der Hand (bekannte Tauschkarte des
  * Partners = sicher, sonst aus der Kartenzählung). Eigene Heimkugeln zählen nicht (die setzt der Bot selbst nicht ein).
  */
-function blockadeRisk(state: GameState, layout: Layout, player: number, after: Peg[], risk: RiskModel, heldBy?: { partner: number; card: Card }): number {
+function blockadeRisk(state: GameState, layout: Layout, player: number, after: Peg[], risk: RiskModel, heldBy?: { partner: number; card: Card }, rest: Card[] = []): number {
   const friendly = teamColors(layout, player);
   // Nur gefährlich, wenn jede bewegliche Ringkugel des Teams betroffen wäre (sonst zieht das Team mit einer anderen Kugel)
   const movers = after.filter((o) => friendly.includes(o.color) && o.pos.t === 'ring' && !o.pos.lap);
@@ -494,8 +500,14 @@ function blockadeRisk(state: GameState, layout: Layout, player: number, after: P
       notBlocked *= 1 - p;
     }
   }
-  return movers.every((o) => exposed.has(o.id)) ? 1 - notBlocked : 0;
+  if (!movers.every((o) => exposed.has(o.id))) return 0;
+  // Eine Rest-4 (oder Joker als 4) zieht die Kugel immer vor der Sperre zurück: dann droht kein Totalabwurf
+  const retreat = rest.some((c) => c === '4' || c === 'JOKER') ? BLOCKADE_RETREAT_FACTOR : 1;
+  return (1 - notBlocked) * retreat;
 }
+
+/** Anteil der Sperrgefahr, der bleibt, wenn nach dem Zug noch eine 4 (oder ein Joker) auf der Hand ist */
+const BLOCKADE_RETREAT_FACTOR = 0.25;
 
 /** Einfache Gegnerstrategie für die Vorausschau. */
 const LOOKAHEAD_OPPONENT: LevelParams = { random: false, noise: 0, threat: 0.12, cardCost: 0.5, teamwork: false, fast: true };
@@ -634,7 +646,7 @@ export function chooseAction(
       if (known.heldBy) add('Partnerkarte', PARTNER_CARD_WEIGHT * partnerCardGain(state, layout, player, known.heldBy.partner, known.heldBy.card, after));
       if (params.wrapFinish) add('Rückwärts über Start', -params.wrapFinish * wrapPenalty(state, layout, player, play, after, () => (wrapRisk ??= buildRisk(state, layout, player, 0))));
       if (params.retreat && play.moves.some((m) => m.t === 'move' && m.steps < 0) && !entersHouse(state.pegs, after) && !capturesEnemy(state.pegs, after, teamColors(layout, player))) add('Rückzug', -params.retreat);
-      if (counted && params.blockade) add('Sperrgefahr', -params.blockade * blockadeRisk(state, layout, player, after, counted, known.heldBy));
+      if (counted && params.blockade) add('Sperrgefahr', -params.blockade * blockadeRisk(state, layout, player, after, counted, known.heldBy, restHand(state.hands[player]!, play.card)));
       if (counted) add('erzwungene Abwürfe', params.forceDump! * dumpBalance(state, layout, player, after, counted, known.heldBy));
       add('Rauschen', rand() * params.noise);
       termsOf.push(terms);
