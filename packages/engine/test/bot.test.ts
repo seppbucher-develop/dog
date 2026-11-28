@@ -99,6 +99,20 @@ describe('Sperrgefahr', () => {
   });
 });
 
+describe('Sperrgefahr mit Rest-4', () => {
+  // Gelb (Spieler 2) hat nur eine Ringkugel auf 49, 15 Felder vor Rots Startfeld 0. Rot hält sicher ein Ass (Tauschkarte).
+  // Mit einer zweiten 4 auf der Hand zieht Gelb später bei Bedarf zurück: er muss nicht jetzt rückwärts ziehen.
+  it('Zieht nicht vorsorglich rückwärts, wenn noch eine 4 auf der Hand bleibt', () => {
+    const s = scenario(
+      { players: 4 },
+      { pegs: { [peg(0, 0)]: fin(3), [peg(2, 0)]: ring(49), [peg(3, 0)]: ring(12) }, hands: [['J', '7', 'A'], [], ['4', '4', '7'], ['6', '2', 'J']], current: 2 },
+    );
+    s.given = [{ from: 0, to: 2, card: '7' }, { from: 2, to: 0, card: 'A' }];
+    const a = chooseAction(s, 2, LEVEL_PARAMS.expert, makeRand(1));
+    expect(a.moves.every((m) => m.t !== 'move' || m.steps > 0)).toBe(true);
+  });
+});
+
 describe('Kartentausch mit Sperre', () => {
   const setup = () => {
     // Partner (Spieler 2) steht mit der letzten Kugel 2 Felder vor meiner Sperre auf Feld 0, die übrigen Kugeln sind im Haus
