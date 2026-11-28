@@ -52,13 +52,15 @@ export interface LevelParams {
   blockade?: number;
   /** Abzug je Lücke im Zielhaus (Standard HOUSE_GAP_PENALTY) */
   gap?: number;
+  /** Kleiner Abzug für einen Rückwärtszug (4), der weder schlägt noch ins Haus führt: bei fast gleichen Zügen soll nicht der Zufall zurückgehen */
+  retreat?: number;
 }
 
 export const LEVEL_PARAMS: Record<BotLevel, LevelParams> = {
   beginner: { random: true, noise: 0, threat: 0, cardCost: 0, teamwork: false },
   intermediate: { random: false, noise: 90, threat: 0, cardCost: 0, teamwork: false },
   advanced: { random: false, noise: 25, threat: 0.12, cardCost: 0.5, teamwork: false },
-  expert: { random: false, noise: 0, threat: 0.2, cardCost: 1, teamwork: true, risk: 1.5, steal: 60, friendlyFire: 500, lookahead: { k: 4, samples: 16, weight: 0.6 }, forceDump: 60, giftPlayable: 50, giftTactic: 0.3, keepLastStarter: true, wrapFinish: 1, blockade: 150 },
+  expert: { random: false, noise: 0, threat: 0.2, cardCost: 1, teamwork: true, risk: 1.5, steal: 60, friendlyFire: 500, lookahead: { k: 4, samples: 16, weight: 0.6 }, forceDump: 60, giftPlayable: 50, giftTactic: 0.3, keepLastStarter: true, wrapFinish: 1, blockade: 150, retreat: 20 },
 };
 
 /** Zufallsquelle für Bots aus einem Seed (deterministisch, unabhängig vom Spielzustand). */
@@ -631,6 +633,7 @@ export function chooseAction(
       if (known.received !== undefined && play.card === known.received && !entersHouse(state.pegs, after) && !capturesEnemy(state.pegs, after, teamColors(layout, player))) add('erhaltene Karte früh', -RECEIVED_CARD_DELAY);
       if (known.heldBy) add('Partnerkarte', PARTNER_CARD_WEIGHT * partnerCardGain(state, layout, player, known.heldBy.partner, known.heldBy.card, after));
       if (params.wrapFinish) add('Rückwärts über Start', -params.wrapFinish * wrapPenalty(state, layout, player, play, after, () => (wrapRisk ??= buildRisk(state, layout, player, 0))));
+      if (params.retreat && play.moves.some((m) => m.t === 'move' && m.steps < 0) && !entersHouse(state.pegs, after) && !capturesEnemy(state.pegs, after, teamColors(layout, player))) add('Rückzug', -params.retreat);
       if (counted && params.blockade) add('Sperrgefahr', -params.blockade * blockadeRisk(state, layout, player, after, counted, known.heldBy));
       if (counted) add('erzwungene Abwürfe', params.forceDump! * dumpBalance(state, layout, player, after, counted, known.heldBy));
       add('Rauschen', rand() * params.noise);
